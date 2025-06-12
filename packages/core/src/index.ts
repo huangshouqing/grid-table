@@ -24,7 +24,7 @@ const columns: ColumnDef[] = [
     { field: 'status', headerName: '状态', width: 80 },
 ];
 
-const data = Array.from({ length: 100 }, (_, i) => {
+const rowData = Array.from({ length: 100 }, (_, i) => {
     const id = `B${String(10000 + i).padStart(5, '0')}`;
     const checkDate = new Date(2024, 0, 1);
     checkDate.setDate(checkDate.getDate() + i);
@@ -61,7 +61,7 @@ if (gridContainer) {
     new Grid({
         container: gridContainer,
         columns,
-        data,
+        rowData,
         frozenColumns: 2,
     });
 }
