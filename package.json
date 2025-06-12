@@ -1,0 +1,11 @@
+{
+  "name": "grid-table-monorepo",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --filter ./packages/core dev"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "vite": "^5.0.0"
+  }
+} 
