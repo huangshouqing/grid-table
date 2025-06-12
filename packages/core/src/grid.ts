@@ -22,6 +22,7 @@ export class Grid implements GridApi {
     private resizeStartX: number = 0;
     private resizeColumn: Column | null = null;
     private resizeElement: HTMLElement | null = null;
+    private originalEditValue: any;
 
     constructor(options: GridOptions) {
         this.options = {
@@ -353,8 +354,10 @@ export class Grid implements GridApi {
                     
                     // 渲染非编辑状态组件
                     if (column.cellRenderer.view) {
+                        // 确保使用正确的值：优先使用传入的value，如果为undefined则使用row中的值
+                        const displayValue = value !== undefined ? value : row[column.field];
                         const viewComponent = column.cellRenderer.view({
-                            value,
+                            value: displayValue,
                             data: row,
                             rowIndex,
                             colId: column.field,
@@ -370,8 +373,9 @@ export class Grid implements GridApi {
                 // 处理传统的渲染器函数
                 const node = this.rowNodes.get(row.id || rowIndex);
                 if (node) {
+                    const displayValue = value !== undefined ? value : row[column.field];
                     const customElement = column.cellRenderer({
-                        value,
+                        value: displayValue,
                         data: row,
                         rowIndex,
                         colId: column.field,
@@ -385,8 +389,9 @@ export class Grid implements GridApi {
         } else if (column.valueFormatter) {
             // 处理格式化文本
             const p = document.createElement('p');
+            const displayValue = value !== undefined ? value : row[column.field];
             p.textContent = column.valueFormatter({
-                value,
+                value: displayValue,
                 data: row,
                 column
             });
@@ -394,7 +399,8 @@ export class Grid implements GridApi {
         } else {
             // 处理纯文本
             const p = document.createElement('p');
-            p.textContent = value?.toString() ?? '';
+            const displayValue = value !== undefined ? value : row[column.field];
+            p.textContent = displayValue?.toString() ?? '';
             cellContent.appendChild(p);
         }
 
@@ -403,6 +409,8 @@ export class Grid implements GridApi {
             cell.classList.add('editable');
         }
 
+        // 清空单元格内容并添加新内容
+        cell.innerHTML = '';
         cell.appendChild(cellContent);
     }
 
@@ -522,14 +530,36 @@ export class Grid implements GridApi {
     }
 
     private startEditing(cell: HTMLElement, column: Column, row: any, value: any) {
+        // 如果已经在编辑，不要重复创建
         if (cell.classList.contains('editing')) return;
         
         const cellContent = cell.querySelector('.grid-cell-content') as HTMLElement;
         if (!cellContent) return;
         
+        // 保存原始值用于取消编辑 - 使用行数据中的实际值
+        this.originalEditValue = row[column.field];
+        
         // 保存原始内容用于取消编辑
         const originalContent = cellContent.innerHTML;
         cell.classList.add('editing');
+
+        // 添加点击外部监听器
+        const handleClickOutside = (e: MouseEvent) => {
+            const target = e.target as HTMLElement;
+            // 如果点击的不是当前编辑的单元格或其子元素，则退出编辑模式
+            if (!cell.contains(target)) {
+                document.removeEventListener('click', handleClickOutside);
+                // 如果没有进行任何编辑，使用原始值
+                const currentValue = this.getCellEditValue(cell);
+                const finalValue = currentValue === null ? this.originalEditValue : currentValue;
+                this.finishEditing(cell, column, row, finalValue);
+            }
+        };
+
+        // 延迟添加事件监听器，避免触发当前的点击事件
+        setTimeout(() => {
+            document.addEventListener('click', handleClickOutside);
+        }, 0);
 
         if (column.cellRenderer && typeof column.cellRenderer === 'object' && column.cellRenderer.edit) {
             // 使用自定义编辑器组件
@@ -539,8 +569,8 @@ export class Grid implements GridApi {
             const node = this.rowNodes.get(row.id);
             if (node) {
                 const editorComponent = column.cellRenderer.edit({
-                    value,
-                    startValue: value,
+                    value: this.originalEditValue, // 使用行数据中的实际值
+                    startValue: this.originalEditValue, // 使用行数据中的实际值
                     data: row,
                     rowIndex: node.rowIndex,
                     colId: column.field,
@@ -548,14 +578,17 @@ export class Grid implements GridApi {
                     api: this,
                     node,
                     onComplete: (newValue) => {
+                        document.removeEventListener('click', handleClickOutside);
                         this.finishEditing(cell, column, row, newValue);
                     },
                     onCancel: () => {
+                        document.removeEventListener('click', handleClickOutside);
                         cell.classList.remove('editing');
                         cellContent.innerHTML = originalContent;
                     }
                 });
                 
+                // 清空内容并添加编辑器
                 cellContent.innerHTML = '';
                 componentContainer.appendChild(editorComponent);
                 cellContent.appendChild(componentContainer);
@@ -565,8 +598,9 @@ export class Grid implements GridApi {
             const input = document.createElement('input');
             input.type = 'text';
             input.className = 'cell-editor';
-            input.value = value?.toString() ?? '';
+            input.value = this.originalEditValue?.toString() ?? ''; // 使用行数据中的实际值
             
+            // 清空内容并添加输入框
             cellContent.innerHTML = '';
             cellContent.appendChild(input);
             
@@ -576,30 +610,58 @@ export class Grid implements GridApi {
             input.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter') {
                     e.preventDefault();
+                    document.removeEventListener('click', handleClickOutside);
                     this.finishEditing(cell, column, row, input.value);
                 } else if (e.key === 'Escape') {
                     e.preventDefault();
+                    document.removeEventListener('click', handleClickOutside);
                     cell.classList.remove('editing');
                     cellContent.innerHTML = originalContent;
                 }
             });
-            
-            input.addEventListener('blur', () => {
-                this.finishEditing(cell, column, row, input.value);
-            });
         }
     }
 
+    // 获取当前编辑单元格的值
+    private getCellEditValue(cell: HTMLElement): any {
+        const input = cell.querySelector('input.cell-editor') as HTMLInputElement;
+        if (input) {
+            return input.value;
+        }
+        
+        // 如果是自定义编辑器，可能需要特殊处理
+        const customComponent = cell.querySelector('.grid-cell-custom-component');
+        if (customComponent) {
+            // 检查 select 元素
+            const select = customComponent.querySelector('select') as HTMLSelectElement;
+            if (select) {
+                return select.value;
+            }
+            
+            // 检查 input 元素
+            const input = customComponent.querySelector('input') as HTMLInputElement;
+            if (input) {
+                return input.type === 'number' ? parseInt(input.value, 10) : input.value;
+            }
+            
+            // 如果没有找到输入元素，返回原始内容
+            const originalContent = customComponent.textContent;
+            return originalContent || null;
+        }
+        
+        return null;
+    }
+
     private finishEditing(cell: HTMLElement, column: Column, row: any, newValue: any) {
+        // 如果已经不在编辑状态，直接返回
+        if (!cell.classList.contains('editing')) return;
+        
         cell.classList.remove('editing');
         const oldValue = row[column.field];
         row[column.field] = newValue;
         
         // 重新渲染单元格
-        const cellContent = cell.querySelector('.grid-cell-content') as HTMLElement;
-        if (cellContent) {
-            this.renderCell(cell, column, row, newValue, row.rowIndex);
-        }
+        this.renderCell(cell, column, row, newValue, row.rowIndex);
         
         // 触发值变更事件
         if (this.options.onCellValueChanged) {
