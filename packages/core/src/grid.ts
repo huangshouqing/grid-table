@@ -37,6 +37,9 @@ export class Grid implements GridApi {
         // 添加样式
         const style = document.createElement('style');
         style.textContent = `
+            .grid-container {
+                position: relative;
+            }
             .grid-cell-content {
                 position: relative;
                 width: 100%;
@@ -61,11 +64,11 @@ export class Grid implements GridApi {
                 opacity: 1;
             }
             .grid-drag-highlight {
-                position: fixed;
+                position: absolute;
                 pointer-events: none;
                 border: 1px dashed #1a73e8;
                 background-color: rgba(26, 115, 232, 0.1);
-                z-index: 1000;
+                z-index: 1;
             }
         `;
         document.head.appendChild(style);
@@ -1244,22 +1247,33 @@ export class Grid implements GridApi {
     private highlightDragRange(startCell: HTMLElement, endCell: HTMLElement) {
         this.clearDragHighlight();
         
+        // 获取表格容器的位置信息
+        const gridRect = this.element.getBoundingClientRect();
         const startRect = startCell.getBoundingClientRect();
         const endRect = endCell.getBoundingClientRect();
         
         const highlight = document.createElement('div');
         highlight.className = 'grid-drag-highlight';
-        highlight.style.position = 'absolute';
-        highlight.style.top = `${Math.min(startRect.top, endRect.top)}px`;
-        highlight.style.left = `${Math.min(startRect.left, endRect.left)}px`;
-        highlight.style.width = `${Math.abs(endRect.left - startRect.left) + endRect.width}px`;
-        highlight.style.height = `${Math.abs(endRect.top - startRect.top) + endRect.height}px`;
         
-        document.body.appendChild(highlight);
+        // 计算相对于表格容器的位置
+        const top = Math.min(startRect.top, endRect.top) - gridRect.top;
+        const left = Math.min(startRect.left, endRect.left) - gridRect.left;
+        const width = Math.abs(endRect.left - startRect.left) + endRect.width;
+        const height = Math.abs(endRect.top - startRect.top) + endRect.height;
+        
+        highlight.style.position = 'absolute';
+        highlight.style.top = `${top}px`;
+        highlight.style.left = `${left}px`;
+        highlight.style.width = `${width}px`;
+        highlight.style.height = `${height}px`;
+        
+        // 将高亮框添加到表格容器中，而不是 body
+        this.element.appendChild(highlight);
     }
 
     private clearDragHighlight() {
-        const highlight = document.querySelector('.grid-drag-highlight');
+        // 从表格容器中移除高亮框
+        const highlight = this.element.querySelector('.grid-drag-highlight');
         if (highlight) {
             highlight.remove();
         }
