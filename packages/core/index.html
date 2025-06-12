@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Grid Table Demo</title>
     <link rel="stylesheet" href="./src/style.css" />
+    <link rel="stylesheet" href="./src/grid.css" />
     <style>
       body {
         margin: 0;
@@ -26,7 +27,6 @@
       }
       .grid-container {
         height: 400px;
-        margin-bottom: 20px;
         border: 1px solid #e8e8e8;
       }
       .code-block {
@@ -52,7 +52,7 @@
         left: 0;
         color: #1890ff;
       }
-      
+
       /* 状态样式 */
       .status-active {
         color: #52c41a;
@@ -84,7 +84,7 @@
   <body>
     <div class="container">
       <h1>Grid Table Features Demo</h1>
-      
+
       <div class="demo-section">
         <h2>基础功能</h2>
         <div id="basicGrid" class="grid-container"></div>
@@ -169,11 +169,11 @@
           "iPad Pro",
           "AirPods Pro",
           "Apple Watch Series 8",
-          "iMac 24\"",
+          'iMac 24"',
           "Mac mini M2",
-          "MacBook Pro 16\"",
+          'MacBook Pro 16"',
           "Apple TV 4K",
-          "HomePod mini"
+          "HomePod mini",
         ];
         const categories = [
           "Smartphones",
@@ -182,7 +182,7 @@
           "Audio",
           "Wearables",
           "Desktop",
-          "Accessories"
+          "Accessories",
         ];
         const locations = [
           "San Francisco",
@@ -191,7 +191,7 @@
           "Chicago",
           "Seattle",
           "Boston",
-          "Austin"
+          "Austin",
         ];
 
         return Array.from({ length: 100 }, (_, i) => ({
@@ -202,7 +202,9 @@
           price: Math.floor(Math.random() * 2000) + 299,
           stock: Math.floor(Math.random() * 100),
           location: locations[Math.floor(Math.random() * locations.length)],
-          lastUpdated: new Date(Date.now() - Math.random() * 10000000000).toISOString().split('T')[0]
+          lastUpdated: new Date(Date.now() - Math.random() * 10000000000)
+            .toISOString()
+            .split("T")[0],
         }));
       }
 
@@ -211,8 +213,20 @@
       const basicGrid = new Grid({
         columns: [
           { field: "id", headerName: "编号", width: 100, frozen: true },
-          { field: "name", headerName: "名称", width: 150, sortable: true },
-          { field: "age", headerName: "年龄", width: 100, sortable: true },
+          { 
+            field: "name", 
+            headerName: "名称", 
+            width: 150, 
+            sortable: true,
+            editable: true // 纯文本编辑模式
+          },
+          { 
+            field: "age", 
+            headerName: "年龄", 
+            width: 100, 
+            sortable: true,
+            editable: true
+          },
           { field: "city", headerName: "城市", width: 120 },
         ],
         rowData: getData(),
@@ -222,35 +236,118 @@
       // 初始化高级网格
       const advancedGrid = new Grid({
         columns: [
-          { 
-            field: "id", 
-            headerName: "编号", 
-            width: 100, 
-            frozen: true 
-          },
-          { 
-            field: "name", 
-            headerName: "产品名称", 
-            width: 180, 
+          {
+            field: "id",
+            headerName: "编号",
+            width: 200,
+            frozen: true,
             sortable: true,
-            editable: true 
+            filterable: true,
           },
-          { 
-            field: "category", 
-            headerName: "类别", 
-            width: 120, 
-            sortable: true 
+          {
+            field: "name",
+            headerName: "产品名称",
+            width: 180,
+            sortable: true,
+            editable: true,
+            // 自定义组件渲染器
+            cellRenderer: {
+              // 非编辑状态显示
+              view: (params) => {
+                const div = document.createElement("div");
+                div.textContent = params.value;
+                return div;
+              },
+              // 编辑状态显示
+              edit: (params) => {
+                const select = document.createElement("select");
+                select.innerHTML = `
+                  <option value="iPhone 14 Pro">iPhone 14 Pro</option>
+                  <option value="MacBook Air M2">MacBook Air M2</option>
+                  <option value="iPad Pro">iPad Pro</option>
+                  <option value="AirPods Pro">AirPods Pro</option>
+                `;
+                select.value = params.value;
+                
+                select.onchange = () => {
+                  params.onComplete(select.value);
+                };
+                
+                select.onblur = () => {
+                  params.onComplete(select.value);
+                };
+                
+                return select;
+              }
+            }
+          },
+          {
+            field: "category",
+            headerName: "类别",
+            width: 120,
+            sortable: true,
+            editable: true,
+            cellRenderer: {
+              view: (params) => {
+                const div = document.createElement("div");
+                div.textContent = params.value;
+                return div;
+              },
+              edit: (params) => {
+                const select = document.createElement("select");
+                select.innerHTML = `
+                  <option value="Smartphones">Smartphones</option>
+                  <option value="Laptops">Laptops</option>
+                  <option value="Tablets">Tablets</option>
+                  <option value="Audio">Audio</option>
+                  <option value="Wearables">Wearables</option>
+                `;
+                select.value = params.value;
+                
+                select.onchange = () => {
+                  params.onComplete(select.value);
+                };
+                
+                select.onblur = () => {
+                  params.onComplete(select.value);
+                };
+                
+                return select;
+              }
+            }
           },
           {
             field: "status",
             headerName: "状态",
             width: 100,
             sortable: true,
-            cellRenderer: (params) => {
-              const el = document.createElement("div");
-              el.textContent = params.value;
-              el.className = `status-${params.value}`;
-              return el;
+            editable: true,
+            cellRenderer: {
+              view: (params) => {
+                const el = document.createElement("div");
+                el.textContent = params.value;
+                el.className = `status-${params.value}`;
+                return el;
+              },
+              edit: (params) => {
+                const select = document.createElement("select");
+                select.innerHTML = `
+                  <option value="active">激活</option>
+                  <option value="inactive">未激活</option>
+                  <option value="pending">待处理</option>
+                `;
+                select.value = params.value;
+                
+                select.onchange = () => {
+                  params.onComplete(select.value);
+                };
+                
+                select.onblur = () => {
+                  params.onComplete(select.value);
+                };
+                
+                return select;
+              }
             }
           },
           {
@@ -258,6 +355,7 @@
             headerName: "价格",
             width: 120,
             sortable: true,
+            editable: true,
             valueFormatter: (params) => {
               return `¥${params.value.toLocaleString()}`;
             }
@@ -267,69 +365,92 @@
             headerName: "库存",
             width: 100,
             sortable: true,
-            cellRenderer: (params) => {
-              const el = document.createElement("div");
-              el.textContent = params.value;
-              if (params.value < 10) {
-                el.style.color = "#ff4d4f";
-                el.style.fontWeight = "bold";
-              } else if (params.value < 30) {
-                el.style.color = "#faad14";
+            editable: true,
+            cellRenderer: {
+              view: (params) => {
+                const el = document.createElement("div");
+                el.textContent = params.value;
+                if (params.value < 10) {
+                  el.style.color = "#ff4d4f";
+                  el.style.fontWeight = "bold";
+                } else if (params.value < 30) {
+                  el.style.color = "#faad14";
+                }
+                return el;
+              },
+              edit: (params) => {
+                const input = document.createElement("input");
+                input.type = "number";
+                input.min = "0";
+                input.value = params.value;
+                
+                input.onchange = () => {
+                  params.onComplete(parseInt(input.value, 10));
+                };
+                
+                input.onblur = () => {
+                  params.onComplete(parseInt(input.value, 10));
+                };
+                
+                return input;
               }
-              return el;
             }
           },
           {
             field: "location",
             headerName: "位置",
             width: 140,
-            sortable: true
+            sortable: true,
+            editable: true
           },
           {
             field: "lastUpdated",
             headerName: "更新时间",
             width: 120,
             sortable: true
-          }
+          },
         ],
         rowData: getAdvancedData(),
         rowClass: (params) => {
-          return params.data.status === 'inactive' ? 'inactive-row' : '';
-        }
+          return params.data.status === "inactive" ? "inactive-row" : "";
+        },
       });
       advancedGrid.render(document.getElementById("advancedGrid"));
 
       // 添加一些交互功能示例
-      document.addEventListener('DOMContentLoaded', () => {
+      document.addEventListener("DOMContentLoaded", () => {
         // 添加刷新数据按钮
-        const refreshBtn = document.createElement('button');
-        refreshBtn.textContent = '刷新数据';
-        refreshBtn.className = 'action-button';
+        const refreshBtn = document.createElement("button");
+        refreshBtn.textContent = "刷新数据";
+        refreshBtn.className = "action-button";
         refreshBtn.onclick = () => {
           advancedGrid.setRowData(getAdvancedData());
         };
-        
+
         // 添加自适应列宽按钮
-        const fitBtn = document.createElement('button');
-        fitBtn.textContent = '自适应列宽';
-        fitBtn.className = 'action-button';
+        const fitBtn = document.createElement("button");
+        fitBtn.textContent = "自适应列宽";
+        fitBtn.className = "action-button";
         fitBtn.onclick = () => {
           advancedGrid.sizeColumnsToFit();
         };
 
         // 添加按钮容器
-        const buttonContainer = document.createElement('div');
-        buttonContainer.className = 'button-container';
+        const buttonContainer = document.createElement("div");
+        buttonContainer.className = "button-container";
         buttonContainer.appendChild(refreshBtn);
         buttonContainer.appendChild(fitBtn);
 
         // 将按钮添加到高级网格上方
-        const advancedGridContainer = document.getElementById('advancedGrid');
-        advancedGridContainer.parentElement.insertBefore(buttonContainer, advancedGridContainer);
+        const advancedGridContainer = document.getElementById("advancedGrid");
+        advancedGridContainer.parentElement.insertBefore(
+          buttonContainer,
+          advancedGridContainer
+        );
       });
 
       // 添加一些额外的样式
-      const style = document.createElement('style');
+      const style = document.createElement("style");
       style.textContent = `
         .button-container {
           margin-bottom: 16px;
@@ -354,4 +475,4 @@
       document.head.appendChild(style);
     </script>
   </body>
-</html> 
+</html>

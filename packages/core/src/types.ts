@@ -6,13 +6,19 @@ export interface CellRendererParams {
     column: Column;
     api: GridApi;
     node: RowNode;
-    // 用于编辑状态
-    isEditing?: boolean;
     // 用于刷新单元格
     refreshCell?: () => void;
 }
 
-export type CellRenderer = (params: CellRendererParams) => HTMLElement | string;
+// 新增编辑器参数接口
+export interface CellEditorParams extends CellRendererParams {
+    // 开始编辑时的值
+    startValue: any;
+    // 结束编辑的回调
+    onComplete: (newValue: any) => void;
+    // 取消编辑的回调
+    onCancel: () => void;
+}
 
 export interface Column {
     field: string;
@@ -22,9 +28,25 @@ export interface Column {
     resizable?: boolean;
     editable?: boolean;
     frozen?: boolean;
-    cellRenderer?: (params: CellRendererParams) => HTMLElement;
+    // 修改渲染器定义
+    cellRenderer?: {
+        // 非编辑状态的渲染器
+        view?: (params: CellRendererParams) => HTMLElement;
+        // 编辑状态的渲染器
+        edit?: (params: CellEditorParams) => HTMLElement;
+    } | ((params: CellRendererParams) => HTMLElement); // 保持向后兼容
     valueFormatter?: (params: ValueFormatterParams) => string;
     comparator?: (valueA: any, valueB: any, nodeA: RowNode, nodeB: RowNode) => number;
+    filterable?: boolean;
+    filterParams?: {
+        filterComponent?: (params: FilterComponentParams) => HTMLElement;
+        filterPredicate?: (value: any, filterModel: FilterModel, data: any) => boolean;
+        valueFormatter?: (value: any) => string;
+        multiSelect?: boolean;
+    };
+    valueSetParams?: {
+        valueGenerator?: (params: ValueGeneratorParams) => any;
+    };
 }
 
 export interface RowNode {
@@ -53,6 +75,10 @@ export interface GridApi {
     refreshView(): void;
     ensureIndexVisible(index: number, position?: 'top' | 'middle' | 'bottom'): void;
     ensureNodeVisible(node: RowNode, position?: 'top' | 'middle' | 'bottom'): void;
+    setValues(params: ValueSetParams): void;
+    getFilterModel(): { [key: string]: FilterModel };
+    setFilterModel(model: { [key: string]: FilterModel }): void;
+    clearFilters(): void;
 }
 
 export interface SortModel {
@@ -61,8 +87,9 @@ export interface SortModel {
 }
 
 export interface FilterModel {
-    type: 'equals' | 'notEqual' | 'contains' | 'notContains' | 'startsWith' | 'endsWith';
-    filter: string | number;
+    type: 'equals' | 'notEqual' | 'contains' | 'notContains' | 'startsWith' | 'endsWith' | 'set';
+    filter?: string | string[];
+    filterType?: 'text' | 'number' | 'date' | 'set';
 }
 
 export interface RefreshCellsParams {
@@ -190,4 +217,29 @@ export interface DragEndedEvent {
     column: Column;
     event: MouseEvent;
     newIndex: number;
+}
+
+export interface FilterComponentParams {
+    column: Column;
+    api: GridApi;
+    value: any;
+    filterModel: FilterModel;
+    onFilterChanged: (filterModel: FilterModel) => void;
+    getUniqueValues: () => any[];
+}
+
+export interface ValueSetParams {
+    startNode: RowNode;
+    startColumn: Column;
+    endNode: RowNode;
+    endColumn: Column;
+    value: any;
+    valueGenerator?: (params: ValueGeneratorParams) => any;
+}
+
+export interface ValueGeneratorParams {
+    rowIndex: number;
+    colId: string;
+    originalValue: any;
+    startValue: any;
 } 

@@ -6,7 +6,8 @@ import {
     SortModel,
     FilterModel,
     CellClickedEvent,
-    RowClickedEvent
+    RowClickedEvent,
+    ValueSetParams
 } from './types';
 
 export class Grid implements GridApi {
@@ -70,22 +71,68 @@ export class Grid implements GridApi {
             cell.style.width = `${col.width}px`;
             cell.setAttribute('data-field', col.field);
             
-            // 添加列标题
+            // 添加列标题容器
+            const titleContainer = document.createElement('div');
+            titleContainer.className = 'grid-header-cell-content';
+            
             const title = document.createElement('div');
             title.className = 'grid-header-cell-title';
             title.textContent = col.headerName;
-            cell.appendChild(title);
+            titleContainer.appendChild(title);
 
-            // 添加排序图标
+            // 添加排序和筛选按钮容器
+            const actionContainer = document.createElement('div');
+            actionContainer.className = 'grid-header-cell-actions';
+
+            // 添加排序按钮
             if (col.sortable) {
-                cell.classList.add('sortable');
-                const sortIcon = document.createElement('div');
-                sortIcon.className = 'sort-icon';
-                cell.appendChild(sortIcon);
-
-                // 添加排序点击事件
-                cell.addEventListener('click', (e) => this.handleSortClick(e, col));
+                const sortButton = document.createElement('button');
+                sortButton.className = 'grid-sort-button';
+                sortButton.innerHTML = `
+                    <svg class="sort-icon" width="16" height="16" viewBox="0 0 16 16">
+                        <path class="sort-up" d="M8 4l4 4H4z"/>
+                        <path class="sort-down" d="M8 12l4-4H4z"/>
+                    </svg>
+                `;
+                
+                const existingSort = this.sortModel.find(s => s.colId === col.field);
+                if (existingSort) {
+                    sortButton.setAttribute('data-sort', existingSort.sort);
+                }
+                
+                sortButton.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.handleSortClick(e, col);
+                });
+                
+                actionContainer.appendChild(sortButton);
             }
+
+            // 添加筛选按钮
+            if (col.filterable) {
+                const filterButton = document.createElement('button');
+                filterButton.className = 'grid-filter-button';
+                filterButton.innerHTML = `
+                    <svg class="filter-icon" width="16" height="16" viewBox="0 0 16 16">
+                        <path d="M2 2h12l-5 6v6l-2-2V8z"/>
+                    </svg>
+                `;
+                
+                const hasFilter = this.filterModel.has(col.field);
+                if (hasFilter) {
+                    filterButton.classList.add('active');
+                }
+                
+                filterButton.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.showFilterMenu(e, col);
+                });
+                
+                actionContainer.appendChild(filterButton);
+            }
+
+            titleContainer.appendChild(actionContainer);
+            cell.appendChild(titleContainer);
 
             // 添加拖拽功能
             cell.setAttribute('draggable', 'true');
@@ -169,9 +216,13 @@ export class Grid implements GridApi {
         displayedData.forEach((row, rowIndex) => {
             const rowElement = document.createElement('div');
             rowElement.className = 'grid-row';
+            rowElement.setAttribute('data-row-id', row.id?.toString() || rowIndex.toString());
             const rowHeight = this.options.rowHeight || 40;
             rowElement.style.height = `${rowHeight}px`;
+            rowElement.style.position = 'absolute';
             rowElement.style.top = `${rowIndex * rowHeight}px`;
+            rowElement.style.left = '0';
+            rowElement.style.right = '0';
 
             // 添加自定义行样式
             if (this.options.rowClass) {
@@ -205,43 +256,29 @@ export class Grid implements GridApi {
                 const cell = document.createElement('div');
                 cell.className = 'grid-cell';
                 cell.style.width = `${col.width}px`;
+                cell.setAttribute('data-field', col.field);
 
                 const value = row[col.field];
 
-                // 处理单元格渲染
-                if (col.cellRenderer) {
-                    const node = this.rowNodes.get(row.id || rowIndex);
-                    if (node) {
-                        const customElement = col.cellRenderer({
-                            value,
-                            data: row,
-                            rowIndex,
-                            colId: col.field,
-                            column: col,
-                            api: this,
-                            node
-                        });
-                        cell.appendChild(customElement);
+                // 渲染单元格内容
+                this.renderCell(cell, col, row, value, rowIndex);
+
+                // 添加单元格事件处理
+                cell.addEventListener('click', (e) => {
+                    this.handleCellClick(e, col, row, value, rowIndex);
+                    // 如果是可编辑单元格，单击也可以进入编辑模式
+                    if (col.editable) {
+                        this.startEditing(cell, col, row, value);
                     }
-                } else if (col.valueFormatter) {
-                    cell.textContent = col.valueFormatter({
-                        value,
-                        data: row,
-                        column: col
-                    });
-                } else {
-                    cell.textContent = value?.toString() ?? '';
-                }
+                });
 
-                // 添加单元格点击事件
-                cell.addEventListener('click', (e) => this.handleCellClick(e, col, row, value, rowIndex));
-                cell.addEventListener('dblclick', (e) => this.handleCellDoubleClick(e, col, row, value, rowIndex));
-
-                // 处理可编辑单元格
-                if (col.editable) {
-                    cell.classList.add('editable');
-                    cell.addEventListener('dblclick', () => this.startEditing(cell, col, row, value));
-                }
+                cell.addEventListener('dblclick', (e) => {
+                    this.handleCellDoubleClick(e, col, row, value, rowIndex);
+                    // 双击也可以进入编辑模式
+                    if (col.editable) {
+                        this.startEditing(cell, col, row, value);
+                    }
+                });
 
                 rowElement.appendChild(cell);
             });
@@ -300,6 +337,73 @@ export class Grid implements GridApi {
         body.appendChild(content);
         body.appendChild(scrollbarContainer);
         return body;
+    }
+
+    private renderCell(cell: HTMLElement, column: Column, row: any, value: any, rowIndex: number) {
+        const cellContent = document.createElement('div');
+        cellContent.className = 'grid-cell-content';
+
+        if (column.cellRenderer) {
+            // 处理自定义组件模式
+            if (typeof column.cellRenderer === 'object') {
+                const node = this.rowNodes.get(row.id || rowIndex);
+                if (node) {
+                    const componentContainer = document.createElement('div');
+                    componentContainer.className = 'grid-cell-custom-component';
+                    
+                    // 渲染非编辑状态组件
+                    if (column.cellRenderer.view) {
+                        const viewComponent = column.cellRenderer.view({
+                            value,
+                            data: row,
+                            rowIndex,
+                            colId: column.field,
+                            column,
+                            api: this,
+                            node
+                        });
+                        componentContainer.appendChild(viewComponent);
+                    }
+                    cellContent.appendChild(componentContainer);
+                }
+            } else {
+                // 处理传统的渲染器函数
+                const node = this.rowNodes.get(row.id || rowIndex);
+                if (node) {
+                    const customElement = column.cellRenderer({
+                        value,
+                        data: row,
+                        rowIndex,
+                        colId: column.field,
+                        column,
+                        api: this,
+                        node
+                    });
+                    cellContent.appendChild(customElement);
+                }
+            }
+        } else if (column.valueFormatter) {
+            // 处理格式化文本
+            const p = document.createElement('p');
+            p.textContent = column.valueFormatter({
+                value,
+                data: row,
+                column
+            });
+            cellContent.appendChild(p);
+        } else {
+            // 处理纯文本
+            const p = document.createElement('p');
+            p.textContent = value?.toString() ?? '';
+            cellContent.appendChild(p);
+        }
+
+        // 如果单元格可编辑，添加类名
+        if (column.editable) {
+            cell.classList.add('editable');
+        }
+
+        cell.appendChild(cellContent);
     }
 
     private handleSortClick(e: MouseEvent, column: Column) {
@@ -418,81 +522,101 @@ export class Grid implements GridApi {
     }
 
     private startEditing(cell: HTMLElement, column: Column, row: any, value: any) {
-        const input = document.createElement('input');
-        input.type = 'text';
-        input.value = value?.toString() ?? '';
-        input.className = 'cell-editor';
+        if (cell.classList.contains('editing')) return;
         
-        // 保存原始内容
-        const originalContent = cell.innerHTML;
+        const cellContent = cell.querySelector('.grid-cell-content') as HTMLElement;
+        if (!cellContent) return;
         
-        // 替换单元格内容为输入框
-        cell.innerHTML = '';
-        cell.appendChild(input);
-        input.focus();
-        
-        // 处理完成编辑
-        const finishEditing = (newValue: string) => {
-            const oldValue = row[column.field];
-            row[column.field] = newValue;
+        // 保存原始内容用于取消编辑
+        const originalContent = cellContent.innerHTML;
+        cell.classList.add('editing');
+
+        if (column.cellRenderer && typeof column.cellRenderer === 'object' && column.cellRenderer.edit) {
+            // 使用自定义编辑器组件
+            const componentContainer = document.createElement('div');
+            componentContainer.className = 'grid-cell-custom-component';
             
-            // 恢复单元格显示
-            if (column.cellRenderer) {
-                const node = this.rowNodes.get(row.id);
-                if (node) {
-                    const customElement = column.cellRenderer({
-                        value: newValue,
-                        data: row,
-                        rowIndex: node.rowIndex,
-                        colId: column.field,
-                        column,
-                        api: this,
-                        node
-                    });
-                    cell.innerHTML = '';
-                    cell.appendChild(customElement);
-                }
-            } else if (column.valueFormatter) {
-                cell.textContent = column.valueFormatter({
-                    value: newValue,
+            const node = this.rowNodes.get(row.id);
+            if (node) {
+                const editorComponent = column.cellRenderer.edit({
+                    value,
+                    startValue: value,
                     data: row,
-                    column
+                    rowIndex: node.rowIndex,
+                    colId: column.field,
+                    column,
+                    api: this,
+                    node,
+                    onComplete: (newValue) => {
+                        this.finishEditing(cell, column, row, newValue);
+                    },
+                    onCancel: () => {
+                        cell.classList.remove('editing');
+                        cellContent.innerHTML = originalContent;
+                    }
                 });
-            } else {
-                cell.textContent = newValue;
+                
+                cellContent.innerHTML = '';
+                componentContainer.appendChild(editorComponent);
+                cellContent.appendChild(componentContainer);
             }
+        } else {
+            // 默认文本编辑模式
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'cell-editor';
+            input.value = value?.toString() ?? '';
             
-            // 触发值变更事件
-            if (this.options.onCellValueChanged) {
-                const node = this.rowNodes.get(row.id);
-                if (node) {
-                    this.options.onCellValueChanged({
-                        node,
-                        data: row,
-                        column,
-                        colId: column.field,
-                        value: newValue,
-                        oldValue,
-                        newValue,
-                        event: new MouseEvent('click')
-                    });
+            cellContent.innerHTML = '';
+            cellContent.appendChild(input);
+            
+            input.focus();
+            input.select();
+            
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    this.finishEditing(cell, column, row, input.value);
+                } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    cell.classList.remove('editing');
+                    cellContent.innerHTML = originalContent;
                 }
-            }
-        };
+            });
+            
+            input.addEventListener('blur', () => {
+                this.finishEditing(cell, column, row, input.value);
+            });
+        }
+    }
+
+    private finishEditing(cell: HTMLElement, column: Column, row: any, newValue: any) {
+        cell.classList.remove('editing');
+        const oldValue = row[column.field];
+        row[column.field] = newValue;
         
-        // 处理按键事件
-        input.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                finishEditing(input.value);
-            } else if (e.key === 'Escape') {
-                cell.innerHTML = originalContent;
-            }
-        });
+        // 重新渲染单元格
+        const cellContent = cell.querySelector('.grid-cell-content') as HTMLElement;
+        if (cellContent) {
+            this.renderCell(cell, column, row, newValue, row.rowIndex);
+        }
         
-        // 处理失去焦点
-        input.addEventListener('blur', () => {
-            finishEditing(input.value);
-        });
+        // 触发值变更事件
+        if (this.options.onCellValueChanged) {
+            const node = this.rowNodes.get(row.id);
+            if (node) {
+                this.options.onCellValueChanged({
+                    node,
+                    data: row,
+                    column,
+                    colId: column.field,
+                    value: newValue,
+                    oldValue,
+                    newValue,
+                    event: new MouseEvent('click')
+                });
+            }
+        }
     }
 
     private handleRowClick(e: MouseEvent, row: any, rowIndex: number) {
@@ -761,5 +885,346 @@ export class Grid implements GridApi {
         if (index !== -1) {
             this.ensureIndexVisible(index, position);
         }
+    }
+
+    private showFilterMenu(e: MouseEvent, column: Column) {
+        const button = e.currentTarget as HTMLElement;
+        const buttonRect = button.getBoundingClientRect();
+        const headerRect = this.element.getBoundingClientRect();
+        
+        // 创建筛选菜单
+        const menu = document.createElement('div');
+        menu.className = 'grid-filter-menu';
+        
+        // 如果有自定义筛选组件
+        if (column.filterParams?.filterComponent) {
+            const filterModel = this.filterModel.get(column.field) || {
+                type: 'equals',
+                filterType: 'text'
+            };
+            
+            const component = column.filterParams.filterComponent({
+                column,
+                api: this,
+                value: filterModel.filter,
+                filterModel,
+                onFilterChanged: (model) => {
+                    if (model.filter) {
+                        this.filterModel.set(column.field, model);
+                    } else {
+                        this.filterModel.delete(column.field);
+                    }
+                    this.refreshView();
+                    menu.remove();
+                },
+                getUniqueValues: () => {
+                    const values = new Set<any>();
+                    if (Array.isArray(this.options.rowData)) {
+                        this.options.rowData.forEach(row => {
+                            const value = row[column.field];
+                            if (value !== undefined && value !== null) {
+                                values.add(value);
+                            }
+                        });
+                    }
+                    return Array.from(values);
+                }
+            });
+            
+            menu.appendChild(component);
+        } else {
+            // 默认筛选菜单
+            this.createDefaultFilterMenu(menu, column);
+        }
+        
+        // 定位菜单 - 相对于按钮定位
+        menu.style.position = 'absolute';
+        menu.style.top = `${buttonRect.bottom - headerRect.top}px`;
+        // 水平居中对齐按钮
+        menu.style.left = `${buttonRect.left - headerRect.left - (200 - buttonRect.width) / 2}px`;
+        
+        // 添加点击外部关闭
+        const closeMenu = (e: MouseEvent) => {
+            if (!menu.contains(e.target as Node)) {
+                menu.remove();
+                document.removeEventListener('click', closeMenu);
+            }
+        };
+        
+        // 延迟添加事件监听，避免立即触发
+        setTimeout(() => {
+            document.addEventListener('click', closeMenu);
+        });
+        
+        this.element.appendChild(menu);
+    }
+
+    private createDefaultFilterMenu(menu: HTMLElement, column: Column) {
+        const filterModel = this.filterModel.get(column.field) || {
+            type: 'equals',
+            filterType: 'text'
+        };
+        
+        // 筛选类型选择
+        const typeSelect = document.createElement('select');
+        typeSelect.className = 'grid-filter-type-select';
+        
+        const types = [
+            { value: 'equals', label: '等于' },
+            { value: 'notEqual', label: '不等于' },
+            { value: 'contains', label: '包含' },
+            { value: 'notContains', label: '不包含' },
+            { value: 'startsWith', label: '开头是' },
+            { value: 'endsWith', label: '结尾是' }
+        ];
+        
+        types.forEach(type => {
+            const option = document.createElement('option');
+            option.value = type.value;
+            option.textContent = type.label;
+            if (type.value === filterModel.type) {
+                option.selected = true;
+            }
+            typeSelect.appendChild(option);
+        });
+        
+        // 筛选值输入
+        const input = document.createElement('input');
+        input.className = 'grid-filter-input';
+        input.type = 'text';
+        input.value = filterModel.filter as string || '';
+        
+        // 按钮容器
+        const buttonContainer = document.createElement('div');
+        buttonContainer.className = 'grid-filter-buttons';
+        
+        // 确定按钮
+        const applyButton = document.createElement('button');
+        applyButton.textContent = '确定';
+        applyButton.addEventListener('click', () => {
+            const value = input.value.trim();
+            if (value) {
+                this.filterModel.set(column.field, {
+                    type: typeSelect.value as FilterModel['type'],
+                    filter: value,
+                    filterType: 'text'
+                });
+            } else {
+                this.filterModel.delete(column.field);
+            }
+            this.refreshView();
+            menu.remove();
+        });
+        
+        // 清除按钮
+        const clearButton = document.createElement('button');
+        clearButton.textContent = '清除';
+        clearButton.addEventListener('click', () => {
+            this.filterModel.delete(column.field);
+            this.refreshView();
+            menu.remove();
+        });
+        
+        buttonContainer.appendChild(clearButton);
+        buttonContainer.appendChild(applyButton);
+        
+        menu.appendChild(typeSelect);
+        menu.appendChild(input);
+        menu.appendChild(buttonContainer);
+    }
+
+    private initializeDragToFill() {
+        let isDragging = false;
+        let startCell: HTMLElement | null = null;
+        let startNode: RowNode | null = null;
+        let startColumn: Column | null = null;
+        let startValue: any = null;
+
+        // 添加拖拽事件监听
+        this.element.addEventListener('mousedown', (e: MouseEvent) => {
+            const handle = (e.target as HTMLElement).closest('.grid-cell-drag-handle');
+            if (!handle) return;
+
+            const cell = handle.closest('.grid-cell') as HTMLElement;
+            const row = cell.closest('.grid-row') as HTMLElement;
+            if (!cell || !row) return;
+
+            e.stopPropagation();
+            isDragging = true;
+            startCell = cell;
+
+            const rowId = row.getAttribute('data-row-id');
+            const field = cell.getAttribute('data-field');
+            
+            if (rowId && field) {
+                const node = this.rowNodes.get(rowId);
+                const column = this.options.columns.find(col => col.field === field);
+                
+                if (node && column) {
+                    startNode = node;
+                    startColumn = column;
+                    startValue = node.data[field];
+                }
+            }
+
+            document.body.style.cursor = 'crosshair';
+            document.addEventListener('mousemove', handleDrag);
+            document.addEventListener('mouseup', handleDragEnd);
+        });
+
+        const handleDrag = (e: MouseEvent) => {
+            if (!isDragging || !startCell) return;
+
+            const currentCell = (e.target as HTMLElement).closest('.grid-cell') as HTMLElement;
+            if (currentCell) {
+                this.highlightDragRange(startCell, currentCell);
+            }
+        };
+
+        const handleDragEnd = (e: MouseEvent) => {
+            if (!isDragging || !startCell || !startNode || !startColumn) return;
+
+            const endCell = (e.target as HTMLElement).closest('.grid-cell') as HTMLElement;
+            if (endCell) {
+                const endRow = endCell.closest('.grid-row') as HTMLElement;
+                if (endRow) {
+                    const endRowId = endRow.getAttribute('data-row-id');
+                    const endColField = endCell.getAttribute('data-field');
+
+                    if (endRowId && endColField) {
+                        const endNode = this.rowNodes.get(endRowId);
+                        const endColumn = this.options.columns.find(col => col.field === endColField);
+
+                        if (endNode && endColumn) {
+                            this.setValues({
+                                startNode,
+                                startColumn,
+                                endNode,
+                                endColumn,
+                                value: startValue,
+                                valueGenerator: startColumn.valueSetParams?.valueGenerator
+                            });
+                        }
+                    }
+                }
+            }
+
+            // 清理
+            isDragging = false;
+            startCell = null;
+            startNode = null;
+            startColumn = null;
+            startValue = null;
+            document.body.style.cursor = '';
+            this.clearDragHighlight();
+            document.removeEventListener('mousemove', handleDrag);
+            document.removeEventListener('mouseup', handleDragEnd);
+        };
+    }
+
+    private highlightDragRange(startCell: HTMLElement, endCell: HTMLElement) {
+        this.clearDragHighlight();
+        
+        const startRect = startCell.getBoundingClientRect();
+        const endRect = endCell.getBoundingClientRect();
+        
+        const highlight = document.createElement('div');
+        highlight.className = 'grid-drag-highlight';
+        highlight.style.position = 'absolute';
+        highlight.style.top = `${Math.min(startRect.top, endRect.top)}px`;
+        highlight.style.left = `${Math.min(startRect.left, endRect.left)}px`;
+        highlight.style.width = `${Math.abs(endRect.left - startRect.left) + endRect.width}px`;
+        highlight.style.height = `${Math.abs(endRect.top - startRect.top) + endRect.height}px`;
+        
+        document.body.appendChild(highlight);
+    }
+
+    private clearDragHighlight() {
+        const highlight = document.querySelector('.grid-drag-highlight');
+        if (highlight) {
+            highlight.remove();
+        }
+    }
+
+    // 实现 GridApi 的批量赋值方法
+    setValues(params: ValueSetParams): void {
+        const { startNode, startColumn, endNode, endColumn, value, valueGenerator } = params;
+        
+        // 获取起始和结束位置
+        const startRowIndex = startNode.rowIndex;
+        const endRowIndex = endNode.rowIndex;
+        const startColIndex = this.options.columns.indexOf(startColumn);
+        const endColIndex = this.options.columns.indexOf(endColumn);
+        
+        // 确保有效的范围
+        if (startRowIndex === -1 || endRowIndex === -1 || startColIndex === -1 || endColIndex === -1) {
+            return;
+        }
+        
+        // 遍历范围内的所有单元格
+        for (let rowIndex = Math.min(startRowIndex, endRowIndex); 
+             rowIndex <= Math.max(startRowIndex, endRowIndex); 
+             rowIndex++) {
+            
+            for (let colIndex = Math.min(startColIndex, endColIndex);
+                 colIndex <= Math.max(startColIndex, endColIndex);
+                 colIndex++) {
+                
+                const node = this.getDisplayedRowAtIndex(rowIndex);
+                const column = this.options.columns[colIndex];
+                
+                if (node && column) {
+                    const finalValue = valueGenerator ? 
+                        valueGenerator({
+                            rowIndex,
+                            colId: column.field,
+                            originalValue: node.data[column.field],
+                            startValue: value
+                        }) : 
+                        value;
+                    
+                    // 更新值
+                    node.data[column.field] = finalValue;
+                    
+                    // 触发值变更事件
+                    if (this.options.onCellValueChanged) {
+                        this.options.onCellValueChanged({
+                            node,
+                            data: node.data,
+                            column,
+                            colId: column.field,
+                            value: finalValue,
+                            oldValue: node.data[column.field],
+                            newValue: finalValue,
+                            event: new MouseEvent('click')
+                        });
+                    }
+                }
+            }
+        }
+        
+        this.refreshView();
+    }
+
+    // 实现缺失的 GridApi 方法
+    getFilterModel(): { [key: string]: FilterModel } {
+        const model: { [key: string]: FilterModel } = {};
+        this.filterModel.forEach((value, key) => {
+            model[key] = value;
+        });
+        return model;
+    }
+
+    setFilterModel(model: { [key: string]: FilterModel }): void {
+        this.filterModel.clear();
+        Object.entries(model).forEach(([key, value]) => {
+            this.filterModel.set(key, value);
+        });
+        this.refreshView();
+    }
+
+    clearFilters(): void {
+        this.filterModel.clear();
+        this.refreshView();
     }
 }
