@@ -33,6 +33,45 @@ export class Grid implements GridApi {
         this.element = document.createElement('div');
         this.element.className = 'grid-container';
         this.initRowNodes();
+
+        // 添加样式
+        const style = document.createElement('style');
+        style.textContent = `
+            .grid-cell-content {
+                position: relative;
+                width: 100%;
+                height: 100%;
+                display: flex;
+                align-items: center;
+                padding: 0 8px;
+            }
+            .grid-cell-drag-handle {
+                position: absolute;
+                right: 2px;
+                bottom: 2px;
+                width: 6px;
+                height: 6px;
+                cursor: crosshair;
+                opacity: 0;
+                transition: opacity 0.2s;
+                background-color: #1a73e8;
+                border: 1px solid #fff;
+            }
+            .grid-cell:hover .grid-cell-drag-handle {
+                opacity: 1;
+            }
+            .grid-drag-highlight {
+                position: fixed;
+                pointer-events: none;
+                border: 1px dashed #1a73e8;
+                background-color: rgba(26, 115, 232, 0.1);
+                z-index: 1000;
+            }
+        `;
+        document.head.appendChild(style);
+
+        // 初始化拖拽填充功能
+        this.initializeDragToFill();
     }
 
     private initRowNodes() {
@@ -343,6 +382,12 @@ export class Grid implements GridApi {
     private renderCell(cell: HTMLElement, column: Column, row: any, value: any, rowIndex: number) {
         const cellContent = document.createElement('div');
         cellContent.className = 'grid-cell-content';
+        cellContent.style.position = 'relative';
+
+        // 添加拖拽手柄到 cellContent 而不是 cell
+        const dragHandle = document.createElement('div');
+        dragHandle.className = 'grid-cell-drag-handle';
+        cellContent.appendChild(dragHandle);
 
         if (column.cellRenderer) {
             // 处理自定义组件模式
@@ -1111,9 +1156,14 @@ export class Grid implements GridApi {
             const row = cell.closest('.grid-row') as HTMLElement;
             if (!cell || !row) return;
 
+            e.preventDefault(); // 阻止默认行为
             e.stopPropagation();
             isDragging = true;
             startCell = cell;
+
+            // 添加禁止选择文本的样式
+            document.body.style.userSelect = 'none';
+            (document.body.style as any).webkitUserSelect = 'none';
 
             const rowId = row.getAttribute('data-row-id');
             const field = cell.getAttribute('data-field');
@@ -1137,6 +1187,7 @@ export class Grid implements GridApi {
         const handleDrag = (e: MouseEvent) => {
             if (!isDragging || !startCell) return;
 
+            e.preventDefault(); // 阻止默认行为
             const currentCell = (e.target as HTMLElement).closest('.grid-cell') as HTMLElement;
             if (currentCell) {
                 this.highlightDragRange(startCell, currentCell);
@@ -1145,6 +1196,12 @@ export class Grid implements GridApi {
 
         const handleDragEnd = (e: MouseEvent) => {
             if (!isDragging || !startCell || !startNode || !startColumn) return;
+
+            e.preventDefault(); // 阻止默认行为
+
+            // 恢复文本选择
+            document.body.style.userSelect = '';
+            (document.body.style as any).webkitUserSelect = '';
 
             const endCell = (e.target as HTMLElement).closest('.grid-cell') as HTMLElement;
             if (endCell) {
