@@ -23,6 +23,7 @@ export class Grid implements GridApi {
     private resizeColumn: Column | null = null;
     private resizeElement: HTMLElement | null = null;
     private originalEditValue: any;
+    private lastScrollTop: number = 0;
 
     constructor(options: GridOptions) {
         this.options = {
@@ -101,12 +102,12 @@ export class Grid implements GridApi {
         header.style.display = 'flex';
         header.style.height = `${this.options.headerHeight}px`;
         header.style.flex = '1';
-        header.style.marginRight = '17px';
+        // header.style.marginRight = '17px';
 
         // 添加右侧固定区域
-        const headerRightArea = document.createElement('div');
-        headerRightArea.className = 'grid-header-right-area';
-        headerRightArea.style.height = `${this.options.headerHeight}px`;
+        // const headerRightArea = document.createElement('div');
+        // headerRightArea.className = 'grid-header-right-area';
+        // headerRightArea.style.height = `${this.options.headerHeight}px`;
 
         this.options.columns.forEach((col, index) => {
             const cell = document.createElement('div');
@@ -197,7 +198,7 @@ export class Grid implements GridApi {
         });
 
         headerWrapper.appendChild(header);
-        headerWrapper.appendChild(headerRightArea);
+        // headerWrapper.appendChild(headerRightArea);
         return headerWrapper;
     }
 
@@ -959,34 +960,38 @@ export class Grid implements GridApi {
 
     refreshView(): void {
         if (this.element) {
+            // 保存当前滚动位置
+            this.saveScrollPosition();
+            
+            // 重新渲染
             this.render(this.element.parentElement!);
+            
+            // 恢复滚动位置
+            this.restoreScrollPosition();
         }
     }
 
     ensureIndexVisible(index: number, position: 'top' | 'middle' | 'bottom' = 'middle'): void {
-        const body = this.element.querySelector('.grid-body');
-        if (!body) return;
-        
-        const rowElement = body.children[index] as HTMLElement;
-        if (!rowElement) return;
-        
-        const bodyRect = body.getBoundingClientRect();
-        const rowRect = rowElement.getBoundingClientRect();
-        
+        const rowHeight = this.options.rowHeight || 40;
+        const gridBody = this.element.querySelector('.grid-body') as HTMLElement;
+        if (!gridBody) return;
+
+        const bodyHeight = gridBody.clientHeight;
         let scrollTop;
+
         switch (position) {
             case 'top':
-                scrollTop = rowRect.top - bodyRect.top;
+                scrollTop = index * rowHeight;
                 break;
             case 'bottom':
-                scrollTop = rowRect.bottom - bodyRect.bottom;
+                scrollTop = (index * rowHeight) - bodyHeight + rowHeight;
                 break;
             case 'middle':
             default:
-                scrollTop = rowRect.top - bodyRect.top - (bodyRect.height - rowRect.height) / 2;
+                scrollTop = (index * rowHeight) - (bodyHeight / 2) + (rowHeight / 2);
         }
-        
-        body.scrollTop = scrollTop;
+
+        this.setContentScrollPosition(Math.max(0, scrollTop));
     }
 
     ensureNodeVisible(node: RowNode, position?: 'top' | 'middle' | 'bottom'): void {
@@ -1283,6 +1288,9 @@ export class Grid implements GridApi {
     setValues(params: ValueSetParams): void {
         const { startNode, startColumn, endNode, endColumn, value, valueGenerator } = params;
         
+        // 保存当前滚动位置
+        this.saveScrollPosition();
+        
         // 获取起始和结束位置
         const startRowIndex = startNode.rowIndex;
         const endRowIndex = endNode.rowIndex;
@@ -1337,6 +1345,9 @@ export class Grid implements GridApi {
         }
         
         this.refreshView();
+        
+        // 恢复滚动位置
+        this.restoreScrollPosition();
     }
 
     // 实现缺失的 GridApi 方法
@@ -1359,5 +1370,34 @@ export class Grid implements GridApi {
     clearFilters(): void {
         this.filterModel.clear();
         this.refreshView();
+    }
+
+    private getContentScrollPosition(): number {
+        const gridBody = this.element.querySelector('.grid-content') as HTMLElement;
+        return gridBody?.scrollTop || 0;
+    }
+
+    private setContentScrollPosition(scrollTop: number) {
+        const gridBody = this.element.querySelector('.grid-content') as HTMLElement;
+        if (gridBody) {
+            gridBody.scrollTop = scrollTop;
+        }
+    }
+
+    private scrollToRow(rowIndex: number) {
+        const rowHeight = this.options.rowHeight || 40;
+        this.setContentScrollPosition(rowIndex * rowHeight);
+    }
+
+    private saveScrollPosition() {
+        this.lastScrollTop = this.getContentScrollPosition();
+    }
+
+    private restoreScrollPosition() {
+        if (this.lastScrollTop > 0) {
+            requestAnimationFrame(() => {
+                this.setContentScrollPosition(this.lastScrollTop);
+            });
+        }
     }
 }
