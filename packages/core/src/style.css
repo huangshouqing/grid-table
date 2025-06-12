@@ -132,6 +132,13 @@
   flex: 1;
   position: relative;
   overflow: hidden;
+  scrollbar-width: none;  /* Firefox */
+  -ms-overflow-style: none;  /* IE and Edge */
+}
+
+/* 隐藏 Webkit 滚动条 */
+.grid-body::-webkit-scrollbar {
+  display: none;
 }
 
 .grid-body-scrollable {
@@ -140,20 +147,20 @@
 
 .grid-content {
   position: absolute;
-  top: 0;
   left: 0;
-  width: 100%;
+  right: 0;
+  top: 0;
+  overflow: scroll;
   height: 100%;
-  will-change: transform;
 }
 
 .grid-row {
   position: absolute;
+  left: 0;
+  right: 0;
+  height: var(--grid-row-height, 40px);
   display: flex;
-  width: 100%;
-  height: var(--grid-row-height);
-  box-sizing: border-box;
-  background: var(--grid-background-color);
+  border-bottom: 1px solid #f0f0f0;
 }
 
 .grid-header .grid-row {
@@ -171,30 +178,27 @@
 }
 
 .grid-cell {
-  padding: 0;
-  border-right: 1px solid var(--grid-border-color);
-  border-bottom: 1px solid var(--grid-border-color);
-  box-sizing: border-box;
+  padding: 8px 12px;
+  border-right: 1px solid #f0f0f0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
-  justify-content: center;
-  min-width: 0;
-  position: relative;
-  flex-shrink: 0;
 }
 
 .grid-header-cell {
-  font-weight: var(--grid-header-font-weight);
-  color: var(--grid-header-text-color);
-  background: var(--grid-header-background-color);
-  user-select: none;
-  height: 100%;
+  position: relative;
   display: flex;
   align-items: center;
-  justify-content: center;
+  padding: 8px 12px;
+  font-weight: 500;
+  color: #333;
+  background-color: #fafafa;
+  border-right: 1px solid #e8e8e8;
+  user-select: none;
+  flex-shrink: 0;
 }
 
 .grid-cell input {
@@ -228,4 +232,244 @@
 /* 去除最后一列的右边框 */
 .grid-pane-frozen .grid-cell:last-child {
   border-right: none;
+}
+
+.grid-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #e8e8e8;
+}
+
+/* 表头 */
+.grid-header {
+  flex: none;
+  background-color: #fafafa;
+  border-bottom: 1px solid #e8e8e8;
+  overflow: hidden;
+}
+
+.grid-header > div {
+  display: flex;
+}
+
+.grid-header-cell:last-child {
+  border-right: none;
+}
+
+.grid-header-cell.sortable {
+  cursor: pointer;
+}
+
+.grid-header-cell.sortable:hover {
+  background-color: #f0f0f0;
+}
+
+.grid-header-cell[data-sort="asc"] .sort-icon::after {
+  content: "↑";
+  margin-left: 4px;
+}
+
+.grid-header-cell[data-sort="desc"] .sort-icon::after {
+  content: "↓";
+  margin-left: 4px;
+}
+
+/* 表格主体 */
+.grid-body {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+.grid-body > div {
+  display: flex;
+  flex-direction: column;
+}
+
+/* 行样式 */
+.grid-row:last-child {
+  border-bottom: none;
+}
+
+.grid-row:hover {
+  background-color: #f5f5f5;
+}
+
+/* 单元格样式 */
+.grid-cell:last-child {
+  border-right: none;
+}
+
+.grid-cell.editable {
+  cursor: pointer;
+}
+
+.grid-cell.editable:hover {
+  background-color: #f0f0f0;
+}
+
+/* 列宽调整 */
+.column-resizer {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background-color: transparent;
+  cursor: col-resize;
+}
+
+.column-resizer:hover {
+  background-color: #1890ff;
+}
+
+/* 拖拽样式 */
+.grid-header-cell.dragging {
+  opacity: 0.5;
+  background-color: #e6f7ff;
+}
+
+/* 编辑器样式 */
+.cell-editor {
+  width: 100%;
+  height: 100%;
+  border: none;
+  outline: none;
+  padding: 0;
+  background: transparent;
+}
+
+/* 滚动条样式 */
+.grid-body::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.grid-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.grid-body::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+
+.grid-body::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* 表头和内容区对齐 */
+.grid-header {
+  padding-right: 8px;
+}
+
+/* 确保表头单元格和内容单元格宽度一致 */
+.grid-header-cell,
+.grid-cell {
+  box-sizing: border-box;
+}
+
+.grid-row.selected {
+  background: #e6f7ff;
+}
+
+.grid-row.selected:hover {
+  background: #bae7ff;
+}
+
+/* 状态样式 */
+.status-active {
+  color: #52c41a;
+  background: #f6ffed;
+  border: 1px solid #b7eb8f;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.status-inactive {
+  color: #ff4d4f;
+  background: #fff2f0;
+  border: 1px solid #ffccc7;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.status-pending {
+  color: #faad14;
+  background: #fffbe6;
+  border: 1px solid #ffe58f;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.inactive-row {
+  background-color: #fafafa;
+  color: #999;
+}
+
+/* 自定义滚动条容器 */
+.scrollbar-container {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+}
+
+/* 垂直滚动条 */
+.vertical-scrollbar {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 8px;
+  background: transparent;
+  height: calc(100% - 8px);
+}
+
+.vertical-scrollbar .scrollbar-thumb {
+  position: absolute;
+  width: 100%;
+  background: #c1c1c1;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.vertical-scrollbar .scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* 水平滚动条 */
+.horizontal-scrollbar {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 8px;
+  background: transparent;
+  width: calc(100% - 8px);
+}
+
+.horizontal-scrollbar .scrollbar-thumb {
+  position: absolute;
+  height: 100%;
+  background: #c1c1c1;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.horizontal-scrollbar .scrollbar-thumb:hover {
+  background: #a8a8a8;
 } 
+
+
+.grid-header-right-area {
+  width: 14px;
+  position: absolute;
+  right: 0;
+  border-left: 1px solid #e5e5e5;
+  border-bottom: 1px solid #e5e5e5;
+  background-color: var(--grid-header-background-color);
+  flex-shrink: 0;
+}

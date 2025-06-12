@@ -3,33 +3,355 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Grid Table Core Dev</title>
+    <title>Grid Table Demo</title>
+    <link rel="stylesheet" href="./src/style.css" />
     <style>
       body {
         margin: 0;
         padding: 20px;
-        background: #f0f2f5;
-        min-height: 100vh;
-        box-sizing: border-box;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, sans-serif;
       }
-      .demo-container {
+      .container {
         max-width: 1200px;
         margin: 0 auto;
-        background: #fff;
-        padding: 24px;
-        border-radius: 8px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        padding: 20px;
       }
-      #grid-container {
-        height: 600px;
-        width: 100%;
+      .demo-section {
+        margin-bottom: 40px;
+      }
+      .demo-section h2 {
+        margin-bottom: 20px;
+        color: #333;
+      }
+      .grid-container {
+        height: 400px;
+        margin-bottom: 20px;
+        border: 1px solid #e8e8e8;
+      }
+      .code-block {
+        background: #f5f5f5;
+        padding: 15px;
+        border-radius: 4px;
+        margin: 10px 0;
+        font-family: monospace;
+        white-space: pre-wrap;
+      }
+      .feature-list {
+        list-style: none;
+        padding: 0;
+      }
+      .feature-list li {
+        margin-bottom: 10px;
+        padding-left: 20px;
+        position: relative;
+      }
+      .feature-list li::before {
+        content: "•";
+        position: absolute;
+        left: 0;
+        color: #1890ff;
+      }
+      
+      /* 状态样式 */
+      .status-active {
+        color: #52c41a;
+        background: #f6ffed;
+        border: 1px solid #b7eb8f;
+        padding: 2px 8px;
+        border-radius: 10px;
+      }
+      .status-inactive {
+        color: #ff4d4f;
+        background: #fff2f0;
+        border: 1px solid #ffccc7;
+        padding: 2px 8px;
+        border-radius: 10px;
+      }
+      .status-pending {
+        color: #faad14;
+        background: #fffbe6;
+        border: 1px solid #ffe58f;
+        padding: 2px 8px;
+        border-radius: 10px;
+      }
+      .inactive-row {
+        background-color: #fafafa !important;
+        color: #999;
       }
     </style>
   </head>
   <body>
-    <div class="demo-container">
-      <div id="grid-container"></div>
+    <div class="container">
+      <h1>Grid Table Features Demo</h1>
+      
+      <div class="demo-section">
+        <h2>基础功能</h2>
+        <div id="basicGrid" class="grid-container"></div>
+      </div>
+
+      <div class="demo-section">
+        <h2>高级功能</h2>
+        <div id="advancedGrid" class="grid-container"></div>
+      </div>
+
+      <div class="demo-section">
+        <h2>功能列表</h2>
+        <ul class="feature-list">
+          <li>
+            <strong>基础功能</strong>
+            <ul>
+              <li>虚拟滚动 - 高效处理大数据集</li>
+              <li>自定义列宽</li>
+              <li>冻结列</li>
+              <li>排序功能</li>
+              <li>过滤功能</li>
+            </ul>
+          </li>
+          <li>
+            <strong>单元格功能</strong>
+            <ul>
+              <li>自定义单元格渲染器</li>
+              <li>单元格编辑</li>
+              <li>自定义编辑器</li>
+              <li>值格式化</li>
+            </ul>
+          </li>
+          <li>
+            <strong>列功能</strong>
+            <ul>
+              <li>列拖拽调整顺序</li>
+              <li>列宽调整</li>
+              <li>列固定</li>
+            </ul>
+          </li>
+          <li>
+            <strong>样式和主题</strong>
+            <ul>
+              <li>自定义行样式</li>
+              <li>自定义单元格样式</li>
+              <li>CSS 变量支持</li>
+            </ul>
+          </li>
+          <li>
+            <strong>API 和事件</strong>
+            <ul>
+              <li>完整的数据操作 API</li>
+              <li>单元格点击事件</li>
+              <li>行点击事件</li>
+              <li>排序变更事件</li>
+              <li>过滤变更事件</li>
+            </ul>
+          </li>
+        </ul>
+      </div>
     </div>
-    <script type="module" src="/src/index.ts"></script>
+
+    <script type="module">
+      import { Grid } from "./src/grid.ts";
+
+      // 基础示例数据
+      function getData() {
+        return Array.from({ length: 100 }, (_, i) => ({
+          id: `ID${i + 1}`,
+          name: `Name ${i + 1}`,
+          age: Math.floor(Math.random() * 50) + 20,
+          city: ["北京", "上海", "广州", "深圳"][Math.floor(Math.random() * 4)],
+        }));
+      }
+
+      // 高级示例数据
+      function getAdvancedData() {
+        const statuses = ["active", "inactive", "pending"];
+        const products = [
+          "iPhone 14 Pro",
+          "MacBook Air M2",
+          "iPad Pro",
+          "AirPods Pro",
+          "Apple Watch Series 8",
+          "iMac 24\"",
+          "Mac mini M2",
+          "MacBook Pro 16\"",
+          "Apple TV 4K",
+          "HomePod mini"
+        ];
+        const categories = [
+          "Smartphones",
+          "Laptops",
+          "Tablets",
+          "Audio",
+          "Wearables",
+          "Desktop",
+          "Accessories"
+        ];
+        const locations = [
+          "San Francisco",
+          "New York",
+          "Los Angeles",
+          "Chicago",
+          "Seattle",
+          "Boston",
+          "Austin"
+        ];
+
+        return Array.from({ length: 100 }, (_, i) => ({
+          id: `ID${i + 1}`,
+          name: products[Math.floor(Math.random() * products.length)],
+          category: categories[Math.floor(Math.random() * categories.length)],
+          status: statuses[Math.floor(Math.random() * statuses.length)],
+          price: Math.floor(Math.random() * 2000) + 299,
+          stock: Math.floor(Math.random() * 100),
+          location: locations[Math.floor(Math.random() * locations.length)],
+          lastUpdated: new Date(Date.now() - Math.random() * 10000000000).toISOString().split('T')[0]
+        }));
+      }
+
+      // 初始化基础网格
+      const basicGridContainer = document.getElementById("basicGrid");
+      const basicGrid = new Grid({
+        columns: [
+          { field: "id", headerName: "编号", width: 100, frozen: true },
+          { field: "name", headerName: "名称", width: 150, sortable: true },
+          { field: "age", headerName: "年龄", width: 100, sortable: true },
+          { field: "city", headerName: "城市", width: 120 },
+        ],
+        rowData: getData(),
+      });
+      basicGrid.render(basicGridContainer);
+
+      // 初始化高级网格
+      const advancedGrid = new Grid({
+        columns: [
+          { 
+            field: "id", 
+            headerName: "编号", 
+            width: 100, 
+            frozen: true 
+          },
+          { 
+            field: "name", 
+            headerName: "产品名称", 
+            width: 180, 
+            sortable: true,
+            editable: true 
+          },
+          { 
+            field: "category", 
+            headerName: "类别", 
+            width: 120, 
+            sortable: true 
+          },
+          {
+            field: "status",
+            headerName: "状态",
+            width: 100,
+            sortable: true,
+            cellRenderer: (params) => {
+              const el = document.createElement("div");
+              el.textContent = params.value;
+              el.className = `status-${params.value}`;
+              return el;
+            }
+          },
+          {
+            field: "price",
+            headerName: "价格",
+            width: 120,
+            sortable: true,
+            valueFormatter: (params) => {
+              return `¥${params.value.toLocaleString()}`;
+            }
+          },
+          {
+            field: "stock",
+            headerName: "库存",
+            width: 100,
+            sortable: true,
+            cellRenderer: (params) => {
+              const el = document.createElement("div");
+              el.textContent = params.value;
+              if (params.value < 10) {
+                el.style.color = "#ff4d4f";
+                el.style.fontWeight = "bold";
+              } else if (params.value < 30) {
+                el.style.color = "#faad14";
+              }
+              return el;
+            }
+          },
+          {
+            field: "location",
+            headerName: "位置",
+            width: 140,
+            sortable: true
+          },
+          {
+            field: "lastUpdated",
+            headerName: "更新时间",
+            width: 120,
+            sortable: true
+          }
+        ],
+        rowData: getAdvancedData(),
+        rowClass: (params) => {
+          return params.data.status === 'inactive' ? 'inactive-row' : '';
+        }
+      });
+      advancedGrid.render(document.getElementById("advancedGrid"));
+
+      // 添加一些交互功能示例
+      document.addEventListener('DOMContentLoaded', () => {
+        // 添加刷新数据按钮
+        const refreshBtn = document.createElement('button');
+        refreshBtn.textContent = '刷新数据';
+        refreshBtn.className = 'action-button';
+        refreshBtn.onclick = () => {
+          advancedGrid.setRowData(getAdvancedData());
+        };
+        
+        // 添加自适应列宽按钮
+        const fitBtn = document.createElement('button');
+        fitBtn.textContent = '自适应列宽';
+        fitBtn.className = 'action-button';
+        fitBtn.onclick = () => {
+          advancedGrid.sizeColumnsToFit();
+        };
+
+        // 添加按钮容器
+        const buttonContainer = document.createElement('div');
+        buttonContainer.className = 'button-container';
+        buttonContainer.appendChild(refreshBtn);
+        buttonContainer.appendChild(fitBtn);
+
+        // 将按钮添加到高级网格上方
+        const advancedGridContainer = document.getElementById('advancedGrid');
+        advancedGridContainer.parentElement.insertBefore(buttonContainer, advancedGridContainer);
+      });
+
+      // 添加一些额外的样式
+      const style = document.createElement('style');
+      style.textContent = `
+        .button-container {
+          margin-bottom: 16px;
+        }
+        .action-button {
+          margin-right: 8px;
+          padding: 8px 16px;
+          border: none;
+          border-radius: 4px;
+          background-color: #1890ff;
+          color: white;
+          cursor: pointer;
+          transition: background-color 0.3s;
+        }
+        .action-button:hover {
+          background-color: #40a9ff;
+        }
+        .action-button:active {
+          background-color: #096dd9;
+        }
+      `;
+      document.head.appendChild(style);
+    </script>
   </body>
 </html> 

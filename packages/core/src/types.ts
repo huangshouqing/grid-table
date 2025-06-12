@@ -3,31 +3,27 @@ export interface CellRendererParams {
     data: any;
     rowIndex: number;
     colId: string;
-    column: ColumnDef;
+    column: Column;
     api: GridApi;
-    node: HTMLElement;
+    node: RowNode;
     // 用于编辑状态
     isEditing?: boolean;
     // 用于刷新单元格
-    refreshCell: () => void;
+    refreshCell?: () => void;
 }
 
 export type CellRenderer = (params: CellRendererParams) => HTMLElement | string;
 
-export interface ColumnDef {
+export interface Column {
     field: string;
-    headerName?: string;
-    width?: number;
-    cellRenderer?: (params: CellRendererParams) => HTMLElement | string;
-    editable?: boolean;
+    headerName: string;
+    width: number;
     sortable?: boolean;
-    filter?: boolean;
-    // 自定义过滤器
-    filterParams?: {
-        filterOptions?: string[];
-        customFilter?: (value: any, filterText: string) => boolean;
-    };
-    // 自定义排序
+    resizable?: boolean;
+    editable?: boolean;
+    frozen?: boolean;
+    cellRenderer?: (params: CellRendererParams) => HTMLElement;
+    valueFormatter?: (params: ValueFormatterParams) => string;
     comparator?: (valueA: any, valueB: any, nodeA: RowNode, nodeB: RowNode) => number;
 }
 
@@ -35,56 +31,28 @@ export interface RowNode {
     id: string | number;
     data: any;
     rowIndex: number;
-    selected?: boolean;
-    expanded?: boolean;
-    // 用于树形结构
-    parent?: RowNode;
-    children?: RowNode[];
-    level?: number;
+    selected: boolean;
 }
 
 export interface GridApi {
-    // 数据操作
     setRowData(data: any[]): void;
     getRowNode(id: string | number): RowNode | undefined;
     getDisplayedRowAtIndex(index: number): RowNode | undefined;
     getDisplayedRowCount(): number;
     forEachNode(callback: (node: RowNode, index: number) => void): void;
-    
-    // 选择相关
     selectAll(): void;
     deselectAll(): void;
     selectRow(id: string | number, clearOthers?: boolean): void;
     getSelectedNodes(): RowNode[];
     getSelectedRows(): any[];
-    
-    // 排序和过滤
     setSort(sortModel: SortModel[]): void;
     setFilter(columnId: string, filterModel: FilterModel): void;
-    refreshCells(params?: RefreshCellsParams): void;
-    
-    // 列操作
-    setColumnDefs(colDefs: ColumnDef[]): void;
+    setColumnDefs(colDefs: Column[]): void;
     sizeColumnsToFit(): void;
     autoSizeColumns(columnIds?: string[]): void;
-    
-    // 导出
-    exportDataAsCsv(params?: ExportParams): void;
-    exportDataAsExcel(params?: ExportParams): void;
-    
-    // 状态
-    showLoadingOverlay(): void;
-    hideOverlay(): void;
-    
-    // 行高度
-    resetRowHeights(): void;
-    
-    // 滚动
+    refreshView(): void;
     ensureIndexVisible(index: number, position?: 'top' | 'middle' | 'bottom'): void;
     ensureNodeVisible(node: RowNode, position?: 'top' | 'middle' | 'bottom'): void;
-    
-    // 刷新
-    refreshView(): void;
 }
 
 export interface SortModel {
@@ -93,18 +61,8 @@ export interface SortModel {
 }
 
 export interface FilterModel {
-    type: 'text' | 'number' | 'date' | 'set' | 'custom';
-    filter?: string | number | Date;
-    filterTo?: string | number | Date;
-    operator?: 'AND' | 'OR';
-    condition1?: FilterCondition;
-    condition2?: FilterCondition;
-}
-
-export interface FilterCondition {
-    type: string;
-    filter: any;
-    filterType?: string;
+    type: 'equals' | 'notEqual' | 'contains' | 'notContains' | 'startsWith' | 'endsWith';
+    filter: string | number;
 }
 
 export interface RefreshCellsParams {
@@ -126,31 +84,32 @@ export interface ExportParams {
 }
 
 export interface ProcessHeaderParams {
-    column: ColumnDef;
-    colDef: ColumnDef;
+    column: Column;
+    colDef: Column;
 }
 
 export interface ProcessCellParams {
     value: any;
     node: RowNode;
-    column: ColumnDef;
+    column: Column;
     api: GridApi;
 }
 
 export interface GridOptions {
     container: HTMLElement;
-    columns: ColumnDef[];
-    rowData: any[];
+    columns: Column[];
+    rowData?: any[];
     rowHeight?: number;
     headerHeight?: number;
     frozenColumns?: number;
     
     // 事件处理
-    onCellClicked?: (params: CellClickedEvent) => void;
-    onCellDoubleClicked?: (params: CellClickedEvent) => void;
-    onCellValueChanged?: (params: CellValueChangedEvent) => void;
-    onRowSelected?: (params: RowSelectedEvent) => void;
-    onSelectionChanged?: () => void;
+    onCellClicked?: (event: CellClickedEvent) => void;
+    onCellDoubleClicked?: (event: CellClickedEvent) => void;
+    onCellValueChanged?: (event: CellValueChangedEvent) => void;
+    onRowClicked?: (event: RowClickedEvent) => void;
+    onRowDoubleClicked?: (event: RowClickedEvent) => void;
+    onSortChanged?: (event: SortChangedEvent) => void;
     
     // 自定义类和样式
     rowClass?: string | ((params: RowClassParams) => string | string[]);
@@ -163,27 +122,33 @@ export interface GridOptions {
     enableRangeSelection?: boolean;
     
     // 默认列定义
-    defaultColDef?: Partial<ColumnDef>;
+    defaultColDef?: Partial<Column>;
 }
 
 export interface CellClickedEvent {
     node: RowNode;
     data: any;
-    column: ColumnDef;
+    column: Column;
     colId: string;
     value: any;
     event: MouseEvent;
 }
 
-export interface CellValueChangedEvent extends CellClickedEvent {
-    oldValue: any;
-    newValue: any;
-}
-
-export interface RowSelectedEvent {
+export interface CellValueChangedEvent {
     node: RowNode;
     data: any;
-    selected: boolean;
+    column: Column;
+    colId: string;
+    value: any;
+    oldValue: any;
+    newValue: any;
+    event: MouseEvent;
+}
+
+export interface RowClickedEvent {
+    node: RowNode;
+    data: any;
+    event: MouseEvent;
 }
 
 export interface RowClassParams {
@@ -197,10 +162,32 @@ export interface CellClassParams {
     value: any;
     data: any;
     node: RowNode;
-    colDef: ColumnDef;
+    colDef: Column;
     rowIndex: number;
     api: GridApi;
-    column: ColumnDef;
+    column: Column;
     colId: string;
     refreshCell: () => void;
+}
+
+export interface ValueFormatterParams {
+    value: any;
+    data: any;
+    column: Column;
+}
+
+export interface SortChangedEvent {
+    sortModel: SortModel[];
+    api: GridApi;
+}
+
+export interface DragStartedEvent {
+    column: Column;
+    event: MouseEvent;
+}
+
+export interface DragEndedEvent {
+    column: Column;
+    event: MouseEvent;
+    newIndex: number;
 } 

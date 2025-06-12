@@ -1,67 +1,36 @@
 import {
-    GridApi,
+    Column,
     GridOptions,
-    ColumnDef,
     RowNode,
-    CellRendererParams,
+    GridApi,
     SortModel,
     FilterModel,
-    RefreshCellsParams,
-    ExportParams,
     CellClickedEvent,
-    CellValueChangedEvent,
-    RowSelectedEvent,
-    RowClassParams,
-    CellClassParams
+    RowClickedEvent
 } from './types';
 
 export class Grid implements GridApi {
     private options: GridOptions;
-    private container: HTMLElement;
-    private rowHeight: number;
-    private frozenPane!: HTMLElement;
-    private scrollablePane!: HTMLElement;
-    private frozenHeaderContainer!: HTMLElement;
-    private scrollableHeaderContainer!: HTMLElement;
-    private frozenBodyContainer!: HTMLElement;
-    private scrollableBodyContainer!: HTMLElement;
-    private horizontalScrollbar!: HTMLElement;
-    private verticalScrollbar!: HTMLElement;
-    private frozenColumns: ColumnDef[];
-    private scrollableColumns: ColumnDef[];
+    private element: HTMLElement;
     private rowNodes: Map<string | number, RowNode> = new Map();
     private selectedNodes: Set<string | number> = new Set();
     private sortModel: SortModel[] = [];
     private filterModel: Map<string, FilterModel> = new Map();
+    private draggedColumn: Column | null = null;
+    private draggedElement: HTMLElement | null = null;
+    private resizeStartX: number = 0;
+    private resizeColumn: Column | null = null;
+    private resizeElement: HTMLElement | null = null;
 
     constructor(options: GridOptions) {
         this.options = {
-            ...options,
-            rowData: options.rowData || [],
-            defaultColDef: this.getDefaultColDef(options.defaultColDef)
+            rowHeight: 40,
+            headerHeight: 40,
+            ...options
         };
-        this.container = options.container;
-        this.rowHeight = options.rowHeight || 40;
-
-        const frozenCount = options.frozenColumns || 0;
-        this.frozenColumns = this.options.columns.slice(0, frozenCount);
-        this.scrollableColumns = this.options.columns.slice(frozenCount);
-
+        this.element = document.createElement('div');
+        this.element.className = 'grid-container';
         this.initRowNodes();
-        this.renderStructure();
-        this.renderVisibleRows();
-        this.setupScrollSync();
-        this.setupEventHandlers();
-    }
-
-    private getDefaultColDef(userDefault: Partial<ColumnDef> = {}): Partial<ColumnDef> {
-        return {
-            sortable: true,
-            filter: true,
-            editable: false,
-            width: 150,
-            ...userDefault
-        };
     }
 
     private initRowNodes() {
@@ -79,171 +48,509 @@ export class Grid implements GridApi {
         }
     }
 
-    private createCell(column: ColumnDef, data: any, rowIndex: number): HTMLElement {
-        const cell = document.createElement('div');
-        cell.className = 'grid-cell';
-        cell.style.width = `${column.width || 150}px`;
+    private renderHeader() {
+        const headerWrapper = document.createElement('div');
+        headerWrapper.className = 'grid-header';
+        headerWrapper.style.display = 'flex';
 
-        const value = data[column.field];
-        
-        if (column.cellRenderer) {
-            const params: CellRendererParams = {
-                value,
-                data,
-                rowIndex,
-                colId: column.field,
-                column,
-                api: this,
-                node: cell,
-                refreshCell: () => this.refreshCell(cell, column, data, rowIndex)
-            };
+        const header = document.createElement('div');
+        header.style.display = 'flex';
+        header.style.height = `${this.options.headerHeight}px`;
+        header.style.flex = '1';
+        header.style.marginRight = '17px';
+
+        // 添加右侧固定区域
+        const headerRightArea = document.createElement('div');
+        headerRightArea.className = 'grid-header-right-area';
+        headerRightArea.style.height = `${this.options.headerHeight}px`;
+
+        this.options.columns.forEach((col, index) => {
+            const cell = document.createElement('div');
+            cell.className = 'grid-header-cell';
+            cell.style.width = `${col.width}px`;
+            cell.setAttribute('data-field', col.field);
             
-            const result = column.cellRenderer(params);
-            if (typeof result === 'string') {
-                cell.innerHTML = result;
-            } else if (result instanceof HTMLElement) {
-                cell.appendChild(result);
+            // 添加列标题
+            const title = document.createElement('div');
+            title.className = 'grid-header-cell-title';
+            title.textContent = col.headerName;
+            cell.appendChild(title);
+
+            // 添加排序图标
+            if (col.sortable) {
+                cell.classList.add('sortable');
+                const sortIcon = document.createElement('div');
+                sortIcon.className = 'sort-icon';
+                cell.appendChild(sortIcon);
+
+                // 添加排序点击事件
+                cell.addEventListener('click', (e) => this.handleSortClick(e, col));
             }
-        } else if (column.editable) {
-            const input = document.createElement('input');
-            input.value = value?.toString() || '';
-            input.addEventListener('change', (e) => this.handleCellValueChange(e, column, data, rowIndex));
-            cell.appendChild(input);
-        } else {
-            cell.textContent = value?.toString() || '';
-        }
 
-        if (this.options.cellClass) {
-            const cellClass = typeof this.options.cellClass === 'function'
-                ? this.options.cellClass({
-                    value,
-                    data,
-                    node: this.rowNodes.get(data.id || rowIndex)!,
-                    colDef: column,
-                    rowIndex,
-                    api: this,
-                    column,
-                    colId: column.field,
-                    refreshCell: () => this.refreshCell(cell, column, data, rowIndex)
-                })
-                : this.options.cellClass;
+            // 添加拖拽功能
+            cell.setAttribute('draggable', 'true');
+            cell.addEventListener('dragstart', (e) => this.handleDragStart(e, col, cell));
+            cell.addEventListener('dragover', this.handleDragOver);
+            cell.addEventListener('drop', (e) => this.handleDrop(e, col, index));
+            cell.addEventListener('dragend', (e) => this.handleDragEnd(e));
 
-            if (Array.isArray(cellClass)) {
-                cell.classList.add(...cellClass);
-            } else {
-                cell.classList.add(cellClass);
+            // 添加列宽调整功能
+            if (col.resizable !== false) {
+                const resizer = document.createElement('div');
+                resizer.className = 'column-resizer';
+                cell.appendChild(resizer);
+
+                resizer.addEventListener('mousedown', (e) => this.handleResizeStart(e, col, cell));
             }
-        }
 
-        return cell;
+            header.appendChild(cell);
+        });
+
+        headerWrapper.appendChild(header);
+        headerWrapper.appendChild(headerRightArea);
+        return headerWrapper;
     }
 
-    private refreshCell(cell: HTMLElement, column: ColumnDef, data: any, rowIndex: number) {
-        const newCell = this.createCell(column, data, rowIndex);
-        cell.parentElement?.replaceChild(newCell, cell);
-    }
+    private renderBody() {
+        const body = document.createElement('div');
+        body.className = 'grid-body';
 
-    private handleCellValueChange(e: Event, column: ColumnDef, data: any, rowIndex: number) {
-        const input = e.target as HTMLInputElement;
-        const oldValue = data[column.field];
-        const newValue = input.value;
-        
-        data[column.field] = newValue;
-        
-        if (this.options.onCellValueChanged) {
-            this.options.onCellValueChanged({
-                node: this.rowNodes.get(data.id || rowIndex)!,
-                data,
-                column,
-                colId: column.field,
-                value: newValue,
-                oldValue,
-                newValue,
-                event: e as unknown as MouseEvent
-            });
-        }
-    }
+        const content = document.createElement('div');
+        content.className = 'grid-content';
 
-    private renderVisibleRows() {
-        const rowData = this.getFilteredAndSortedData();
-        const currentScrollTop = this.verticalScrollbar.scrollTop;
-        const startIndex = Math.floor(currentScrollTop / this.rowHeight);
-        const visibleRowCount = Math.ceil(this.scrollableBodyContainer.clientHeight / this.rowHeight);
-        const endIndex = Math.min(startIndex + visibleRowCount + 1, rowData.length);
+        // 创建滚动条容器
+        const scrollbarContainer = document.createElement('div');
+        scrollbarContainer.className = 'scrollbar-container';
 
-        // 清空现有内容
-        this.frozenBodyContainer.innerHTML = '';
-        this.scrollableBodyContainer.innerHTML = '';
+        // 创建垂直滚动条
+        const verticalScrollbar = document.createElement('div');
+        verticalScrollbar.className = 'vertical-scrollbar';
+        const verticalThumb = document.createElement('div');
+        verticalThumb.className = 'scrollbar-thumb';
+        verticalScrollbar.appendChild(verticalThumb);
 
-        // 创建内容容器
-        const frozenContent = document.createElement('div');
-        frozenContent.className = 'grid-content';
-        frozenContent.style.position = 'absolute';
-        frozenContent.style.width = '100%';
-        frozenContent.style.top = '0';
-        frozenContent.style.transform = `translateY(-${currentScrollTop}px)`;
+        // 创建水平滚动条
+        const horizontalScrollbar = document.createElement('div');
+        horizontalScrollbar.className = 'horizontal-scrollbar';
+        const horizontalThumb = document.createElement('div');
+        horizontalThumb.className = 'scrollbar-thumb';
+        horizontalScrollbar.appendChild(horizontalThumb);
 
-        const scrollableContent = document.createElement('div');
-        scrollableContent.className = 'grid-content';
-        scrollableContent.style.position = 'absolute';
-        scrollableContent.style.width = '100%';
-        scrollableContent.style.top = '0';
-        scrollableContent.style.transform = `translateY(-${currentScrollTop}px)`;
+        // 添加滚动条到容器
+        scrollbarContainer.appendChild(verticalScrollbar);
+        scrollbarContainer.appendChild(horizontalScrollbar);
 
-        // 渲染可见行
-        for (let i = startIndex; i < endIndex; i++) {
-            const data = rowData[i];
-            if (!data) continue;
+        // 监听内容滚动
+        content.addEventListener('scroll', () => {
+            const { scrollTop, scrollHeight, clientHeight, scrollLeft, scrollWidth, clientWidth } = content;
+            
+            // 更新垂直滚动条
+            const verticalRatio = clientHeight / scrollHeight;
+            const verticalThumbHeight = Math.max(30, verticalRatio * clientHeight);
+            verticalThumb.style.height = `${verticalThumbHeight}px`;
+            verticalThumb.style.top = `${(scrollTop / scrollHeight) * clientHeight}px`;
 
-            // 创建行元素
-            const frozenRow = document.createElement('div');
-            const scrollableRow = document.createElement('div');
+            // 更新水平滚动条
+            const horizontalRatio = clientWidth / scrollWidth;
+            const horizontalThumbWidth = Math.max(30, horizontalRatio * clientWidth);
+            horizontalThumb.style.width = `${horizontalThumbWidth}px`;
+            horizontalThumb.style.left = `${(scrollLeft / scrollWidth) * clientWidth}px`;
 
-            frozenRow.className = scrollableRow.className = 'grid-row';
-            frozenRow.style.top = scrollableRow.style.top = `${i * this.rowHeight}px`;
-            frozenRow.setAttribute('data-row-index', i.toString());
-            scrollableRow.setAttribute('data-row-index', i.toString());
+            // 同步 header 滚动
+            const header = this.element.querySelector('.grid-header');
+            if (header) {
+                header.scrollLeft = scrollLeft;
+            }
+        });
 
-            // 添加行样式
+        // 获取过滤和排序后的数据
+        const displayedData = this.getFilteredAndSortedData();
+
+        displayedData.forEach((row, rowIndex) => {
+            const rowElement = document.createElement('div');
+            rowElement.className = 'grid-row';
+            const rowHeight = this.options.rowHeight || 40;
+            rowElement.style.height = `${rowHeight}px`;
+            rowElement.style.top = `${rowIndex * rowHeight}px`;
+
+            // 添加自定义行样式
             if (this.options.rowClass) {
-                const rowClass = typeof this.options.rowClass === 'function'
-                    ? this.options.rowClass({
-                        data,
-                        node: this.rowNodes.get(data.id || i)!,
-                        rowIndex: i,
-                        api: this
-                    })
-                    : this.options.rowClass;
+                const node = this.rowNodes.get(row.id || rowIndex);
+                if (node) {
+                    const customClass = typeof this.options.rowClass === 'function'
+                        ? this.options.rowClass({
+                            data: row,
+                            node,
+                            rowIndex,
+                            api: this
+                        })
+                        : this.options.rowClass;
 
-                if (Array.isArray(rowClass)) {
-                    frozenRow.classList.add(...rowClass);
-                    scrollableRow.classList.add(...rowClass);
-                } else {
-                    frozenRow.classList.add(rowClass);
-                    scrollableRow.classList.add(rowClass);
+                    if (typeof customClass === 'string' && customClass) {
+                        rowElement.classList.add(customClass);
+                    } else if (Array.isArray(customClass)) {
+                        const validClasses = customClass.filter(className => className && typeof className === 'string');
+                        if (validClasses.length > 0) {
+                            rowElement.classList.add(...validClasses);
+                        }
+                    }
                 }
             }
 
-            // 渲染单元格
-            this.frozenColumns.forEach(column => {
-                frozenRow.appendChild(this.createCell(column, data, i));
+            // 添加行点击事件
+            rowElement.addEventListener('click', (e) => this.handleRowClick(e, row, rowIndex));
+            rowElement.addEventListener('dblclick', (e) => this.handleRowDoubleClick(e, row, rowIndex));
+
+            this.options.columns.forEach(col => {
+                const cell = document.createElement('div');
+                cell.className = 'grid-cell';
+                cell.style.width = `${col.width}px`;
+
+                const value = row[col.field];
+
+                // 处理单元格渲染
+                if (col.cellRenderer) {
+                    const node = this.rowNodes.get(row.id || rowIndex);
+                    if (node) {
+                        const customElement = col.cellRenderer({
+                            value,
+                            data: row,
+                            rowIndex,
+                            colId: col.field,
+                            column: col,
+                            api: this,
+                            node
+                        });
+                        cell.appendChild(customElement);
+                    }
+                } else if (col.valueFormatter) {
+                    cell.textContent = col.valueFormatter({
+                        value,
+                        data: row,
+                        column: col
+                    });
+                } else {
+                    cell.textContent = value?.toString() ?? '';
+                }
+
+                // 添加单元格点击事件
+                cell.addEventListener('click', (e) => this.handleCellClick(e, col, row, value, rowIndex));
+                cell.addEventListener('dblclick', (e) => this.handleCellDoubleClick(e, col, row, value, rowIndex));
+
+                // 处理可编辑单元格
+                if (col.editable) {
+                    cell.classList.add('editable');
+                    cell.addEventListener('dblclick', () => this.startEditing(cell, col, row, value));
+                }
+
+                rowElement.appendChild(cell);
             });
 
-            this.scrollableColumns.forEach(column => {
-                scrollableRow.appendChild(this.createCell(column, data, i));
-            });
+            content.appendChild(rowElement);
+        });
 
-            frozenContent.appendChild(frozenRow);
-            scrollableContent.appendChild(scrollableRow);
+        // 添加拖拽功能到滚动条
+        let isDragging = false;
+        let startY = 0;
+        let startX = 0;
+        let startScrollTop = 0;
+        let startScrollLeft = 0;
+
+        verticalThumb.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            startY = e.clientY;
+            startScrollTop = content.scrollTop;
+            document.body.style.userSelect = 'none';
+        });
+
+        horizontalThumb.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            startX = e.clientX;
+            startScrollLeft = content.scrollLeft;
+            document.body.style.userSelect = 'none';
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+
+            if (Math.abs(e.clientY - startY) > Math.abs(e.clientX - startX)) {
+                // 垂直滚动
+                const deltaY = e.clientY - startY;
+                const ratio = content.scrollHeight / content.clientHeight;
+                content.scrollTop = startScrollTop + deltaY * ratio;
+            } else {
+                // 水平滚动
+                const deltaX = e.clientX - startX;
+                const ratio = content.scrollWidth / content.clientWidth;
+                content.scrollLeft = startScrollLeft + deltaX * ratio;
+                
+                // 同步 header 滚动
+                const header = this.element.querySelector('.grid-header');
+                if (header) {
+                    header.scrollLeft = content.scrollLeft;
+                }
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            isDragging = false;
+            document.body.style.userSelect = '';
+        });
+
+        body.appendChild(content);
+        body.appendChild(scrollbarContainer);
+        return body;
+    }
+
+    private handleSortClick(e: MouseEvent, column: Column) {
+        if (!column.sortable) return;
+
+        const headerCell = (e.target as HTMLElement).closest('.grid-header-cell');
+        if (!headerCell) return;
+
+        const existingSort = this.sortModel.find(s => s.colId === column.field);
+        
+        // 更新排序状态
+        if (!existingSort) {
+            this.sortModel = [{ colId: column.field, sort: 'asc' }];
+            headerCell.setAttribute('data-sort', 'asc');
+        } else if (existingSort.sort === 'asc') {
+            this.sortModel = [{ colId: column.field, sort: 'desc' }];
+            headerCell.setAttribute('data-sort', 'desc');
+        } else {
+            this.sortModel = [];
+            headerCell.removeAttribute('data-sort');
         }
 
-        // 添加内容容器到视图
-        this.frozenBodyContainer.appendChild(frozenContent);
-        this.scrollableBodyContainer.appendChild(scrollableContent);
+        // 清除其他列的排序状态
+        const otherHeaders = this.element.querySelectorAll(`.grid-header-cell:not([data-field="${column.field}"])`);
+        otherHeaders.forEach(header => header.removeAttribute('data-sort'));
 
-        // 更新垂直滚动条占位元素的高度
-        const verticalScrollbarSpacer = this.verticalScrollbar.querySelector('.grid-scrollbar-spacer') as HTMLElement;
-        verticalScrollbarSpacer.style.height = `${rowData.length * this.rowHeight}px`;
+        // 触发排序变更事件
+        if (this.options.onSortChanged) {
+            this.options.onSortChanged({ sortModel: this.sortModel, api: this });
+        }
+
+        this.refreshView();
+    }
+
+    private handleDragStart(e: DragEvent, column: Column, element: HTMLElement) {
+        if (!e.dataTransfer) return;
+        
+        this.draggedColumn = column;
+        this.draggedElement = element;
+        
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', column.field);
+        
+        element.classList.add('dragging');
+    }
+
+    private handleDragOver(e: DragEvent) {
+        e.preventDefault();
+        e.dataTransfer!.dropEffect = 'move';
+    }
+
+    private handleDrop(e: DragEvent, targetColumn: Column, targetIndex: number) {
+        e.preventDefault();
+        
+        if (!this.draggedColumn || this.draggedColumn === targetColumn) return;
+        
+        // 获取拖拽列的原始索引
+        const sourceIndex = this.options.columns.indexOf(this.draggedColumn);
+        
+        // 重新排序列
+        const columns = [...this.options.columns];
+        columns.splice(sourceIndex, 1);
+        columns.splice(targetIndex, 0, this.draggedColumn);
+        
+        // 更新列定义
+        this.options.columns = columns;
+        
+        this.refreshView();
+    }
+
+    private handleDragEnd(e: DragEvent) {
+        if (this.draggedElement) {
+            this.draggedElement.classList.remove('dragging');
+        }
+        this.draggedColumn = null;
+        this.draggedElement = null;
+    }
+
+    private handleResizeStart(e: MouseEvent, column: Column, element: HTMLElement) {
+        e.preventDefault();
+        this.resizeStartX = e.clientX;
+        this.resizeColumn = column;
+        this.resizeElement = element;
+        document.body.style.cursor = 'col-resize';
+
+        // 添加全局鼠标事件监听
+        document.addEventListener('mousemove', this.handleResizeMove);
+        document.addEventListener('mouseup', this.handleResizeEnd);
+    }
+
+    private handleResizeMove = (e: MouseEvent) => {
+        if (!this.resizeColumn || !this.resizeElement) return;
+        
+        const diff = e.clientX - this.resizeStartX;
+        const newWidth = Math.max(50, this.resizeColumn.width + diff);
+        
+        this.resizeColumn.width = newWidth;
+        this.resizeElement.style.width = `${newWidth}px`;
+        
+        // 更新对应的数据单元格宽度
+        const columnIndex = this.options.columns.indexOf(this.resizeColumn);
+        const cells = this.element.querySelectorAll(`.grid-row .grid-cell:nth-child(${columnIndex + 1})`);
+        cells.forEach(cell => (cell as HTMLElement).style.width = `${newWidth}px`);
+        
+        this.resizeStartX = e.clientX;
+    }
+
+    private handleResizeEnd = () => {
+        this.resizeColumn = null;
+        this.resizeElement = null;
+        document.body.style.cursor = '';
+        
+        // 移除全局鼠标事件监听
+        document.removeEventListener('mousemove', this.handleResizeMove);
+        document.removeEventListener('mouseup', this.handleResizeEnd);
+    }
+
+    private startEditing(cell: HTMLElement, column: Column, row: any, value: any) {
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.value = value?.toString() ?? '';
+        input.className = 'cell-editor';
+        
+        // 保存原始内容
+        const originalContent = cell.innerHTML;
+        
+        // 替换单元格内容为输入框
+        cell.innerHTML = '';
+        cell.appendChild(input);
+        input.focus();
+        
+        // 处理完成编辑
+        const finishEditing = (newValue: string) => {
+            const oldValue = row[column.field];
+            row[column.field] = newValue;
+            
+            // 恢复单元格显示
+            if (column.cellRenderer) {
+                const node = this.rowNodes.get(row.id);
+                if (node) {
+                    const customElement = column.cellRenderer({
+                        value: newValue,
+                        data: row,
+                        rowIndex: node.rowIndex,
+                        colId: column.field,
+                        column,
+                        api: this,
+                        node
+                    });
+                    cell.innerHTML = '';
+                    cell.appendChild(customElement);
+                }
+            } else if (column.valueFormatter) {
+                cell.textContent = column.valueFormatter({
+                    value: newValue,
+                    data: row,
+                    column
+                });
+            } else {
+                cell.textContent = newValue;
+            }
+            
+            // 触发值变更事件
+            if (this.options.onCellValueChanged) {
+                const node = this.rowNodes.get(row.id);
+                if (node) {
+                    this.options.onCellValueChanged({
+                        node,
+                        data: row,
+                        column,
+                        colId: column.field,
+                        value: newValue,
+                        oldValue,
+                        newValue,
+                        event: new MouseEvent('click')
+                    });
+                }
+            }
+        };
+        
+        // 处理按键事件
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                finishEditing(input.value);
+            } else if (e.key === 'Escape') {
+                cell.innerHTML = originalContent;
+            }
+        });
+        
+        // 处理失去焦点
+        input.addEventListener('blur', () => {
+            finishEditing(input.value);
+        });
+    }
+
+    private handleRowClick(e: MouseEvent, row: any, rowIndex: number) {
+        if (this.options.onRowClicked) {
+            const node = this.rowNodes.get(row.id || rowIndex);
+            if (node) {
+                this.options.onRowClicked({
+                    node,
+                    data: row,
+                    event: e
+                });
+            }
+        }
+    }
+
+    private handleRowDoubleClick(e: MouseEvent, row: any, rowIndex: number) {
+        if (this.options.onRowDoubleClicked) {
+            const node = this.rowNodes.get(row.id || rowIndex);
+            if (node) {
+                this.options.onRowDoubleClicked({
+                    node,
+                    data: row,
+                    event: e
+                });
+            }
+        }
+    }
+
+    private handleCellClick(e: MouseEvent, column: Column, row: any, value: any, rowIndex: number) {
+        if (this.options.onCellClicked) {
+            const node = this.rowNodes.get(row.id || rowIndex);
+            if (node) {
+                this.options.onCellClicked({
+                    node,
+                    data: row,
+                    column,
+                    colId: column.field,
+                    value,
+                    event: e
+                });
+            }
+        }
+    }
+
+    private handleCellDoubleClick(e: MouseEvent, column: Column, row: any, value: any, rowIndex: number) {
+        if (this.options.onCellDoubleClicked) {
+            const node = this.rowNodes.get(row.id || rowIndex);
+            if (node) {
+                this.options.onCellDoubleClicked({
+                    node,
+                    data: row,
+                    column,
+                    colId: column.field,
+                    value,
+                    event: e
+                });
+            }
+        }
     }
 
     private getFilteredAndSortedData(): any[] {
@@ -254,15 +561,28 @@ export class Grid implements GridApi {
             data = data.filter(row => {
                 return Array.from(this.filterModel.entries()).every(([columnId, model]) => {
                     const value = row[columnId];
-                    const column = this.options.columns.find(col => col.field === columnId);
-                    
-                    if (column?.filterParams?.customFilter) {
-                        return column.filterParams.customFilter(value, model.filter as string);
-                    }
                     
                     // 实现默认过滤逻辑
                     if (model.filter && value !== undefined) {
-                        return value.toString().toLowerCase().includes(model.filter.toString().toLowerCase());
+                        const filterValue = model.filter.toString().toLowerCase();
+                        const cellValue = value.toString().toLowerCase();
+                        
+                        switch (model.type) {
+                            case 'equals':
+                                return cellValue === filterValue;
+                            case 'notEqual':
+                                return cellValue !== filterValue;
+                            case 'contains':
+                                return cellValue.includes(filterValue);
+                            case 'notContains':
+                                return !cellValue.includes(filterValue);
+                            case 'startsWith':
+                                return cellValue.startsWith(filterValue);
+                            case 'endsWith':
+                                return cellValue.endsWith(filterValue);
+                            default:
+                                return true;
+                        }
                     }
                     return true;
                 });
@@ -278,9 +598,9 @@ export class Grid implements GridApi {
                     const valueB = b[sort.colId];
                     
                     if (column?.comparator) {
-                        const result = column.comparator(valueA, valueB, 
-                            this.rowNodes.get(a.id)!, 
-                            this.rowNodes.get(b.id)!);
+                        const nodeA = this.rowNodes.get(a.id)!;
+                        const nodeB = this.rowNodes.get(b.id)!;
+                        const result = column.comparator(valueA, valueB, nodeA, nodeB);
                         if (result !== 0) return sort.sort === 'asc' ? result : -result;
                     } else {
                         if (valueA < valueB) return sort.sort === 'asc' ? -1 : 1;
@@ -294,66 +614,40 @@ export class Grid implements GridApi {
         return data;
     }
 
-    private setupEventHandlers() {
-        // 处理单元格点击
-        const handleCellClick = (e: MouseEvent, isDouble = false) => {
-            const cell = (e.target as HTMLElement).closest('.grid-cell') as HTMLElement;
-            if (!cell) return;
-            
-            const rowElement = cell.parentElement;
-            if (!rowElement) return;
-            
-            const rowIndex = parseInt(rowElement.getAttribute('data-row-index') || '0', 10);
-            const rowData = this.getFilteredAndSortedData();
-            const data = rowData[rowIndex];
-            if (!data) return;
+    render(container: HTMLElement) {
+        // 清空容器
+        this.element.innerHTML = '';
+        
+        // 添加表头和表体
+        this.element.appendChild(this.renderHeader());
+        this.element.appendChild(this.renderBody());
 
-            const columnIndex = Array.from(rowElement.children).indexOf(cell);
-            const column = [...this.frozenColumns, ...this.scrollableColumns][columnIndex];
-            if (!column) return;
-            
-            const eventParams = {
-                node: this.rowNodes.get(data.id || rowIndex)!,
-                data,
-                column,
-                colId: column.field,
-                value: data[column.field],
-                event: e
-            };
-            
-            if (isDouble && this.options.onCellDoubleClicked) {
-                this.options.onCellDoubleClicked(eventParams);
-            } else if (!isDouble && this.options.onCellClicked) {
-                this.options.onCellClicked(eventParams);
-            }
-        };
-
-        this.container.addEventListener('click', e => handleCellClick(e));
-        this.container.addEventListener('dblclick', e => handleCellClick(e, true));
+        // 清空并添加到容器
+        container.innerHTML = '';
+        container.appendChild(this.element);
     }
 
     // GridApi implementation
-    public setRowData(data: any[]): void {
+    setRowData(data: any[]): void {
         this.options.rowData = data;
         this.initRowNodes();
-        this.renderVisibleRows();
+        this.refreshView();
     }
 
-    public getRowNode(id: string | number): RowNode | undefined {
+    getRowNode(id: string | number): RowNode | undefined {
         return this.rowNodes.get(id);
     }
 
-    public getDisplayedRowAtIndex(index: number): RowNode | undefined {
-        const filteredAndSortedData = this.getFilteredAndSortedData();
-        const data = filteredAndSortedData[index];
-        return data ? this.rowNodes.get(data.id || index) : undefined;
+    getDisplayedRowAtIndex(index: number): RowNode | undefined {
+        const data = this.getFilteredAndSortedData()[index];
+        return data ? this.rowNodes.get(data.id) : undefined;
     }
 
-    public getDisplayedRowCount(): number {
+    getDisplayedRowCount(): number {
         return this.getFilteredAndSortedData().length;
     }
 
-    public forEachNode(callback: (node: RowNode, index: number) => void): void {
+    forEachNode(callback: (node: RowNode, index: number) => void): void {
         let index = 0;
         this.rowNodes.forEach(node => {
             callback(node, index);
@@ -361,27 +655,21 @@ export class Grid implements GridApi {
         });
     }
 
-    public selectAll(): void {
+    selectAll(): void {
         this.rowNodes.forEach(node => {
             node.selected = true;
             this.selectedNodes.add(node.id);
         });
         this.refreshView();
-        if (this.options.onSelectionChanged) {
-            this.options.onSelectionChanged();
-        }
     }
 
-    public deselectAll(): void {
+    deselectAll(): void {
         this.selectedNodes.clear();
         this.rowNodes.forEach(node => node.selected = false);
         this.refreshView();
-        if (this.options.onSelectionChanged) {
-            this.options.onSelectionChanged();
-        }
     }
 
-    public selectRow(id: string | number, clearOthers = true): void {
+    selectRow(id: string | number, clearOthers = true): void {
         if (clearOthers) {
             this.deselectAll();
         }
@@ -390,49 +678,36 @@ export class Grid implements GridApi {
             node.selected = true;
             this.selectedNodes.add(id);
             this.refreshView();
-            if (this.options.onRowSelected) {
-                this.options.onRowSelected({ node, data: node.data, selected: true });
-            }
-            if (this.options.onSelectionChanged) {
-                this.options.onSelectionChanged();
-            }
         }
     }
 
-    public getSelectedNodes(): RowNode[] {
+    getSelectedNodes(): RowNode[] {
         return Array.from(this.selectedNodes).map(id => this.rowNodes.get(id)!);
     }
 
-    public getSelectedRows(): any[] {
+    getSelectedRows(): any[] {
         return this.getSelectedNodes().map(node => node.data);
     }
 
-    public setSort(sortModel: SortModel[]): void {
+    setSort(sortModel: SortModel[]): void {
         this.sortModel = sortModel;
         this.refreshView();
     }
 
-    public setFilter(columnId: string, filterModel: FilterModel): void {
+    setFilter(columnId: string, filterModel: FilterModel): void {
         this.filterModel.set(columnId, filterModel);
         this.refreshView();
     }
 
-    public refreshCells(params?: RefreshCellsParams): void {
-        // 实现刷新指定单元格的逻辑
-        this.renderVisibleRows();
-    }
-
-    public setColumnDefs(colDefs: ColumnDef[]): void {
+    setColumnDefs(colDefs: Column[]): void {
         this.options.columns = colDefs;
-        const frozenCount = this.options.frozenColumns || 0;
-        this.frozenColumns = colDefs.slice(0, frozenCount);
-        this.scrollableColumns = colDefs.slice(frozenCount);
-        this.renderStructure();
-        this.renderVisibleRows();
+        this.refreshView();
     }
 
-    public sizeColumnsToFit(): void {
-        const totalWidth = this.container.clientWidth;
+    sizeColumnsToFit(): void {
+        if (!this.element) return;
+        
+        const totalWidth = this.element.clientWidth;
         const columnCount = this.options.columns.length;
         const width = Math.floor(totalWidth / columnCount);
         
@@ -440,205 +715,51 @@ export class Grid implements GridApi {
             col.width = width;
         });
         
-        this.renderStructure();
-        this.renderVisibleRows();
+        this.refreshView();
     }
 
-    public autoSizeColumns(columnIds?: string[]): void {
-        // 实现自动调整列宽的逻辑
+    autoSizeColumns(columnIds?: string[]): void {
+        // 这里可以实现自动调整列宽的逻辑
+        // 可以根据内容计算最大宽度
     }
 
-    public exportDataAsCsv(params?: ExportParams): void {
-        // 实现导出CSV的逻辑
+    refreshView(): void {
+        if (this.element) {
+            this.render(this.element.parentElement!);
+        }
     }
 
-    public exportDataAsExcel(params?: ExportParams): void {
-        // 实现导出Excel的逻辑
-    }
-
-    public showLoadingOverlay(): void {
-        // 实现显示加载遮罩的逻辑
-    }
-
-    public hideOverlay(): void {
-        // 实现隐藏遮罩的逻辑
-    }
-
-    public resetRowHeights(): void {
-        this.renderVisibleRows();
-    }
-
-    public ensureIndexVisible(index: number, position: 'top' | 'middle' | 'bottom' = 'middle'): void {
-        const rowTop = index * this.rowHeight;
-        let scrollTop;
+    ensureIndexVisible(index: number, position: 'top' | 'middle' | 'bottom' = 'middle'): void {
+        const body = this.element.querySelector('.grid-body');
+        if (!body) return;
         
+        const rowElement = body.children[index] as HTMLElement;
+        if (!rowElement) return;
+        
+        const bodyRect = body.getBoundingClientRect();
+        const rowRect = rowElement.getBoundingClientRect();
+        
+        let scrollTop;
         switch (position) {
             case 'top':
-                scrollTop = rowTop;
+                scrollTop = rowRect.top - bodyRect.top;
                 break;
             case 'bottom':
-                scrollTop = rowTop - this.scrollableBodyContainer.clientHeight + this.rowHeight;
+                scrollTop = rowRect.bottom - bodyRect.bottom;
                 break;
             case 'middle':
             default:
-                scrollTop = rowTop - (this.scrollableBodyContainer.clientHeight - this.rowHeight) / 2;
+                scrollTop = rowRect.top - bodyRect.top - (bodyRect.height - rowRect.height) / 2;
         }
         
-        this.scrollableBodyContainer.scrollTop = Math.max(0, scrollTop);
+        body.scrollTop = scrollTop;
     }
 
-    public ensureNodeVisible(node: RowNode, position?: 'top' | 'middle' | 'bottom'): void {
-        this.ensureIndexVisible(node.rowIndex, position);
+    ensureNodeVisible(node: RowNode, position?: 'top' | 'middle' | 'bottom'): void {
+        const data = this.getFilteredAndSortedData();
+        const index = data.findIndex(row => row.id === node.id);
+        if (index !== -1) {
+            this.ensureIndexVisible(index, position);
+        }
     }
-
-    public refreshView(): void {
-        this.renderVisibleRows();
-    }
-
-    private setupScrollSync() {
-        // 监听水平滚动条
-        this.horizontalScrollbar.addEventListener('scroll', () => {
-            // 同步水平滚动
-            const scrollLeft = this.horizontalScrollbar.scrollLeft;
-            this.scrollablePane.scrollLeft = scrollLeft;
-            this.scrollableHeaderContainer.scrollLeft = scrollLeft;
-            this.scrollableBodyContainer.scrollLeft = scrollLeft;
-        });
-
-        // 监听垂直滚动条
-        this.verticalScrollbar.addEventListener('scroll', () => {
-            const scrollTop = this.verticalScrollbar.scrollTop;
-            this.updateVerticalScroll(scrollTop);
-        });
-
-        // 添加触控板和鼠标滚轮事件处理
-        this.container.addEventListener('wheel', (e) => {
-            // 阻止默认行为以自定义滚动
-            e.preventDefault();
-
-            const deltaX = e.deltaX;
-            const deltaY = e.deltaY;
-            
-            // 处理垂直滚动
-            if (deltaY !== 0) {
-                const currentScrollTop = this.verticalScrollbar.scrollTop;
-                const maxScrollTop = this.getMaxScrollTop();
-                const newScrollTop = Math.max(0, Math.min(currentScrollTop + deltaY, maxScrollTop));
-                
-                this.verticalScrollbar.scrollTop = newScrollTop;
-                this.updateVerticalScroll(newScrollTop);
-            }
-            
-            // 处理水平滚动
-            if (deltaX !== 0) {
-                const newScrollLeft = this.horizontalScrollbar.scrollLeft + deltaX;
-                this.horizontalScrollbar.scrollLeft = newScrollLeft;
-                this.scrollablePane.scrollLeft = newScrollLeft;
-                this.scrollableHeaderContainer.scrollLeft = newScrollLeft;
-                this.scrollableBodyContainer.scrollLeft = newScrollLeft;
-            }
-        }, { passive: false });
-    }
-
-    private updateVerticalScroll(scrollTop: number) {
-        const roundedScrollTop = Math.round(scrollTop);
-        this.renderVisibleRows();
-    }
-
-    private getMaxScrollTop(): number {
-        const totalHeight = this.getFilteredAndSortedData().length * this.rowHeight;
-        const viewportHeight = this.scrollableBodyContainer.clientHeight;
-        return Math.max(0, totalHeight - viewportHeight);
-    }
-
-    private renderStructure() {
-        this.container.innerHTML = '';
-        this.container.classList.add('grid-container-wrapper');
-
-        // 计算冻结列的总宽度并设置为 CSS 变量
-        const frozenWidth = this.frozenColumns.reduce((acc, col) => acc + (col.width || 150), 0);
-        this.container.style.setProperty('--frozen-width', `${frozenWidth}px`);
-
-        // 创建主体容器
-        const mainContainer = document.createElement('div');
-        mainContainer.className = 'grid-main';
-
-        // 创建左侧固定区域
-        this.frozenPane = document.createElement('div');
-        this.frozenPane.className = 'grid-pane grid-pane-frozen';
-        this.frozenPane.style.width = `${frozenWidth}px`;
-
-        // 创建右侧可滚动区域
-        this.scrollablePane = document.createElement('div');
-        this.scrollablePane.className = 'grid-pane grid-pane-scrollable';
-
-        // 创建表头容器
-        this.frozenHeaderContainer = document.createElement('div');
-        this.frozenHeaderContainer.className = 'grid-header';
-
-        this.scrollableHeaderContainer = document.createElement('div');
-        this.scrollableHeaderContainer.className = 'grid-header';
-
-        // 创建表头行
-        const createHeaderRow = (columns: ColumnDef[]) => {
-            const row = document.createElement('div');
-            row.className = 'grid-row';
-            
-            columns.forEach(column => {
-                const cell = document.createElement('div');
-                cell.className = 'grid-cell grid-header-cell';
-                cell.style.width = `${column.width || 150}px`;
-                cell.textContent = column.headerName || column.field;
-                row.appendChild(cell);
-            });
-            
-            return row;
-        };
-
-        this.frozenHeaderContainer.appendChild(createHeaderRow(this.frozenColumns));
-        this.scrollableHeaderContainer.appendChild(createHeaderRow(this.scrollableColumns));
-
-        // 创建内容容器
-        this.frozenBodyContainer = document.createElement('div');
-        this.frozenBodyContainer.className = 'grid-body grid-body-frozen';
-
-        this.scrollableBodyContainer = document.createElement('div');
-        this.scrollableBodyContainer.className = 'grid-body grid-body-scrollable';
-
-        // 创建水平滚动条容器
-        this.horizontalScrollbar = document.createElement('div');
-        this.horizontalScrollbar.className = 'grid-scrollbar grid-scrollbar-horizontal';
-        
-        const horizontalScrollbarSpacer = document.createElement('div');
-        horizontalScrollbarSpacer.className = 'grid-scrollbar-spacer';
-        const totalScrollableWidth = this.scrollableColumns.reduce((acc, col) => acc + (col.width || 150), 0);
-        horizontalScrollbarSpacer.style.width = `${totalScrollableWidth}px`;
-        this.horizontalScrollbar.appendChild(horizontalScrollbarSpacer);
-
-        // 创建垂直滚动条容器
-        this.verticalScrollbar = document.createElement('div');
-        this.verticalScrollbar.className = 'grid-scrollbar grid-scrollbar-vertical';
-        
-        const verticalScrollbarSpacer = document.createElement('div');
-        verticalScrollbarSpacer.className = 'grid-scrollbar-spacer';
-        this.verticalScrollbar.appendChild(verticalScrollbarSpacer);
-
-        // 组装结构
-        this.frozenPane.appendChild(this.frozenHeaderContainer);
-        this.frozenPane.appendChild(this.frozenBodyContainer);
-
-        this.scrollablePane.appendChild(this.scrollableHeaderContainer);
-        this.scrollablePane.appendChild(this.scrollableBodyContainer);
-
-        mainContainer.appendChild(this.frozenPane);
-        mainContainer.appendChild(this.scrollablePane);
-        mainContainer.appendChild(this.verticalScrollbar);
-
-        const bottomContainer = document.createElement('div');
-        bottomContainer.className = 'grid-bottom-container';
-        bottomContainer.appendChild(this.horizontalScrollbar);
-
-        this.container.appendChild(mainContainer);
-        this.container.appendChild(bottomContainer);
-    }
-} 
+}
