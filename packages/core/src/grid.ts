@@ -321,7 +321,11 @@ export class Grid implements GridApi {
 
             this.options.columns.forEach(col => {
                 const vCellId = `${this.instanceId}-cell-${rowId}-${col.field}`;
-                this.virtualDOM.createElement(vCellId, 'div', 'grid-cell');
+                const cellClasses = ['grid-cell'];
+                if (col.editable) {
+                    cellClasses.push('editable');
+                }
+                this.virtualDOM.createElement(vCellId, 'div', cellClasses.join(' '));
                 
                 const value = row[col.field];
                 const tempCell = document.createElement('div');
@@ -443,11 +447,6 @@ export class Grid implements GridApi {
             const displayValue = value !== undefined ? value : row[column.field];
             p.textContent = displayValue?.toString() ?? '';
             cellContent.appendChild(p);
-        }
-
-        // 如果单元格可编辑，添加类名
-        if (column.editable) {
-            cell.classList.add('editable');
         }
 
         // 清空单元格内容并添加新内容
