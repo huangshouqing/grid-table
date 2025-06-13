@@ -5,43 +5,13 @@ import {
     GridApi,
     SortModel,
     FilterModel,
-    CellClickedEvent,
-    RowClickedEvent,
     ValueSetParams
 } from './types';
 import { ScrollSyncManager } from './managers/ScrollSyncManager';
 import { VirtualDOMManager } from './managers/VirtualDOMManager';
 import { EventManager } from './managers/EventManager';
-
+import { GridState } from './interface';
 // 添加状态管理
-interface GridState {
-    scrollPosition: {
-        left: number;
-        top: number;
-        lastLeft: number;
-        lastTop: number;
-    };
-    editingCell: {
-        rowId: string | number;
-        field: string;
-        value: any;
-    } | null;
-    selectedNodes: Set<string | number>;
-    sortModel: SortModel[];
-    filterModel: Map<string, FilterModel>;
-    columnState: Map<string, {
-        width: number;
-        visible: boolean;
-        order: number;
-    }>;
-    dragState: {
-        draggedColumn: Column | null;
-        draggedElement: HTMLElement | null;
-        resizeStartX: number;
-        resizeColumn: Column | null;
-        resizeElement: HTMLElement | null;
-    };
-}
 
 export class Grid implements GridApi {
     private state: GridState;
