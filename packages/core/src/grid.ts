@@ -70,6 +70,7 @@ export class Grid implements GridApi {
         this.initRowNodes();
         this.initializeEventListeners();
         this.initializeDragToFill();
+        this.initializeDragAndDropListeners();
     }
 
     private initializeEventListeners() {
@@ -169,7 +170,7 @@ export class Grid implements GridApi {
             }
         });
 
-        this.options.columns.forEach((col, index) => {
+        this.options.columns.forEach((col) => {
             const cellId = `${this.instanceId}-header-cell-${col.field}`;
             this.virtualDOM.createElement(cellId, 'div', 'grid-header-cell');
             
@@ -267,19 +268,7 @@ export class Grid implements GridApi {
                 this.virtualDOM.appendChild(cellId, resizerId);
             }
 
-            this.virtualDOM.updateElement(cellId, {
-                events: {
-                    dragstart: (e: DragEvent) => {
-                        const cellElement = this.virtualDOM.getElement(cellId);
-                        if (cellElement) {
-                            this.handleDragStart(e, col, cellElement);
-                        }
-                    },
-                    dragover: this.handleDragOver,
-                    drop: (e: DragEvent) => this.handleDrop(e, col, index),
-                    dragend: (e: DragEvent) => this.handleDragEnd(e)
-                }
-            });
+
 
             this.virtualDOM.appendChild(headerId, cellId);
         });
@@ -498,44 +487,72 @@ export class Grid implements GridApi {
         this.refreshView();
     }
 
-    private handleDragStart(e: DragEvent, column: Column, element: HTMLElement) {
-        if (!e.dataTransfer) return;
-        
+    private initializeDragAndDropListeners() {
+        this.element.addEventListener('dragstart', this.handleDragStart.bind(this));
+        this.element.addEventListener('dragover', this.handleDragOver.bind(this));
+        this.element.addEventListener('drop', this.handleDrop.bind(this));
+        this.element.addEventListener('dragend', this.handleDragEnd.bind(this));
+    }
+
+    private handleDragStart(e: DragEvent) {
+        const element = (e.target as HTMLElement).closest('.grid-header-cell');
+        if (!element || !e.dataTransfer || !(e.target as HTMLElement).draggable) {
+            return;
+        }
+
+        const field = (element as HTMLElement).dataset.field;
+        if (!field) return;
+
+        const column = this.options.columns.find(c => c.field === field);
+        if (!column) return;
+
         this.state.dragState.draggedColumn = column;
-        this.state.dragState.draggedElement = element;
-        
+        this.state.dragState.draggedElement = element as HTMLElement;
+
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('text/plain', column.field);
-        
+
         element.classList.add('dragging');
     }
 
     private handleDragOver(e: DragEvent) {
+        const element = (e.target as HTMLElement).closest('.grid-header-cell');
+        if (!element) return;
+
         e.preventDefault();
-        e.dataTransfer!.dropEffect = 'move';
+        if (e.dataTransfer) {
+            e.dataTransfer.dropEffect = 'move';
+        }
     }
 
-    private handleDrop(e: DragEvent, targetColumn: Column, targetIndex: number) {
+    private handleDrop(e: DragEvent) {
         e.preventDefault();
-        
+        const targetElement = (e.target as HTMLElement).closest('.grid-header-cell');
+        if (!targetElement) return;
+
+        const field = (targetElement as HTMLElement).dataset.field;
+        if (!field) return;
+
+        const targetColumn = this.options.columns.find(c => c.field === field);
         const { draggedColumn } = this.state.dragState;
-        if (!draggedColumn || draggedColumn === targetColumn) return;
-        
-        // 获取拖拽列的原始索引
+
+        if (!draggedColumn || !targetColumn || draggedColumn === targetColumn) return;
+
         const sourceIndex = this.options.columns.indexOf(draggedColumn);
-        
-        // 重新排序列
+        const targetIndex = this.options.columns.indexOf(targetColumn);
+
+        if (sourceIndex === -1 || targetIndex === -1) return;
+
         const columns = [...this.options.columns];
         columns.splice(sourceIndex, 1);
         columns.splice(targetIndex, 0, draggedColumn);
-        
-        // 更新列定义
+
         this.options.columns = columns;
-        
+
         this.refreshView();
     }
 
-    private handleDragEnd(e: DragEvent) {
+    private handleDragEnd() {
         const { draggedElement } = this.state.dragState;
         if (draggedElement) {
             draggedElement.classList.remove('dragging');
@@ -1422,5 +1439,11 @@ export class Grid implements GridApi {
             this.virtualDOM.clear();
         }
         this.eventManager.clear();
+
+        // Clean up drag and drop listeners
+        this.element.removeEventListener('dragstart', this.handleDragStart.bind(this));
+        this.element.removeEventListener('dragover', this.handleDragOver.bind(this));
+        this.element.removeEventListener('drop', this.handleDrop.bind(this));
+        this.element.removeEventListener('dragend', this.handleDragEnd.bind(this));
     }
 }
