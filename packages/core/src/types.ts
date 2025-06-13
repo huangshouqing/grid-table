@@ -28,6 +28,7 @@ export interface Column {
     resizable?: boolean;
     editable?: boolean;
     frozen?: boolean;
+    fixed?: boolean;
     // 修改渲染器定义
     cellRenderer?: {
         // 非编辑状态的渲染器
