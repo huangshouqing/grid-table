@@ -317,6 +317,8 @@ export class Grid implements GridApi {
     private virtualRows: Map<string, HTMLElement> = new Map();
     private lastRenderedData: any[] = [];
     private originalEditValue: any;
+    private lastScrollTop: number = 0;
+    private lastScrollLeft: number = 0;
 
     constructor(options: GridOptions) {
         this.options = {
@@ -400,7 +402,7 @@ export class Grid implements GridApi {
     }
 
     private updateFixedColumns() {
-        const fixedColumns = this.options.columns.filter(col => col.fixed === true);
+        const fixedColumns = this.options.columns.filter(col => (col as any).fixed === true);
         if (fixedColumns.length === 0) return;
 
         fixedColumns.forEach(column => {
@@ -1258,21 +1260,18 @@ export class Grid implements GridApi {
     }
 
     refreshView(): void {
-        if (this.element) {
+        if (this.element && this.element.parentElement) {
             // 保存当前滚动位置
             this.saveScrollPosition();
-            
-            // 获取当前的 body 元素
-            const oldBody = this.element.querySelector('.grid-body');
-            if (oldBody) {
-                // 创建新的 body
-                const newBody = this.renderBody();
-                // 替换旧的 body
-                oldBody.replaceWith(newBody);
-            } else {
-                // 如果没有 body，执行完整渲染
-                this.render(this.element.parentElement!);
-            }
+
+            // 在重新渲染前清空缓存，防止状态不一致
+            this.virtualRows.clear();
+            this.lastRenderedData = [];
+
+            // 重新渲染整个表格内容，确保 header 和 body 的一致性
+            this.element.innerHTML = '';
+            this.element.appendChild(this.renderHeader());
+            this.element.appendChild(this.renderBody());
             
             // 恢复滚动位置
             this.restoreScrollPosition();
@@ -1833,11 +1832,11 @@ export class Grid implements GridApi {
 
         // 更新可见行
         for (let i = startIndex; i <= endIndex; i++) {
-            this.updateRow(i);
+            this.updateRowByIndex(i);
         }
     }
 
-    private updateRow(rowIndex: number) {
+    private updateRowByIndex(rowIndex: number) {
         const row = this.getDisplayedRowAtIndex(rowIndex);
         if (!row) return;
 
@@ -1850,8 +1849,8 @@ export class Grid implements GridApi {
                 'data-element-id': `row-${rowId}`
             },
             styles: {
-                height: `${this.options.rowHeight}px`,
-                transform: `translateY(${rowIndex * this.options.rowHeight}px)`
+                height: `${this.options.rowHeight!}px`,
+                transform: `translateY(${rowIndex * this.options.rowHeight!}px)`
             }
         });
 
@@ -2002,14 +2001,14 @@ export class Grid implements GridApi {
     private updateSelectedRows() {
         this.state.selectedNodes.forEach(rowId => {
             const rowElement = this.virtualDOM.createElement(`row-${rowId}`, 'div', 'grid-row selected');
-            this.updateRow(this.rowNodes.get(rowId)?.rowIndex || 0);
+            this.updateRowByIndex(this.rowNodes.get(rowId)?.rowIndex || 0);
         });
     }
 
     private updateRows() {
         const displayedData = this.getFilteredAndSortedData();
         displayedData.forEach((row, index) => {
-            this.updateRow(index);
+            this.updateRowByIndex(index);
         });
     }
 
