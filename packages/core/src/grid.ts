@@ -21,13 +21,14 @@ export class Grid implements GridApi {
     private options: GridOptions;
     private element: HTMLElement;
     private rowNodes: Map<string | number, RowNode> = new Map();
-    private virtualRows: Map<string, HTMLElement> = new Map();
-    private lastRenderedData: any[] = [];
+
     private originalEditValue: any;
     private lastScrollTop: number = 0;
     private lastScrollLeft: number = 0;
+    private readonly instanceId: string;
 
     constructor(options: GridOptions) {
+        this.instanceId = `grid-${Math.random().toString(36).substr(2, 9)}`;
         this.options = {
             rowHeight: 40,
             headerHeight: 40,
@@ -55,17 +56,16 @@ export class Grid implements GridApi {
                 resizeStartX: 0,
                 resizeColumn: null,
                 resizeElement: null
-            }
+            },
+            virtualBodyRowIds: new Set<string>()
         };
 
         this.element = document.createElement('div');
         this.element.className = 'grid-container';
         
         this.virtualDOM = new VirtualDOMManager(this);
+        this.scrollSyncManager = new ScrollSyncManager();
         this.eventManager = new EventManager();
-        this.scrollSyncManager = new ScrollSyncManager({
-            onScroll: this.handleScroll
-        });
 
         this.initRowNodes();
         this.initializeEventListeners();
@@ -82,84 +82,55 @@ export class Grid implements GridApi {
     }
 
     private handleScroll = (scrollLeft: number, scrollTop: number) => {
-        const { scrollPosition } = this.state;
-        
-        // 保存上一次的滚动位置
-        const lastLeft = scrollPosition.left;
-        const lastTop = scrollPosition.top;
-        
-        // 更新当前滚动位置
-        scrollPosition.left = scrollLeft;
-        scrollPosition.top = scrollTop;
-        scrollPosition.lastLeft = lastLeft;
-        scrollPosition.lastTop = lastTop;
-        
-        // 更新可见行
-        this.updateVisibleRows();
-        
-        // 处理固定列的滚动
-        if (scrollPosition.left !== lastLeft) {
-            this.updateFixedColumns();
-        }
-        
-        // 处理固定行的滚动
-        if (scrollPosition.top !== lastTop) {
-            this.updateFixedRows();
-        }
-    }
+        this.state.scrollPosition = { top: scrollTop, left: scrollLeft };
+        this.refreshView();
+    };
 
-    private updateFixedColumns() {
-        const fixedColumns = this.options.columns.filter(col => (col as any).fixed === true);
-        if (fixedColumns.length === 0) return;
+    private handleSelectionChange = () => {
+        this.refreshView();
+    };
 
-        fixedColumns.forEach(column => {
-            const cells = this.element.querySelectorAll(
-                `.grid-cell[data-field="${column.field}"]`
-            );
-            cells.forEach(cell => {
-                const cellElement = cell as HTMLElement;
-                cellElement.style.transform = `translateX(${this.state.scrollPosition.left}px)`;
-                cellElement.style.zIndex = '1';
-            });
-        });
-    }
+    private handleSortChange = () => {
+        this.refreshView();
+    };
 
-    private updateFixedRows() {
-        const headerRow = this.element.querySelector('.grid-header-row');
-        if (headerRow instanceof HTMLElement) {
-            headerRow.style.transform = 
-                `translateY(${this.state.scrollPosition.top}px)`;
-            headerRow.classList.toggle('shadow', this.state.scrollPosition.top > 0);
-        }
-    }
+    private handleFilterChange = () => {
+        this.refreshView();
+    };
 
-    private handleSelectionChange = (selectedNodes: Set<string | number>) => {
-        this.state.selectedNodes = selectedNodes;
-        this.updateSelectedRows();
-    }
+    private handleEditStart = (params: any) => {
+        this.state.editingCell = params;
+        this.refreshView();
+    };
 
-    private handleSortChange = (sortModel: SortModel[]) => {
-        this.state.sortModel = sortModel;
-        this.updateRows();
-    }
-
-    private handleFilterChange = (filterModel: Map<string, FilterModel>) => {
-        this.state.filterModel = filterModel;
-        this.updateRows();
-    }
-
-    private handleEditStart = (rowId: string | number, field: string, value: any) => {
-        this.state.editingCell = { rowId, field, value };
-        this.updateEditingCell();
-    }
-
-    private handleEditEnd = (rowId: string | number, field: string, newValue: any) => {
-        if (this.state.editingCell?.rowId === rowId && 
-            this.state.editingCell.field === field) {
+    private handleEditEnd = (save: boolean) => {
+        if (this.state.editingCell) {
+            if (save) {
+                const { rowId, field, value } = this.state.editingCell;
+                const node = this.rowNodes.get(rowId);
+                if (node) {
+                    node.data[field] = value;
+                    if (this.options.onCellValueChanged) {
+                        const column = this.options.columns.find(c => c.field === field);
+                        if (column) {
+                            this.options.onCellValueChanged({
+                                node: node,
+                                data: node.data,
+                                column: column,
+                                colId: column.field,
+                                value: value,
+                                oldValue: undefined, // Old value is not tracked in this context
+                                newValue: value,
+                                event: null
+                            });
+                        }
+                    }
+                }
+            }
             this.state.editingCell = null;
+            this.refreshView();
         }
-        this.updateCell(rowId, field, newValue);
-    }
+    };
 
     private initRowNodes() {
         this.rowNodes.clear();
@@ -177,217 +148,242 @@ export class Grid implements GridApi {
     }
 
     private renderHeader() {
-        const headerWrapper = document.createElement('div');
-        headerWrapper.className = 'grid-header';
-        headerWrapper.style.display = 'flex';
-        headerWrapper.style.overflow = 'hidden';
+        const headerWrapperId = `${this.instanceId}-header-wrapper`;
+        this.virtualDOM.createElement(headerWrapperId, 'div', 'grid-header');
+        this.virtualDOM.updateElement(headerWrapperId, {
+            styles: {
+                display: 'flex',
+                overflow: 'hidden'
+            }
+        });
 
-        const header = document.createElement('div');
-        header.style.display = 'flex';
-        header.style.height = `${this.options.headerHeight}px`;
-        header.style.flex = '1';
-        header.style.position = 'relative';
-        header.style.minWidth = 'fit-content'; // 确保header可以完整显示所有列
+        const headerId = `${this.instanceId}-header`;
+        this.virtualDOM.createElement(headerId, 'div');
+        this.virtualDOM.updateElement(headerId, {
+            styles: {
+                display: 'flex',
+                height: `${this.options.headerHeight}px`,
+                flex: '1',
+                position: 'relative',
+                minWidth: 'fit-content'
+            }
+        });
 
         this.options.columns.forEach((col, index) => {
-            const cell = document.createElement('div');
-            cell.className = 'grid-header-cell';
-            cell.style.width = `${col.width}px`;
-            cell.setAttribute('data-field', col.field);
+            const cellId = `${this.instanceId}-header-cell-${col.field}`;
+            this.virtualDOM.createElement(cellId, 'div', 'grid-header-cell');
             
-            // 添加列标题容器
-            const titleContainer = document.createElement('div');
-            titleContainer.className = 'grid-header-cell-content';
+            this.virtualDOM.updateElement(cellId, {
+                attributes: {
+                    'data-field': col.field,
+                    'draggable': 'true'
+                },
+                styles: {
+                    width: `${col.width}px`
+                }
+            });
+
+            const titleContainerId = `${this.instanceId}-header-title-container-${col.field}`;
+            this.virtualDOM.createElement(titleContainerId, 'div', 'grid-header-cell-content');
             
-            const title = document.createElement('div');
-            title.className = 'grid-header-cell-title';
-            title.textContent = col.headerName;
-            titleContainer.appendChild(title);
+            const titleId = `${this.instanceId}-header-title-${col.field}`;
+            this.virtualDOM.createElement(titleId, 'div', 'grid-header-cell-title');
+            this.virtualDOM.updateElement(titleId, {
+                content: col.headerName
+            });
 
-            // 添加排序和筛选按钮容器
-            const actionContainer = document.createElement('div');
-            actionContainer.className = 'grid-header-cell-actions';
+            const actionContainerId = `${this.instanceId}-header-actions-${col.field}`;
+            this.virtualDOM.createElement(actionContainerId, 'div', 'grid-header-cell-actions');
 
-            // 添加排序按钮
             if (col.sortable) {
-                const sortButton = document.createElement('button');
-                sortButton.className = 'grid-sort-button';
-                sortButton.innerHTML = `
-                    <svg class="sort-icon" width="16" height="16" viewBox="0 0 16 16">
-                        <path class="sort-up" d="M8 4l4 4H4z"/>
-                        <path class="sort-down" d="M8 12l4-4H4z"/>
-                    </svg>
-                `;
+                const sortButtonId = `${this.instanceId}-sort-button-${col.field}`;
+                this.virtualDOM.createElement(sortButtonId, 'button', 'grid-sort-button');
                 
                 const existingSort = this.state.sortModel.find(s => s.colId === col.field);
                 if (existingSort) {
-                    sortButton.setAttribute('data-sort', existingSort.sort);
+                    this.virtualDOM.updateElement(sortButtonId, {
+                        attributes: {
+                            'data-sort': existingSort.sort
+                        }
+                    });
                 }
-                
-                sortButton.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    this.handleSortClick(e, col);
+
+                this.virtualDOM.updateElement(sortButtonId, {
+                    content: `<svg class="sort-icon" width="16" height="16" viewBox="0 0 16 16"><path class="sort-up" d="M8 4l4 4H4z"/><path class="sort-down" d="M8 12l4-4H4z"/></svg>`,
+                    events: {
+                        click: (e: MouseEvent) => {
+                            e.stopPropagation();
+                            this.handleSortClick(e, col);
+                        }
+                    }
                 });
                 
-                actionContainer.appendChild(sortButton);
+                this.virtualDOM.appendChild(actionContainerId, sortButtonId);
             }
 
-            // 添加筛选按钮
             if (col.filterable) {
-                const filterButton = document.createElement('button');
-                filterButton.className = 'grid-filter-button';
-                filterButton.innerHTML = `
-                    <svg class="filter-icon" width="16" height="16" viewBox="0 0 16 16">
-                        <path d="M2 2h12l-5 6v6l-2-2V8z"/>
-                    </svg>
-                `;
+                const filterButtonId = `${this.instanceId}-filter-button-${col.field}`;
+                this.virtualDOM.createElement(filterButtonId, 'button', 'grid-filter-button');
                 
                 const hasFilter = this.state.filterModel.has(col.field);
                 if (hasFilter) {
-                    filterButton.classList.add('active');
+                    this.virtualDOM.updateElement(filterButtonId, {
+                        classes: ['active']
+                    });
                 }
-                
-                filterButton.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    this.showFilterMenu(e, col);
+
+                this.virtualDOM.updateElement(filterButtonId, {
+                    content: `<svg class="filter-icon" width="16" height="16" viewBox="0 0 16 16"><path d="M2 2h12l-5 6v6l-2-2V8z"/></svg>`,
+                    events: {
+                        click: (e: MouseEvent) => {
+                            e.stopPropagation();
+                            this.showFilterMenu(e, col);
+                        }
+                    }
                 });
                 
-                actionContainer.appendChild(filterButton);
+                this.virtualDOM.appendChild(actionContainerId, filterButtonId);
             }
 
-            titleContainer.appendChild(actionContainer);
-            cell.appendChild(titleContainer);
+            this.virtualDOM.appendChild(titleContainerId, titleId);
+            this.virtualDOM.appendChild(titleContainerId, actionContainerId);
+            this.virtualDOM.appendChild(cellId, titleContainerId);
 
-            // 添加拖拽功能
-            cell.setAttribute('draggable', 'true');
-            cell.addEventListener('dragstart', (e) => this.handleDragStart(e, col, cell));
-            cell.addEventListener('dragover', this.handleDragOver);
-            cell.addEventListener('drop', (e) => this.handleDrop(e, col, index));
-            cell.addEventListener('dragend', (e) => this.handleDragEnd(e));
-
-            // 添加列宽调整功能
             if (col.resizable !== false) {
-                const resizer = document.createElement('div');
-                resizer.className = 'column-resizer';
-                cell.appendChild(resizer);
-
-                resizer.addEventListener('mousedown', (e) => this.handleResizeStart(e, col, cell));
+                const resizerId = `${this.instanceId}-resizer-${col.field}`;
+                this.virtualDOM.createElement(resizerId, 'div', 'column-resizer');
+                
+                this.virtualDOM.updateElement(resizerId, {
+                    events: {
+                        mousedown: (e: MouseEvent) => {
+                            const cellElement = this.virtualDOM.getElement(cellId);
+                            if (cellElement) {
+                                this.handleResizeStart(e, col, cellElement);
+                            }
+                        }
+                    }
+                });
+                
+                this.virtualDOM.appendChild(cellId, resizerId);
             }
 
-            header.appendChild(cell);
+            this.virtualDOM.updateElement(cellId, {
+                events: {
+                    dragstart: (e: DragEvent) => {
+                        const cellElement = this.virtualDOM.getElement(cellId);
+                        if (cellElement) {
+                            this.handleDragStart(e, col, cellElement);
+                        }
+                    },
+                    dragover: this.handleDragOver,
+                    drop: (e: DragEvent) => this.handleDrop(e, col, index),
+                    dragend: (e: DragEvent) => this.handleDragEnd(e)
+                }
+            });
+
+            this.virtualDOM.appendChild(headerId, cellId);
         });
 
-        headerWrapper.appendChild(header);
+        this.virtualDOM.appendChild(headerWrapperId, headerId);
         
-        // 添加到滚动同步管理器
-        this.scrollSyncManager.addScrollable('header', headerWrapper, {
-            syncHorizontal: true,
-            syncVertical: false
-        });
+        const headerWrapperElement = this.virtualDOM.getElement(headerWrapperId);
+        if (headerWrapperElement) {
+            this.scrollSyncManager.addScrollable('header', headerWrapperElement, {
+                syncHorizontal: true,
+                syncVertical: false
+            });
+        }
 
-        return headerWrapper;
+        return headerWrapperElement;
     }
 
     private renderBody() {
-        const body = document.createElement('div');
-        body.className = 'grid-body';
+        const bodyId = `${this.instanceId}-body`;
+        this.virtualDOM.createElement(bodyId, 'div', 'grid-body');
 
-        const content = document.createElement('div');
-        content.className = 'grid-content';
-        content.style.minWidth = 'fit-content'; // 确保content可以完整显示所有列
+        const contentId = `${this.instanceId}-content`;
+        this.virtualDOM.createElement(contentId, 'div', 'grid-content');
+        this.virtualDOM.updateElement(contentId, { styles: { minWidth: 'fit-content' } });
 
-        // 获取过滤和排序后的数据
         const displayedData = this.getFilteredAndSortedData();
-        const fragment = document.createDocumentFragment();
+        const currentVRowIds = new Set<string>();
 
         displayedData.forEach((row, rowIndex) => {
             const rowId = row.id?.toString() || rowIndex.toString();
-            let rowElement = this.virtualRows.get(rowId);
-            const oldData = this.lastRenderedData[rowIndex];
+            const vRowId = `${this.instanceId}-row-${rowId}`;
+            currentVRowIds.add(vRowId);
 
-            if (!rowElement) {
-                // 如果行元素不存在，创建新的
-                rowElement = document.createElement('div');
-                rowElement.className = 'grid-row';
-                rowElement.setAttribute('data-row-id', rowId);
-                const rowHeight = this.options.rowHeight || 40;
-                rowElement.style.height = `${rowHeight}px`;
-                rowElement.style.position = 'absolute';
-                rowElement.style.top = `${rowIndex * rowHeight}px`;
-                rowElement.style.left = '0';
-                rowElement.style.right = '0';
-
-                // 添加行点击事件
-                rowElement.addEventListener('click', (e) => this.handleRowClick(e, row, rowIndex));
-                rowElement.addEventListener('dblclick', (e) => this.handleRowDoubleClick(e, row, rowIndex));
-
-                // 创建所有单元格
-                this.options.columns.forEach(col => {
-                    const cell = document.createElement('div');
-                    cell.className = 'grid-cell';
-                    cell.style.width = `${col.width}px`;
-                    cell.setAttribute('data-field', col.field);
-
-                    const value = row[col.field];
-
-                    // 渲染单元格内容
-                    this.renderCell(cell, col, row, value, rowIndex);
-
-                    // 添加单元格事件处理
-                    cell.addEventListener('click', (e) => {
-                        this.handleCellClick(e, col, row, value, rowIndex);
-                        // 如果是可编辑单元格，单击也可以进入编辑模式
-                        if (col.editable) {
-                            this.startEditing(cell, col, row, value);
-                        }
-                    });
-
-                    cell.addEventListener('dblclick', (e) => {
-                        this.handleCellDoubleClick(e, col, row, value, rowIndex);
-                        // 双击也可以进入编辑模式
-                        if (col.editable) {
-                            this.startEditing(cell, col, row, value);
-                        }
-                    });
-
-                    rowElement!.appendChild(cell);
-                });
-
-                this.virtualRows.set(rowId, rowElement);
-            } else if (this.shouldRowUpdate(oldData, row)) {
-                // 如果行数据发生变化，更新内容
-                this.updateRow(rowElement, row, rowIndex);
-            }
-
-            // 更新位置
+            this.virtualDOM.createElement(vRowId, 'div', 'grid-row');
             const rowHeight = this.options.rowHeight || 40;
-            rowElement.style.top = `${rowIndex * rowHeight}px`;
+            this.virtualDOM.updateElement(vRowId, {
+                attributes: { 'data-row-id': rowId },
+                styles: {
+                    height: `${rowHeight}px`,
+                    position: 'absolute',
+                    top: `${rowIndex * rowHeight}px`,
+                    left: '0',
+                    right: '0'
+                },
+                events: {
+                    click: (e: MouseEvent) => this.handleRowClick(e, row, rowIndex),
+                    dblclick: (e: MouseEvent) => this.handleRowDoubleClick(e, row, rowIndex)
+                }
+            });
 
-            fragment.appendChild(rowElement);
+            this.options.columns.forEach(col => {
+                const vCellId = `${this.instanceId}-cell-${rowId}-${col.field}`;
+                this.virtualDOM.createElement(vCellId, 'div', 'grid-cell');
+                
+                const value = row[col.field];
+                const tempCell = document.createElement('div');
+                this.renderCell(tempCell, col, row, value, rowIndex);
+
+                this.virtualDOM.updateElement(vCellId, {
+                    attributes: { 'data-field': col.field },
+                    styles: { width: `${col.width}px` },
+                    content: tempCell.innerHTML,
+                    events: {
+                        click: (e: MouseEvent) => {
+                            this.handleCellClick(e, col, row, value, rowIndex);
+                            if (col.editable) {
+                                this.startEditing(e.currentTarget as HTMLElement, col, row, value);
+                            }
+                        },
+                        dblclick: (e: MouseEvent) => {
+                            this.handleCellDoubleClick(e, col, row, value, rowIndex);
+                            if (col.editable) {
+                                this.startEditing(e.currentTarget as HTMLElement, col, row, value);
+                            }
+                        }
+                    }
+                });
+                this.virtualDOM.appendChild(vRowId, vCellId);
+            });
+            this.virtualDOM.appendChild(contentId, vRowId);
         });
 
-        // 清理不再使用的行元素
-        const currentIds = new Set(displayedData.map(row => row.id?.toString() || ''));
-        for (const [id, element] of this.virtualRows) {
-            if (!currentIds.has(id)) {
-                this.virtualRows.delete(id);
+        const oldVRowIds = this.state.virtualBodyRowIds;
+        for (const oldId of oldVRowIds) {
+            if (!currentVRowIds.has(oldId)) {
+                this.virtualDOM.removeElement(oldId);
             }
         }
+        this.state.virtualBodyRowIds = currentVRowIds;
 
-        // 保存当前数据用于下次比较
-        this.lastRenderedData = [...displayedData];
-
-        content.appendChild(fragment);
-        body.appendChild(content);
-
-        // 添加到滚动同步管理器
-        this.scrollSyncManager.addScrollable('content', content, {
-            syncHorizontal: true,
-            syncVertical: true,
-            master: true
-        });
-
-        return body;
+        this.virtualDOM.appendChild(bodyId, contentId);
+        
+        const bodyElement = this.virtualDOM.getElement(bodyId);
+        if (bodyElement) {
+            const contentElement = this.virtualDOM.getElement(contentId);
+            if (contentElement) {
+                this.scrollSyncManager.addScrollable('content', contentElement, {
+                    syncHorizontal: true,
+                    syncVertical: true,
+                    master: true
+                });
+            }
+        }
+        return bodyElement;
     }
 
     private renderCell(cell: HTMLElement, column: Column, row: any, value: any, rowIndex: number) {
@@ -861,9 +857,15 @@ export class Grid implements GridApi {
         // 清空容器
         this.element.innerHTML = '';
         
-        // 添加表头和表体
-        this.element.appendChild(this.renderHeader());
-        this.element.appendChild(this.renderBody());
+        const headerElement = this.renderHeader();
+        const bodyElement = this.renderBody();
+
+        if (headerElement) {
+            this.element.appendChild(headerElement);
+        }
+        if (bodyElement) {
+            this.element.appendChild(bodyElement);
+        }
 
         // 清空并添加到容器
         container.innerHTML = '';
@@ -961,7 +963,7 @@ export class Grid implements GridApi {
         this.refreshView();
     }
 
-    autoSizeColumns(columnIds?: string[]): void {
+    autoSizeColumns(): void {
         // 这里可以实现自动调整列宽的逻辑
         // 可以根据内容计算最大宽度
     }
@@ -972,13 +974,18 @@ export class Grid implements GridApi {
             this.saveScrollPosition();
 
             // 在重新渲染前清空缓存，防止状态不一致
-            this.virtualRows.clear();
-            this.lastRenderedData = [];
 
             // 重新渲染整个表格内容，确保 header 和 body 的一致性
             this.element.innerHTML = '';
-            this.element.appendChild(this.renderHeader());
-            this.element.appendChild(this.renderBody());
+            const headerElement = this.renderHeader();
+            const bodyElement = this.renderBody();
+
+            if (headerElement) {
+                this.element.appendChild(headerElement);
+            }
+            if (bodyElement) {
+                this.element.appendChild(bodyElement);
+            }
             
             // 恢复滚动位置
             this.restoreScrollPosition();
@@ -1005,12 +1012,13 @@ export class Grid implements GridApi {
                 scrollTop = (index * rowHeight) - (bodyHeight / 2) + (rowHeight / 2);
         }
 
-        this.setContentScrollPosition(Math.max(0, scrollTop));
+        this.scrollSyncManager.scrollTo(this.state.scrollPosition.left, Math.max(0, scrollTop));
     }
 
     ensureNodeVisible(node: RowNode, position?: 'top' | 'middle' | 'bottom'): void {
         const data = this.getFilteredAndSortedData();
         const index = data.findIndex(row => row.id === node.id);
+// ... (rest of the code remains the same)
         if (index !== -1) {
             this.ensureIndexVisible(index, position);
         }
@@ -1301,69 +1309,44 @@ export class Grid implements GridApi {
     // 实现 GridApi 的批量赋值方法
     setValues(params: ValueSetParams): void {
         const { startNode, startColumn, endNode, endColumn, value, valueGenerator } = params;
-        
-        // 保存当前滚动位置
+
         this.saveScrollPosition();
-        
-        // 获取起始和结束位置
+
         const startRowIndex = startNode.rowIndex;
         const endRowIndex = endNode.rowIndex;
         const startColIndex = this.options.columns.indexOf(startColumn);
         const endColIndex = this.options.columns.indexOf(endColumn);
-        
-        // 确保有效的范围
+
         if (startRowIndex === -1 || endRowIndex === -1 || startColIndex === -1 || endColIndex === -1) {
             return;
         }
 
-        // 获取当前显示的数据
         const displayedData = this.getFilteredAndSortedData();
-        
-        // 遍历范围内的所有单元格
-        for (let rowIndex = Math.min(startRowIndex, endRowIndex); 
-             rowIndex <= Math.max(startRowIndex, endRowIndex); 
-             rowIndex++) {
-            
-            // 获取实际的行数据
+
+        for (let rowIndex = Math.min(startRowIndex, endRowIndex); rowIndex <= Math.max(startRowIndex, endRowIndex); rowIndex++) {
             const rowData = displayedData[rowIndex];
             if (!rowData) continue;
 
-            // 更新 rowNode 中的数据
             const node = this.rowNodes.get(rowData.id || rowIndex);
             if (!node) continue;
-            
-            for (let colIndex = Math.min(startColIndex, endColIndex);
-                 colIndex <= Math.max(startColIndex, endColIndex);
-                 colIndex++) {
-                
+
+            for (let colIndex = Math.min(startColIndex, endColIndex); colIndex <= Math.max(startColIndex, endColIndex); colIndex++) {
                 const column = this.options.columns[colIndex];
                 if (!column) continue;
 
-                const finalValue = valueGenerator ? 
-                    valueGenerator({
+                const oldValue = node.data[column.field];
+                const finalValue = valueGenerator
+                    ? valueGenerator({
                         rowIndex,
                         colId: column.field,
-                        originalValue: rowData[column.field],
-                        startValue: value
-                    }) : 
-                    value;
-                
-                // 更新数据源中的值
-                rowData[column.field] = finalValue;
-                
-                // 更新 node 中的数据
+                        originalValue: oldValue,
+                        startValue: value,
+                    })
+                    : value;
+
+                // Update the data model. `node.data` is a reference to the object in `options.rowData`.
                 node.data[column.field] = finalValue;
 
-                // 更新 DOM
-                const rowElement = this.virtualRows.get(rowData.id?.toString() || rowIndex.toString());
-                if (rowElement) {
-                    const cell = rowElement.children[colIndex] as HTMLElement;
-                    if (cell) {
-                        this.renderCell(cell, column, rowData, finalValue, rowIndex);
-                    }
-                }
-                
-                // 触发值变更事件
                 if (this.options.onCellValueChanged) {
                     this.options.onCellValueChanged({
                         node,
@@ -1371,30 +1354,15 @@ export class Grid implements GridApi {
                         column,
                         colId: column.field,
                         value: finalValue,
-                        oldValue: node.data[column.field],
+                        oldValue: oldValue,
                         newValue: finalValue,
-                        event: new MouseEvent('click')
+                        event: new MouseEvent('click'), // Consider a more appropriate event
                     });
                 }
             }
         }
 
-        // 更新原始数据源
-        if (Array.isArray(this.options.rowData)) {
-            displayedData.forEach((row, index) => {
-                const originalIndex = this.options.rowData!.findIndex(
-                    originalRow => originalRow.id === row.id
-                );
-                if (originalIndex !== -1) {
-                    this.options.rowData![originalIndex] = { ...row };
-                }
-            });
-        }
-        
-        // 更新缓存的数据
-        this.lastRenderedData = [...displayedData];
-        
-        // 恢复滚动位置
+        this.refreshView();
         this.restoreScrollPosition();
     }
 
@@ -1420,34 +1388,7 @@ export class Grid implements GridApi {
         this.refreshView();
     }
 
-    private getContentScrollPosition(): number {
-        const gridBody = this.element.querySelector('.grid-content') as HTMLElement;
-        return gridBody?.scrollTop || 0;
-    }
 
-    private setContentScrollPosition(scrollTop: number) {
-        const gridBody = this.element.querySelector('.grid-content') as HTMLElement;
-        if (gridBody) {
-            gridBody.scrollTop = scrollTop;
-        }
-    }
-
-    private scrollToRow(rowIndex: number) {
-        const rowHeight = this.options.rowHeight || 40;
-        this.setContentScrollPosition(rowIndex * rowHeight);
-    }
-
-    private getContentScrollLeft(): number {
-        const gridContent = this.element.querySelector('.grid-content') as HTMLElement;
-        return gridContent?.scrollLeft || 0;
-    }
-
-    private setContentScrollLeft(scrollLeft: number) {
-        const gridContent = this.element.querySelector('.grid-content') as HTMLElement;
-        if (gridContent) {
-            gridContent.scrollLeft = scrollLeft;
-        }
-    }
 
     private saveScrollPosition() {
         const gridContent = this.element.querySelector('.grid-content') as HTMLElement;
@@ -1469,260 +1410,17 @@ export class Grid implements GridApi {
         }
     }
 
-    private shouldRowUpdate(oldData: any, newData: any): boolean {
-        // 比较行数据是否发生变化
-        if (!oldData || !newData) return true;
-        
-        // 检查所有列的值是否有变化
-        return this.options.columns.some(col => {
-            const oldValue = oldData[col.field];
-            const newValue = newData[col.field];
-            return oldValue !== newValue;
-        });
-    }
-
-    private updateRow(rowElement: HTMLElement, rowData: any, rowIndex: number): void {
-        // 只更新单元格内容，保持行元素不变
-        this.options.columns.forEach((col, colIndex) => {
-            const cell = rowElement.children[colIndex] as HTMLElement;
-            if (cell) {
-                const value = rowData[col.field];
-                this.renderCell(cell, col, rowData, value, rowIndex);
-            }
-        });
-
-        // 更新自定义行样式
-        if (this.options.rowClass) {
-            const node = this.rowNodes.get(rowData.id || rowIndex);
-            if (node) {
-                const customClass = typeof this.options.rowClass === 'function'
-                    ? this.options.rowClass({
-                        data: rowData,
-                        node,
-                        rowIndex,
-                        api: this
-                    })
-                    : this.options.rowClass;
-
-                // 移除所有之前的自定义类
-                const classList = rowElement.classList;
-                Array.from(classList).forEach(className => {
-                    if (className !== 'grid-row') {
-                        classList.remove(className);
-                    }
-                });
-
-                // 添加新的类
-                if (typeof customClass === 'string' && customClass) {
-                    classList.add(customClass);
-                } else if (Array.isArray(customClass)) {
-                    const validClasses = customClass.filter(className => className && typeof className === 'string');
-                    if (validClasses.length > 0) {
-                        classList.add(...validClasses);
-                    }
-                }
-            }
-        }
-    }
-
-    private updateVisibleRows() {
-        // 计算可见行范围
-        const rowHeight = this.options.rowHeight || 40;
-        const scrollTop = this.state.scrollPosition.top;
-        const viewportHeight = this.element.clientHeight;
-        
-        const startIndex = Math.floor(scrollTop / rowHeight);
-        const endIndex = Math.min(
-            Math.ceil((scrollTop + viewportHeight) / rowHeight),
-            this.getDisplayedRowCount()
-        );
-
-        // 更新可见行
-        for (let i = startIndex; i <= endIndex; i++) {
-            this.updateRowByIndex(i);
-        }
-    }
-
-    private updateRowByIndex(rowIndex: number) {
-        const row = this.getDisplayedRowAtIndex(rowIndex);
-        if (!row) return;
-
-        const rowId = row.id.toString();
-        const rowElement = this.virtualDOM.createElement(`row-${rowId}`, 'div', 'grid-row');
-
-        this.virtualDOM.updateElement(`row-${rowId}`, {
-            attributes: {
-                'data-row-id': rowId,
-                'data-element-id': `row-${rowId}`
-            },
-            styles: {
-                height: `${this.options.rowHeight!}px`,
-                transform: `translateY(${rowIndex * this.options.rowHeight!}px)`
-            }
-        });
-
-        // 更新行中的单元格
-        this.options.columns.forEach((column, colIndex) => {
-            this.updateCell(rowId, column.field);
-        });
-    }
-
-    private updateCell(rowId: string | number, field: string, value?: any) {
-        const row = this.rowNodes.get(rowId);
-        if (!row) return;
-
-        const column = this.options.columns.find(col => col.field === field);
-        if (!column) return;
-
-        const cellId = `cell-${rowId}-${field}`;
-        const cellElement = this.virtualDOM.createElement(cellId, 'div', 'grid-cell');
-
-        const isEditing = this.state.editingCell?.rowId === rowId && 
-                         this.state.editingCell.field === field;
-
-        // 确保 row.data 存在
-        if (!row.data) {
-            row.data = {};
-        }
-
-        this.virtualDOM.updateElement(cellId, {
-            attributes: {
-                'data-field': field,
-                'data-element-id': cellId
-            },
-            styles: {
-                width: `${column.width}px`
-            },
-            content: isEditing ? 
-                this.createEditingCell(row, column, value) :
-                this.createDisplayCell(row, column, value)
-        });
-    }
-
-    private createDisplayCell(row: RowNode, column: Column, value: any): HTMLElement {
-        const cellContent = document.createElement('div');
-        cellContent.className = 'grid-cell-content';
-
-        if (column.cellRenderer) {
-            // 处理自定义渲染器
-            if (typeof column.cellRenderer === 'object' && column.cellRenderer.view) {
-                const component = column.cellRenderer.view({
-                    value: value ?? row.data[column.field],
-                    data: row.data,
-                    rowIndex: row.rowIndex,
-                    colId: column.field,
-                    column,
-                    api: this,
-                    node: row
-                });
-                if (component) {
-                    cellContent.appendChild(component);
-                }
-            } else if (typeof column.cellRenderer === 'function') {
-                const element = column.cellRenderer({
-                    value: value ?? row.data[column.field],
-                    data: row.data,
-                    rowIndex: row.rowIndex,
-                    colId: column.field,
-                    column,
-                    api: this,
-                    node: row
-                });
-                if (element) {
-                    cellContent.appendChild(element);
-                }
-            }
-        } else if (column.valueFormatter) {
-            // 处理格式化文本
-            const p = document.createElement('p');
-            const displayValue = value ?? row.data[column.field];
-            p.textContent = column.valueFormatter({
-                value: displayValue,
-                data: row.data,
-                column
-            });
-            cellContent.appendChild(p);
-        } else {
-            // 处理纯文本
-            const p = document.createElement('p');
-            const displayValue = value ?? row.data[column.field];
-            p.textContent = displayValue?.toString() ?? '';
-            cellContent.appendChild(p);
-        }
-
-        return cellContent;
-    }
-
-    private createEditingCell(row: RowNode, column: Column, value: any): HTMLElement {
-        const cellContent = document.createElement('div');
-        cellContent.className = 'grid-cell-content editing';
-
-        if (column.cellRenderer && 
-            typeof column.cellRenderer === 'object' && 
-            column.cellRenderer.edit) {
-            // 使用自定义编辑器
-            const editor = column.cellRenderer.edit({
-                value: value ?? row.data[column.field],
-                startValue: value ?? row.data[column.field],
-                data: row.data,
-                rowIndex: row.rowIndex,
-                colId: column.field,
-                column,
-                api: this,
-                node: row,
-                onComplete: (newValue) => this.handleEditEnd(row.id, column.field, newValue),
-                onCancel: () => this.handleEditEnd(row.id, column.field, value)
-            });
-            if (editor) {
-                cellContent.appendChild(editor);
-            }
-        } else {
-            // 默认编辑器
-            const input = document.createElement('input');
-            input.type = 'text';
-            input.className = 'cell-editor';
-            input.value = (value ?? row.data[column.field])?.toString() ?? '';
-            
-            input.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    this.handleEditEnd(row.id, column.field, input.value);
-                } else if (e.key === 'Escape') {
-                    e.preventDefault();
-                    this.handleEditEnd(row.id, column.field, value);
-                }
-            });
-
-            cellContent.appendChild(input);
-        }
-
-        return cellContent;
+    public batchUpdateRows(updatedRows: Map<string | number, any>) {
+        // This is a placeholder for the virtual DOM implementation.
+        console.log('Batch updating rows via VirtualDOMManager', updatedRows);
+        // TODO: Implement virtual DOM row updates
     }
 
     destroy() {
         this.scrollSyncManager.destroy();
-        this.virtualDOM.clear();
-        this.eventManager.clear();
-    }
-
-    private updateSelectedRows() {
-        this.state.selectedNodes.forEach(rowId => {
-            const rowElement = this.virtualDOM.createElement(`row-${rowId}`, 'div', 'grid-row selected');
-            this.updateRowByIndex(this.rowNodes.get(rowId)?.rowIndex || 0);
-        });
-    }
-
-    private updateRows() {
-        const displayedData = this.getFilteredAndSortedData();
-        displayedData.forEach((row, index) => {
-            this.updateRowByIndex(index);
-        });
-    }
-
-    private updateEditingCell() {
-        if (this.state.editingCell) {
-            const { rowId, field, value } = this.state.editingCell;
-            this.updateCell(rowId, field, value);
+        if (this.virtualDOM) {
+            this.virtualDOM.clear();
         }
+        this.eventManager.clear();
     }
 }

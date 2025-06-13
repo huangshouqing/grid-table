@@ -170,7 +170,7 @@ export interface CellValueChangedEvent {
     value: any;
     oldValue: any;
     newValue: any;
-    event: MouseEvent;
+    event?: MouseEvent | null;
 }
 
 export interface RowClickedEvent {

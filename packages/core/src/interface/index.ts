@@ -4,8 +4,6 @@ export interface GridState {
   scrollPosition: {
     left: number;
     top: number;
-    lastLeft: number;
-    lastTop: number;
   };
   editingCell: {
     rowId: string | number;
@@ -30,4 +28,5 @@ export interface GridState {
     resizeColumn: Column | null;
     resizeElement: HTMLElement | null;
   };
+  virtualBodyRowIds: Set<string>;
 }
