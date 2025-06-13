@@ -1,8 +1,8 @@
-./node_modules
-./dist
-./build
-./pnpm-lock.yaml
-./pnpm-workspace.yaml
-./packages/core/node_modules
-./packages/core/build
-./packages/core/dist
+node_modules
+dist
+build
+pnpm-lock.yaml
+pnpm-workspace.yaml
+packages/core/node_modules
+packages/core/build
+packages/core/dist
