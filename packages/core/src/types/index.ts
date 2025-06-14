@@ -74,6 +74,13 @@ export interface Column {
             // 编辑状态的渲染器
             edit?: ((params: CellEditorParams) => HTMLElement) | { new(): CellComponent }
         };
+    // 组件定义
+    cellComponent?: {
+        // 组件类型标识
+        type: string;
+        // 组件属性
+        props?: any;
+    };
     valueFormatter?: (params: ValueFormatterParams) => string;
     comparator?: (valueA: any, valueB: any, nodeA: RowNode, nodeB: RowNode) => number;
     filterable?: boolean;

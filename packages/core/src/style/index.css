@@ -831,22 +831,16 @@
 }
 
 /* 行合并和列合并样式 */
-.grid-cell[colspan="2"],
-.grid-cell[colspan="3"],
-.grid-cell[colspan="4"],
-.grid-cell[colspan="5"] {
+/* 列合并样式 */
+.grid-cell-merged {
+  z-index: 5;
+  background-color: #fff;
   position: relative;
-  z-index: 1;
-  display: block !important; /* 确保显示为块级元素 */
-  overflow: hidden;
 }
 
-.grid-cell[rowspan="2"],
-.grid-cell[rowspan="3"],
-.grid-cell[rowspan="4"],
-.grid-cell[rowspan="5"] {
-  position: relative;
-  z-index: 1;
-  height: auto !important; /* 确保高度自动扩展 */
-  overflow: hidden;
+/* 被合并的单元格（隐藏内容） */
+.grid-cell-hidden {
+  visibility: hidden;
 }
+
+

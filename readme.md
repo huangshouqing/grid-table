@@ -1,71 +1,361 @@
-我们已经对代码进行了重大重构，引入了更好的架构设计。让我总结一下新架构的主要改进：
-状态管理
-引入了集中的 GridState 接口来管理所有状态
-将分散的状态变量统一管理，提高了可维护性
-添加了更完善的类型定义
-DOM 抽象层
-引入 VirtualDOMManager 来管理 DOM 操作
-使用虚拟 DOM 缓存来提高性能
-批量更新机制避免频繁的 DOM 操作
-事件管理
-新增 EventManager 统一管理事件
-支持事件的订阅/发布模式
-更好的事件解耦
-滚动优化
-改进了滚动状态管理
-优化了固定列和行的处理
-添加了滚动位置缓存
-编辑功能优化
-统一的单元格编辑状态管理
-支持自定义编辑器
-更好的编辑状态同步
-拖拽功能改进
-统一的拖拽状态管理
-更好的类型安全性
-改进的拖拽体验
-还有一些需要继续优化的地方：
-类型定义：
-需要完善 Column 接口的定义
-添加更多的类型检查
-性能优化：
-可以考虑添加 requestAnimationFrame 的节流
-优化大数据量下的渲染性能
-功能扩展：
-可以添加更多的自定义事件
-支持更多的单元格渲染器
-添加更多的过滤和排序选项
-测试覆盖：
-添加单元测试
-添加集成测试
-添加性能测试
-你觉得这些改进如何？我们可以继续优化哪些方面？
+# Grid Table
 
+一个高性能、功能丰富的表格组件，支持虚拟滚动、单元格合并、自定义组件、树形结构等特性。
 
+## 功能特点
 
+### 基础功能
+- **虚拟滚动**：高效处理大数据集，只渲染可视区域的行和列
+- **列配置**：自定义列宽、冻结列、列排序
+- **排序**：单列和多列排序
+- **过滤**：自定义过滤条件和过滤器
+- **选择**：行选择、单选和多选模式
 
+### 单元格功能
+- **单元格编辑**：内置和自定义编辑器
+- **单元格合并**：支持行合并和列合并
+- **单元格样式**：条件样式、自定义渲染
+- **自定义组件**：完全可定制的单元格内容
 
+### 高级功能
+- **树形结构**：支持父子层级数据展示
+- **行拖拽**：调整行顺序
+- **列拖拽**：调整列顺序
+- **行分组**：按字段分组显示数据
+- **导出数据**：导出为CSV、Excel等格式
 
-已实现功能
-您的 Grid 组件已经具备了现代数据表格的许多核心功能，非常 impressive！
-核心渲染:
-使用一个 VirtualDOMManager 来尝试优化 DOM 操作，并为未来的性能提升打下基础。
-实现了行和列的虚拟化滚动，能够处理大量数据。
-分离了表头（header）和表体（body）的渲染逻辑。
-通过 ScrollSyncManager 实现了表头和表体滚动的水平同步。
-丰富的功能:
-排序: 支持点击列头进行升序/降序/取消排序的切换。
-筛选: 提供了强大的筛选功能，不仅支持默认的文本筛选（等于、包含等），还支持通过 filterComponent 实现完全自定义的筛选菜单。
-单元格编辑: 支持单击或双击单元格进入编辑模式，并可以通过 cellRenderer 提供自定义的编辑器组件。
-列操作:
-支持拖拽列头来重新排序列。
-支持拖动调整列宽。
-数据操作:
-实现了类似 Excel 的拖拽单元格右下角进行数据填充（Drag to Fill）的功能，并可通过 valueGenerator 自定义填充逻辑。
-提供了丰富的 API，如 setRowData, getSelectedRows, setSort, setFilter 等。
-自定义渲染:
-cellRenderer: 完全自定义单元格的显示内容和编辑组件。
-valueFormatter: 格式化单元格的文本值。
-稳健的架构:
-EventManager: 使用事件管理器解耦内部逻辑。
-GridState: 集中管理表格的所有状态。
-面向接口（GridApi）的设计，方便外部调用和扩展。
+## 架构设计
+
+Grid Table 采用模块化设计，主要包括以下核心模块：
+
+### 核心类
+- **Grid**：表格的主类，负责协调各个模块和提供API
+- **VirtualDOMManager**：虚拟DOM管理，高效更新表格内容
+- **ComponentManager**：组件管理，处理自定义组件的注册和渲染
+- **EventManager**：事件管理，处理表格内的各种事件
+- **ScrollSyncManager**：滚动同步，处理表头和表体的滚动同步
+
+### 数据流
+1. 用户提供数据和列定义
+2. Grid 初始化各个管理器
+3. VirtualDOMManager 创建虚拟DOM结构
+4. 根据滚动位置计算可见行和列
+5. 渲染可见单元格，应用样式和事件
+6. 用户交互触发事件，更新数据和视图
+
+## 使用指南
+
+### 基础使用
+
+```javascript
+import { Grid } from 'grid-table';
+
+// 创建表格实例
+const grid = new Grid({
+  columns: [
+    { field: 'id', headerName: 'ID', width: 100 },
+    { field: 'name', headerName: '名称', width: 200, editable: true },
+    { field: 'age', headerName: '年龄', width: 100, editable: true }
+  ],
+  rowData: [
+    { id: 1, name: '张三', age: 25 },
+    { id: 2, name: '李四', age: 30 },
+    { id: 3, name: '王五', age: 35 }
+  ]
+});
+
+// 渲染到DOM
+grid.render(document.getElementById('grid-container'));
+```
+
+### 列配置
+
+```javascript
+const columns = [
+  // 基础列
+  { 
+    field: 'id', 
+    headerName: 'ID', 
+    width: 100,
+    sortable: true,    // 启用排序
+    filterable: true,  // 启用过滤
+    frozen: true       // 冻结列
+  },
+  
+  // 可编辑列
+  { 
+    field: 'name', 
+    headerName: '名称', 
+    width: 200,
+    editable: true     // 启用编辑
+  },
+  
+  // 自定义渲染列
+  {
+    field: 'status',
+    headerName: '状态',
+    width: 120,
+    cellRenderer: {
+      view: (params) => {
+        const el = document.createElement('div');
+        el.textContent = params.value;
+        el.className = `status-${params.value}`;
+        return el;
+      },
+      edit: (params) => {
+        const select = document.createElement('select');
+        select.innerHTML = `
+          <option value="active">激活</option>
+          <option value="inactive">未激活</option>
+        `;
+        select.value = params.value;
+        
+        select.onchange = () => {
+          params.onComplete(select.value);
+        };
+        
+        return select;
+      }
+    }
+  }
+];
+```
+
+### 自定义组件系统
+
+```javascript
+// 1. 创建组件
+function TagViewComponent(params) {
+  const container = document.createElement('div');
+  container.className = 'tag-container';
+  
+  if (Array.isArray(params.value)) {
+    params.value.forEach(tag => {
+      const tagEl = document.createElement('span');
+      tagEl.className = 'tag';
+      tagEl.textContent = tag;
+      container.appendChild(tagEl);
+    });
+  }
+  
+  return container;
+}
+
+function TagEditComponent(params) {
+  // 编辑组件实现...
+}
+
+// 2. 注册组件
+const grid = new Grid({
+  columns: [
+    // ...其他列
+    { 
+      field: 'tags', 
+      headerName: '标签', 
+      width: 200,
+      editable: true,
+      cellComponent: {
+        type: 'tags',
+        props: {
+          options: ['重要', '紧急', '新客户', '老客户']
+        }
+      }
+    }
+  ],
+  rowData: [/* ... */]
+});
+
+// 3. 获取组件管理器并注册组件
+const componentManager = grid.getComponentManager();
+componentManager.registerComponent('tags', {
+  view: TagViewComponent,
+  edit: TagEditComponent
+});
+```
+
+### 单元格合并
+
+```javascript
+const grid = new Grid({
+  columns: [/* ... */],
+  rowData: [/* ... */],
+  
+  // 列合并
+  colSpan: (params) => {
+    if (params.rowIndex === 0 && params.colDef.field === 'name') {
+      return 2; // 第一行的姓名单元格横跨2列
+    }
+    return 1;
+  },
+  
+  // 行合并
+  rowSpan: (params) => {
+    if (params.rowIndex === 1 && params.field === 'city') {
+      return 2; // 第二行的城市单元格纵跨2行
+    }
+    return 1;
+  }
+});
+```
+
+### 树形结构
+
+```javascript
+const treeData = [
+  {
+    id: '1',
+    name: '电子产品',
+    expanded: true,
+    children: [
+      {
+        id: '1-1',
+        name: '手机',
+        expanded: true,
+        children: [
+          { id: '1-1-1', name: 'iPhone 14', price: 5999 },
+          { id: '1-1-2', name: 'Samsung S23', price: 6299 }
+        ]
+      },
+      {
+        id: '1-2',
+        name: '电脑',
+        expanded: false,
+        children: [
+          { id: '1-2-1', name: 'MacBook Pro', price: 13999 }
+        ]
+      }
+    ]
+  }
+];
+
+const grid = new Grid({
+  columns: [
+    {
+      field: 'name',
+      headerName: '名称',
+      width: 300
+    },
+    {
+      field: 'price',
+      headerName: '价格',
+      width: 150
+    }
+  ],
+  rowData: treeData
+});
+```
+
+### 事件处理
+
+```javascript
+const grid = new Grid({
+  columns: [/* ... */],
+  rowData: [/* ... */],
+  
+  // 行点击事件
+  onRowClicked: (event) => {
+    console.log('点击行:', event.data);
+  },
+  
+  // 单元格点击事件
+  onCellClicked: (event) => {
+    console.log('点击单元格:', event.value);
+  },
+  
+  // 单元格值变更事件
+  onCellValueChanged: (event) => {
+    console.log('单元格值变更:', event.oldValue, '->', event.value);
+  },
+  
+  // 选择变更事件
+  onSelectionChanged: (event) => {
+    console.log('已选择:', event.selectedNodes.length, '行');
+  },
+  
+  // 排序变更事件
+  onSortChanged: (event) => {
+    console.log('排序变更:', event.sortModel);
+  }
+});
+```
+
+## API 参考
+
+### Grid 选项
+
+| 选项 | 类型 | 描述 |
+|------|------|------|
+| `columns` | `Array<Column>` | 列定义数组 |
+| `rowData` | `Array<any>` | 行数据数组 |
+| `rowHeight` | `number` | 行高（默认：40） |
+| `headerHeight` | `number` | 表头高度（默认：40） |
+| `rowSelection` | `'single'` \| `'multiple'` | 行选择模式 |
+| `enableRowDrag` | `boolean` | 是否启用行拖拽 |
+| `colSpan` | `Function` | 列合并函数 |
+| `rowSpan` | `Function` | 行合并函数 |
+| `rowClass` | `Function` | 行样式函数 |
+
+### 列定义
+
+| 属性 | 类型 | 描述 |
+|------|------|------|
+| `field` | `string` | 数据字段名 |
+| `headerName` | `string` | 列标题 |
+| `width` | `number` | 列宽 |
+| `sortable` | `boolean` | 是否可排序 |
+| `filterable` | `boolean` | 是否可过滤 |
+| `editable` | `boolean` | 是否可编辑 |
+| `frozen` | `boolean` | 是否冻结 |
+| `cellRenderer` | `Object` \| `Function` | 单元格渲染器 |
+| `cellComponent` | `Object` | 单元格组件配置 |
+| `valueFormatter` | `Function` | 值格式化函数 |
+
+### Grid API
+
+| 方法 | 描述 |
+|------|------|
+| `render(container)` | 渲染表格到指定容器 |
+| `setRowData(data)` | 设置行数据 |
+| `getRowNode(id)` | 获取指定ID的行节点 |
+| `selectAll()` | 选择所有行 |
+| `deselectAll()` | 取消选择所有行 |
+| `selectRow(id, clearOthers)` | 选择指定行 |
+| `getSelectedNodes()` | 获取已选择的节点 |
+| `getSelectedRows()` | 获取已选择的行数据 |
+| `setSort(sortModel)` | 设置排序模型 |
+| `setFilter(columnId, filterModel)` | 设置过滤条件 |
+| `refreshView()` | 刷新视图 |
+| `destroy()` | 销毁表格实例 |
+
+## 项目结构
+
+```
+packages/
+├── core/                  # 核心代码
+│   ├── src/               # 源代码
+│   │   ├── grid.ts        # 主类
+│   │   ├── interface.ts   # 接口定义
+│   │   ├── types/         # 类型定义
+│   │   ├── managers/      # 各种管理器
+│   │   │   ├── ComponentManager.ts    # 组件管理器
+│   │   │   ├── EventManager.ts        # 事件管理器
+│   │   │   ├── ScrollSyncManager.ts   # 滚动同步管理器
+│   │   │   └── VirtualDOMManager.ts   # 虚拟DOM管理器
+│   │   ├── renderers/     # 内置渲染器
+│   │   └── style/         # 样式文件
+│   ├── examples/          # 示例代码
+│   └── dist/              # 编译后的代码
+└── docs/                  # 文档
+```
+
+## 浏览器兼容性
+
+- Chrome (最新版)
+- Firefox (最新版)
+- Safari (最新版)
+- Edge (最新版)
+- IE 11 (基本功能支持)
+
+## 许可证
+
+MIT
