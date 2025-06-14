@@ -204,13 +204,20 @@ export class Grid implements GridApi {
   };
 
   private handleScroll = (scrollLeft: number, scrollTop: number) => {
+    // 保存当前的滚动位置
     this.state.scrollPosition = {
       top: scrollTop,
       left: scrollLeft,
       lastLeft: this.state.scrollPosition.left,
       lastTop: this.state.scrollPosition.top,
     };
-    this.refreshView();
+    
+    // 不要在每次滚动时刷新视图，这可能会导致滚动位置重置
+    // 仅在需要时（例如视口变化显著）才刷新视图
+    const rowHeight = this.options.rowHeight || 40;
+    if (Math.abs(this.state.scrollPosition.top - this.state.scrollPosition.lastTop) > rowHeight * 5) {
+      this.refreshView();
+    }
   };
 
   private handleSelectionChange = () => {
@@ -564,11 +571,22 @@ export class Grid implements GridApi {
   private renderBody() {
     const bodyId = `${this.instanceId}-body`;
     this.virtualDOM.createElement(bodyId, "div", "grid-body");
+    this.virtualDOM.updateElement(bodyId, {
+      styles: { 
+        overflowX: "auto",
+        overflowY: "auto"
+      },
+      attributes: {
+        style: "overflow-x: auto; overflow-y: auto;"
+      }
+    });
 
     const contentId = `${this.instanceId}-content`;
     this.virtualDOM.createElement(contentId, "div", "grid-content");
     this.virtualDOM.updateElement(contentId, {
-      styles: { minWidth: "fit-content" },
+      styles: { 
+        minWidth: "fit-content"
+      }
     });
 
     const displayedData = this.getFilteredAndSortedData();
@@ -824,14 +842,38 @@ export class Grid implements GridApi {
 
     const bodyElement = this.virtualDOM.getElement(bodyId);
     if (bodyElement) {
-      const contentElement = this.virtualDOM.getElement(contentId);
-      if (contentElement) {
-        this.scrollSyncManager.addScrollable("content", contentElement, {
+      // 将body元素注册为主滚动元素
+      this.scrollSyncManager.addScrollable("body", bodyElement, {
+        syncHorizontal: true,
+        syncVertical: true,
+        master: true,
+      });
+
+      // 为表头单独添加事件监听
+      const headerElement = this.element.querySelector('.grid-header') as HTMLElement;
+      if (headerElement) {
+        this.scrollSyncManager.addScrollable("header", headerElement, {
           syncHorizontal: true,
-          syncVertical: true,
-          master: true,
+          syncVertical: false,
+          master: false,
         });
       }
+
+      // 保存当前的水平滚动位置，确保垂直滚动时不会丢失
+      let savedScrollLeft = 0;
+      
+      // 添加滚动事件监听器
+      bodyElement.addEventListener('scroll', () => {
+        // 只有当水平滚动位置变化时，才更新savedScrollLeft
+        if (bodyElement.scrollLeft !== savedScrollLeft) {
+          savedScrollLeft = bodyElement.scrollLeft;
+        }
+        
+        // 确保表头同步水平滚动位置
+        if (headerElement) {
+          headerElement.scrollLeft = savedScrollLeft;
+        }
+      }, { passive: true });
     }
     return bodyElement;
   }
@@ -2417,27 +2459,41 @@ export class Grid implements GridApi {
   }
 
   private saveScrollPosition() {
-    const gridContent = this.element.querySelector(
-      ".grid-content"
+    // 保存body的滚动位置
+    const gridBody = this.element.querySelector(
+      ".grid-body"
     ) as HTMLElement;
-    if (gridContent) {
-      this.lastScrollTop = gridContent.scrollTop;
-      this.lastScrollLeft = gridContent.scrollLeft;
+    if (gridBody) {
+      this.lastScrollTop = gridBody.scrollTop;
+      this.lastScrollLeft = gridBody.scrollLeft;
     }
   }
 
   private restoreScrollPosition() {
-    if (this.lastScrollTop > 0 || this.lastScrollLeft > 0) {
-      requestAnimationFrame(() => {
-        const gridContent = this.element.querySelector(
-          ".grid-content"
-        ) as HTMLElement;
-        if (gridContent) {
-          gridContent.scrollTop = this.lastScrollTop;
-          gridContent.scrollLeft = this.lastScrollLeft;
+    // 使用更可靠的方法恢复滚动位置
+    requestAnimationFrame(() => {
+      const gridBody = this.element.querySelector(
+        ".grid-body"
+      ) as HTMLElement;
+      
+      if (gridBody) {
+        // 先设置水平滚动位置，避免垂直滚动时重置水平位置
+        if (this.lastScrollLeft > 0) {
+          gridBody.scrollLeft = this.lastScrollLeft;
         }
-      });
-    }
+        
+        // 再设置垂直滚动位置
+        if (this.lastScrollTop > 0) {
+          gridBody.scrollTop = this.lastScrollTop;
+        }
+        
+        // 同步header的水平滚动位置
+        const headerElement = this.element.querySelector(".grid-header");
+        if (headerElement && this.lastScrollLeft > 0) {
+          headerElement.scrollLeft = this.lastScrollLeft;
+        }
+      }
+    });
   }
 
   public batchUpdateRows(updatedRows: Map<string | number, any>) {
