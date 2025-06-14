@@ -7,13 +7,18 @@ import {
     FilterModel,
     ValueSetParams,
     ComponentParams,
-    CellComponent
+    CellComponent,
+    RowDragEndEvent,
+    SelectionChangedEvent
 } from './types/index';
 import { ScrollSyncManager } from './managers/ScrollSyncManager';
 import { VirtualDOMManager } from './managers/VirtualDOMManager';
 import { EventManager } from './managers/EventManager';
 import { ComponentManager } from './managers/ComponentManager';
 import { GridState } from './interface';
+import { CheckboxCellRenderer, CheckboxHeaderRenderer } from './renderers/CheckboxCellRenderer';
+import { RowDragRenderer } from './renderers/RowDragRenderer';
+import { TreeCellRenderer } from './renderers/TreeCellRenderer';
 // 添加状态管理
 
 export class Grid implements GridApi {
@@ -85,6 +90,100 @@ export class Grid implements GridApi {
         this.eventManager.on('filterChange', this.handleFilterChange);
         this.eventManager.on('editStart', this.handleEditStart);
         this.eventManager.on('editEnd', this.handleEditEnd);
+        
+        // 初始化行拖拽事件
+        if (this.options.enableRowDrag) {
+            this.initializeRowDragEvents();
+        }
+    }
+
+    private initializeRowDragEvents() {
+        // 添加拖拽相关事件监听
+        this.element.addEventListener('dragover', this.handleRowDragOver);
+        this.element.addEventListener('drop', this.handleRowDrop);
+        this.element.addEventListener('dragend', this.handleRowDragEnd);
+    }
+    
+    private handleRowDragOver = (e: DragEvent) => {
+        e.preventDefault();
+        if (!e.dataTransfer) return;
+        
+        e.dataTransfer.dropEffect = 'move';
+        
+        // 获取目标行
+        const targetRow = (e.target as HTMLElement).closest('.grid-row') as HTMLElement;
+        if (!targetRow) return;
+        
+        // 移除所有拖拽指示器
+        const allRows = this.element.querySelectorAll('.grid-row');
+        allRows.forEach(row => {
+            row.classList.remove('grid-row-drag-above', 'grid-row-drag-below');
+        });
+        
+        // 确定拖拽位置（上方或下方）
+        const rect = targetRow.getBoundingClientRect();
+        const middleY = rect.top + rect.height / 2;
+        const isAbove = e.clientY < middleY;
+        
+        // 添加拖拽指示器
+        if (isAbove) {
+            targetRow.classList.add('grid-row-drag-above');
+        } else {
+            targetRow.classList.add('grid-row-drag-below');
+        }
+    }
+    
+    private handleRowDrop = (e: DragEvent) => {
+        e.preventDefault();
+        if (!e.dataTransfer) return;
+        
+        try {
+            // 获取拖拽数据
+            const dragData = JSON.parse(e.dataTransfer.getData('application/json'));
+            const { rowId, rowIndex: fromIndex } = dragData;
+            
+            // 获取目标行
+            const targetRow = (e.target as HTMLElement).closest('.grid-row') as HTMLElement;
+            if (!targetRow) return;
+            
+            const targetRowId = targetRow.getAttribute('data-row-id');
+            if (!targetRowId) return;
+            
+            const targetNode = this.rowNodes.get(targetRowId);
+            if (!targetNode) return;
+            
+            const toIndex = targetNode.rowIndex;
+            
+            // 如果是同一行，不执行操作
+            if (fromIndex === toIndex) return;
+            
+            // 确定拖拽位置（上方或下方）
+            const rect = targetRow.getBoundingClientRect();
+            const middleY = rect.top + rect.height / 2;
+            const isAbove = e.clientY < middleY;
+            
+            // 计算实际的目标索引
+            const actualToIndex = isAbove ? toIndex : toIndex + 1;
+            
+            // 移动行
+            this.moveRow(fromIndex, actualToIndex);
+            
+            // 移除所有拖拽指示器
+            const allRows = this.element.querySelectorAll('.grid-row');
+            allRows.forEach(row => {
+                row.classList.remove('grid-row-drag-above', 'grid-row-drag-below', 'grid-row-dragging');
+            });
+        } catch (error) {
+            console.error('Error handling row drop:', error);
+        }
+    }
+    
+    private handleRowDragEnd = () => {
+        // 移除所有拖拽指示器
+        const allRows = this.element.querySelectorAll('.grid-row');
+        allRows.forEach(row => {
+            row.classList.remove('grid-row-drag-above', 'grid-row-drag-below', 'grid-row-dragging');
+        });
     }
 
     private handleScroll = (scrollLeft: number, scrollTop: number) => {
@@ -146,16 +245,65 @@ export class Grid implements GridApi {
     private initRowNodes() {
         this.rowNodes.clear();
         if (Array.isArray(this.options.rowData)) {
-            this.options.rowData.forEach((data, index) => {
-                const node: RowNode = {
-                    id: data.id || index,
-                    data,
-                    rowIndex: index,
-                    selected: false
-                };
-                this.rowNodes.set(node.id, node);
-            });
+            // 检查数据是否包含层级结构
+            const hasTreeData = this.options.rowData.some(data => 
+                data.children && Array.isArray(data.children) && data.children.length > 0
+            );
+            
+            if (hasTreeData) {
+                // 处理树形数据
+                this.processTreeData(this.options.rowData);
+            } else {
+                // 处理普通数据
+                this.options.rowData.forEach((data, index) => {
+                    const node: RowNode = {
+                        id: data.id || index,
+                        data,
+                        rowIndex: index,
+                        selected: false,
+                        level: 0,
+                        expanded: true
+                    };
+                    this.rowNodes.set(node.id, node);
+                });
+            }
         }
+    }
+    
+    private processTreeData(rowData: any[], parentNode?: RowNode, level: number = 0) {
+        if (!Array.isArray(rowData)) return;
+        
+        rowData.forEach((data, index) => {
+            const node: RowNode = {
+                id: data.id || `${parentNode ? parentNode.id + '_' : ''}${index}`,
+                data,
+                rowIndex: this.rowNodes.size, // 使用当前节点数作为行索引
+                selected: false,
+                level,
+                expanded: data.expanded !== undefined ? data.expanded : true,
+                parent: parentNode
+            };
+            
+            // 处理子节点
+            if (data.children && Array.isArray(data.children) && data.children.length > 0) {
+                node.children = [];
+                this.rowNodes.set(node.id, node);
+                
+                // 递归处理子节点
+                this.processTreeData(data.children, node, level + 1);
+                
+                // 将子节点添加到父节点的children数组中
+                data.children.forEach((childData: any) => {
+                    const childId = childData.id || `${node.id}_${node.children!.length}`;
+                    const childNode = this.rowNodes.get(childId);
+                    if (childNode) {
+                        node.children!.push(childNode);
+                    }
+                });
+            } else {
+                this.rowNodes.set(node.id, node);
+            }
+        });
     }
 
     private renderHeader() {
@@ -187,12 +335,72 @@ export class Grid implements GridApi {
             this.virtualDOM.updateElement(cellId, {
                 attributes: {
                     'data-field': col.field,
-                    'draggable': 'true'
+                    'draggable': col.rowDrag ? 'false' : 'true'
                 },
                 styles: {
                     width: `${col.width}px`
                 }
             });
+
+            // 处理复选框列
+            if (col.checkboxSelection) {
+                const checkboxContainerId = `${cellId}-checkbox-container`;
+                this.virtualDOM.createElement(checkboxContainerId, 'div', 'grid-header-checkbox-container');
+                
+                // 创建复选框头部渲染器
+                const headerCheckboxId = `${this.instanceId}-header-checkbox-${col.field}`;
+                const headerCheckbox = new CheckboxHeaderRenderer();
+                headerCheckbox.init({
+                    api: this,
+                    column: col
+                });
+                
+                const headerCheckboxElement = headerCheckbox.getGui();
+                
+                // 将复选框元素添加到容器
+                const checkboxContainer = this.virtualDOM.getElement(checkboxContainerId);
+                if (checkboxContainer) {
+                    // 清空容器，避免重复添加
+                    checkboxContainer.innerHTML = '';
+                    checkboxContainer.appendChild(headerCheckboxElement);
+                }
+                
+                this.virtualDOM.appendChild(cellId, checkboxContainerId);
+                this.virtualDOM.appendChild(headerId, cellId);
+                return; // 跳过后续处理
+            }
+
+            // 处理行拖拽列
+            if (col.rowDrag) {
+                const dragContainerId = `${cellId}-drag-container`;
+                this.virtualDOM.createElement(dragContainerId, 'div', 'grid-header-drag-container');
+                
+                // 创建拖拽图标
+                const dragIconId = `${this.instanceId}-header-drag-icon-${col.field}`;
+                this.virtualDOM.createElement(dragIconId, 'div', 'grid-header-drag-icon');
+                this.virtualDOM.updateElement(dragIconId, {
+                    content: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M8 6H10V8H8V6Z" fill="currentColor"/>
+                        <path d="M14 6H16V8H14V6Z" fill="currentColor"/>
+                        <path d="M8 10H10V12H8V10Z" fill="currentColor"/>
+                        <path d="M14 10H16V12H14V10Z" fill="currentColor"/>
+                        <path d="M8 14H10V16H8V14Z" fill="currentColor"/>
+                        <path d="M14 14H16V16H14V14Z" fill="currentColor"/>
+                    </svg>`
+                });
+                
+                const dragContainer = this.virtualDOM.getElement(dragContainerId);
+                if (dragContainer) {
+                    const dragIcon = this.virtualDOM.getElement(dragIconId);
+                    if (dragIcon) {
+                        dragContainer.appendChild(dragIcon);
+                    }
+                }
+                
+                this.virtualDOM.appendChild(cellId, dragContainerId);
+                this.virtualDOM.appendChild(headerId, cellId);
+                return; // 跳过后续处理
+            }
 
             const titleContainerId = `${this.instanceId}-header-title-container-${col.field}`;
             this.virtualDOM.createElement(titleContainerId, 'div', 'grid-header-cell-content');
@@ -304,6 +512,9 @@ export class Grid implements GridApi {
 
         const displayedData = this.getFilteredAndSortedData();
         const currentVRowIds = new Set<string>();
+        
+        // 保存行合并信息，用于跳过被合并的单元格
+        const skipCells: Map<string, boolean> = new Map();
 
         displayedData.forEach((row, rowIndex) => {
             const rowId = row.id?.toString() || rowIndex.toString();
@@ -327,22 +538,106 @@ export class Grid implements GridApi {
                 }
             });
 
-            this.options.columns.forEach(col => {
+            // 获取当前行的节点
+            const node = this.rowNodes.get(rowId);
+            
+            this.options.columns.forEach((col, colIndex) => {
+                // 检查这个单元格是否应该被跳过（被其他单元格合并）
+                const cellKey = `${rowIndex}-${colIndex}`;
+                if (skipCells.get(cellKey)) {
+                    return; // 跳过这个单元格的渲染
+                }
+                
                 const vCellId = `${this.instanceId}-cell-${rowId}-${col.field}`;
                 const cellClasses = ['grid-cell'];
                 if (col.editable) {
                     cellClasses.push('editable');
                 }
+                
+                // 为树形单元格添加特殊类
+                if (node && node.level !== undefined && node.level > 0 && col === this.options.columns[0]) {
+                    cellClasses.push('grid-tree-cell');
+                }
+                
                 this.virtualDOM.createElement(vCellId, 'div', cellClasses.join(' '));
                 
                 const value = row[col.field];
                 
+                // 处理列合并
+                let colSpan = 1;
+                if (col.colSpan && node) {
+                    const params = {
+                        value,
+                        data: row,
+                        node,
+                        colDef: col,
+                        rowIndex,
+                        api: this,
+                        column: col,
+                        colId: col.field,
+                        refreshCell: () => {}
+                    };
+                    colSpan = col.colSpan(params) || 1;
+                    
+                    // 标记被合并的单元格，以便跳过它们
+                    for (let i = 1; i < colSpan; i++) {
+                        if (colIndex + i < this.options.columns.length) {
+                            skipCells.set(`${rowIndex}-${colIndex + i}`, true);
+                        }
+                    }
+                }
+                
+                // 处理行合并
+                let rowSpan = 1;
+                if (this.options.rowSpan && node) {
+                    const params = {
+                        data: row,
+                        node,
+                        rowIndex,
+                        field: col.field,
+                        colId: col.field,
+                        api: this
+                    };
+                    rowSpan = this.options.rowSpan(params) || 1;
+                    
+                    // 标记被合并的单元格，以便跳过它们
+                    for (let i = 1; i < rowSpan; i++) {
+                        if (rowIndex + i < displayedData.length) {
+                            skipCells.set(`${rowIndex + i}-${colIndex}`, true);
+                        }
+                    }
+                }
+                
+                // 应用合并样式
+                const cellStyles: Record<string, string> = { width: `${col.width}px` };
+                if (colSpan > 1) {
+                    let totalWidth = col.width;
+                    for (let i = 1; i < colSpan; i++) {
+                        if (colIndex + i < this.options.columns.length) {
+                            totalWidth += this.options.columns[colIndex + i].width;
+                        }
+                    }
+                    cellStyles.width = `${totalWidth}px`;
+                    cellStyles.zIndex = '1';
+                    cellStyles.position = 'relative';
+                    cellStyles.overflow = 'hidden';
+                }
+                
+                if (rowSpan > 1) {
+                    cellStyles.height = `${rowSpan * (this.options.rowHeight || 40)}px`;
+                    cellStyles.zIndex = '1';
+                    cellStyles.position = 'relative';
+                    cellStyles.overflow = 'hidden';
+                }
+                
                 this.virtualDOM.updateElement(vCellId, {
                     attributes: { 
                         'data-field': col.field,
-                        'data-element-id': vCellId
+                        'data-element-id': vCellId,
+                        'colspan': colSpan > 1 ? colSpan.toString() : '1',
+                        'rowspan': rowSpan > 1 ? rowSpan.toString() : '1'
                     },
-                    styles: { width: `${col.width}px` },
+                    styles: cellStyles,
                     events: {
                         click: (e: MouseEvent) => {
                             this.handleCellClick(e, col, row, value, rowIndex);
@@ -359,8 +654,32 @@ export class Grid implements GridApi {
                     }
                 });
                 
-                // Render cell using the virtual DOM
-                this.renderCell(this.virtualDOM.getElement(vCellId) as HTMLElement, col, row, value, rowIndex);
+                // 渲染单元格
+                const cellElement = this.virtualDOM.getElement(vCellId) as HTMLElement;
+                
+                // 对于第一列且是树形结构的行，使用树形渲染器
+                if (node && node.level !== undefined && col === this.options.columns[0] && !col.checkboxSelection && !col.rowDrag) {
+                    // 清空单元格内容，避免重复添加树形结构
+                    cellElement.innerHTML = '';
+                    
+                    // 创建树形单元格渲染器
+                    const treeCellRenderer = new TreeCellRenderer();
+                    treeCellRenderer.init({
+                        value,
+                        data: row,
+                        rowIndex,
+                        colId: col.field,
+                        column: col,
+                        api: this,
+                        node
+                    });
+                    
+                    const treeElement = treeCellRenderer.getGui();
+                    cellElement.appendChild(treeElement);
+                } else {
+                    // 使用标准渲染
+                    this.renderCell(cellElement, col, row, value, rowIndex);
+                }
                 
                 this.virtualDOM.appendChild(vRowId, vCellId);
             });
@@ -394,6 +713,94 @@ export class Grid implements GridApi {
     private renderCell(cell: HTMLElement, column: Column, row: any, value: any, rowIndex: number) {
         const cellId = cell.getAttribute('data-element-id');
         if (!cellId) return;
+        
+        // 处理复选框列
+        if (column.checkboxSelection) {
+            const checkboxContainerId = `${cellId}-checkbox-container`;
+            this.virtualDOM.createElement(checkboxContainerId, 'div', 'grid-cell-checkbox-container');
+            this.virtualDOM.updateElement(checkboxContainerId, {
+                styles: {
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    height: '100%',
+                    width: '100%'
+                }
+            });
+            
+            // 获取节点
+            const node = this.rowNodes.get(row.id || rowIndex);
+            if (!node) return;
+            
+            // 创建复选框渲染器
+            const checkboxId = `${cellId}-checkbox`;
+            const checkboxRenderer = new CheckboxCellRenderer();
+            checkboxRenderer.init({
+                value: node.selected,
+                data: row,
+                rowIndex,
+                colId: column.field,
+                column,
+                api: this,
+                node
+            });
+            
+            const checkboxElement = checkboxRenderer.getGui();
+            
+            // 将复选框元素添加到容器
+            const checkboxContainer = this.virtualDOM.getElement(checkboxContainerId);
+            if (checkboxContainer) {
+                checkboxContainer.innerHTML = '';
+                checkboxContainer.appendChild(checkboxElement);
+            }
+            
+            this.virtualDOM.appendChild(cellId, checkboxContainerId);
+            return;
+        }
+        
+        // 处理行拖拽列
+        if (column.rowDrag) {
+            const dragContainerId = `${cellId}-drag-container`;
+            this.virtualDOM.createElement(dragContainerId, 'div', 'grid-cell-drag-container');
+            this.virtualDOM.updateElement(dragContainerId, {
+                styles: {
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    height: '100%',
+                    width: '100%'
+                }
+            });
+            
+            // 获取节点
+            const node = this.rowNodes.get(row.id || rowIndex);
+            if (!node) return;
+            
+            // 创建拖拽渲染器
+            const dragId = `${cellId}-drag`;
+            const dragRenderer = new RowDragRenderer();
+            dragRenderer.init({
+                value: null,
+                data: row,
+                rowIndex,
+                colId: column.field,
+                column,
+                api: this,
+                node
+            });
+            
+            const dragElement = dragRenderer.getGui();
+            
+            // 将拖拽元素添加到容器
+            const dragContainer = this.virtualDOM.getElement(dragContainerId);
+            if (dragContainer) {
+                dragContainer.innerHTML = '';
+                dragContainer.appendChild(dragElement);
+            }
+            
+            this.virtualDOM.appendChild(cellId, dragContainerId);
+            return;
+        }
         
         // 获取内容容器ID
         const contentId = `${cellId}-content`;
@@ -432,6 +839,18 @@ export class Grid implements GridApi {
             contentElement = this.virtualDOM.getElement(contentId);
         }
         
+        // 创建视图容器ID
+        const viewContainerId = `${contentId}-view`;
+        
+        // 如果单元格处于编辑状态，隐藏视图组件但不销毁它
+        if (cell.classList.contains('editing')) {
+            const viewContainer = this.virtualDOM.getElement(viewContainerId);
+            if (viewContainer) {
+                viewContainer.style.display = 'none';
+            }
+            return;
+        }
+        
         // 创建渲染参数
         const node = this.rowNodes.get(row.id || rowIndex);
         if (!node) return;
@@ -445,18 +864,6 @@ export class Grid implements GridApi {
             api: this,
             node
         };
-        
-        // 创建视图容器ID
-        const viewContainerId = `${contentId}-view`;
-        
-        // 如果单元格处于编辑状态，隐藏视图组件但不销毁它
-        if (cell.classList.contains('editing')) {
-            const viewContainer = this.virtualDOM.getElement(viewContainerId);
-            if (viewContainer) {
-                viewContainer.style.display = 'none';
-            }
-            return;
-        }
         
         // 创建视图组件
         const viewComponentId = `${cellId}-view`;
@@ -929,13 +1336,24 @@ export class Grid implements GridApi {
     }
 
     private getFilteredAndSortedData(): any[] {
-        let data = Array.isArray(this.options.rowData) ? [...this.options.rowData] : [];
+        // 获取所有行节点
+        const allNodes: RowNode[] = [];
+        this.rowNodes.forEach(node => {
+            allNodes.push(node);
+        });
+        
+        // 首先按照行索引排序，确保树形结构的正确顺序
+        allNodes.sort((a, b) => a.rowIndex - b.rowIndex);
+        
+        // 过滤出可见的节点（考虑父子结构）
+        const visibleNodes = this.getVisibleNodes(allNodes);
         
         // 应用过滤
+        let filteredNodes = visibleNodes;
         if (this.state.filterModel.size > 0) {
-            data = data.filter(row => {
+            filteredNodes = visibleNodes.filter(node => {
                 return Array.from(this.state.filterModel.entries()).every(([columnId, model]) => {
-                    const value = row[columnId];
+                    const value = node.data[columnId];
                     
                     // 实现默认过滤逻辑
                     if (model.filter && value !== undefined) {
@@ -964,18 +1382,16 @@ export class Grid implements GridApi {
             });
         }
         
-        // 应用排序
-        if (this.state.sortModel.length > 0) {
-            data.sort((a, b) => {
+        // 应用排序（如果不是树形数据）
+        if (this.state.sortModel.length > 0 && !this.hasTreeData()) {
+            filteredNodes.sort((a, b) => {
                 for (const sort of this.state.sortModel) {
                     const column = this.options.columns.find(col => col.field === sort.colId);
-                    const valueA = a[sort.colId];
-                    const valueB = b[sort.colId];
+                    const valueA = a.data[sort.colId];
+                    const valueB = b.data[sort.colId];
                     
                     if (column?.comparator) {
-                        const nodeA = this.rowNodes.get(a.id)!;
-                        const nodeB = this.rowNodes.get(b.id)!;
-                        const result = column.comparator(valueA, valueB, nodeA, nodeB);
+                        const result = column.comparator(valueA, valueB, a, b);
                         if (result !== 0) return sort.sort === 'asc' ? result : -result;
                     } else {
                         if (valueA < valueB) return sort.sort === 'asc' ? -1 : 1;
@@ -986,7 +1402,61 @@ export class Grid implements GridApi {
             });
         }
         
-        return data;
+        // 返回数据对象
+        return filteredNodes.map(node => node.data);
+    }
+    
+    private getVisibleNodes(allNodes: RowNode[]): RowNode[] {
+        const visibleNodes: RowNode[] = [];
+        
+        // 如果没有树形数据，直接返回所有节点
+        if (!this.hasTreeData()) {
+            return allNodes;
+        }
+        
+        // 获取根节点（没有父节点的节点）
+        const rootNodes = allNodes.filter(node => !node.parent);
+        
+        // 递归添加可见节点
+        for (const rootNode of rootNodes) {
+            this.addVisibleNode(rootNode, visibleNodes);
+        }
+        
+        return visibleNodes;
+    }
+    
+    private addVisibleNode(node: RowNode, visibleNodes: RowNode[]): void {
+        // 添加当前节点
+        visibleNodes.push(node);
+        
+        // 如果节点展开且有子节点，递归添加子节点
+        if (node.expanded && node.children && node.children.length > 0) {
+            // 查找子节点
+            const childNodes: RowNode[] = [];
+            this.rowNodes.forEach(possibleChild => {
+                if (possibleChild.parent === node) {
+                    childNodes.push(possibleChild);
+                }
+            });
+            
+            // 按行索引排序
+            childNodes.sort((a, b) => a.rowIndex - b.rowIndex);
+            
+            // 递归添加每个子节点
+            for (const childNode of childNodes) {
+                this.addVisibleNode(childNode, visibleNodes);
+            }
+        }
+    }
+    
+    private hasTreeData(): boolean {
+        let hasTree = false;
+        this.rowNodes.forEach(node => {
+            if (node.level && node.level > 0) {
+                hasTree = true;
+            }
+        });
+        return hasTree;
     }
 
     render(container: HTMLElement) {
@@ -1556,6 +2026,79 @@ export class Grid implements GridApi {
                         event: new MouseEvent('click'), // Consider a more appropriate event
                     });
                 }
+            }
+        }
+
+        this.refreshView();
+        this.restoreScrollPosition();
+    }
+
+    // 实现新增行操作API
+    addRow(data: any, position: 'top' | 'bottom' = 'bottom'): void {
+        // 确保rowData是数组
+        if (!Array.isArray(this.options.rowData)) {
+            this.options.rowData = [];
+        }
+
+        // 生成唯一ID
+        if (data.id === undefined) {
+            data.id = Date.now() + Math.floor(Math.random() * 1000);
+        }
+
+        // 根据位置添加数据
+        if (position === 'top') {
+            this.options.rowData.unshift(data);
+        } else {
+            this.options.rowData.push(data);
+        }
+
+        // 重新初始化行节点
+        this.initRowNodes();
+        this.refreshView();
+    }
+
+    removeRow(id: string | number): void {
+        if (!Array.isArray(this.options.rowData)) return;
+
+        const index = this.options.rowData.findIndex(row => row.id === id);
+        if (index !== -1) {
+            this.options.rowData.splice(index, 1);
+            this.rowNodes.delete(id);
+            this.initRowNodes();
+            this.refreshView();
+        }
+    }
+
+    moveRow(fromIndex: number, toIndex: number): void {
+        if (!Array.isArray(this.options.rowData) || 
+            fromIndex < 0 || 
+            fromIndex >= this.options.rowData.length || 
+            toIndex < 0 || 
+            toIndex >= this.options.rowData.length) {
+            return;
+        }
+
+        // 保存当前滚动位置
+        this.saveScrollPosition();
+
+        // 移动数据行
+        const row = this.options.rowData.splice(fromIndex, 1)[0];
+        this.options.rowData.splice(toIndex, 0, row);
+
+        // 重新初始化行节点
+        this.initRowNodes();
+
+        // 触发行拖拽结束事件
+        if (this.options.onRowDragEnd) {
+            const node = this.rowNodes.get(row.id);
+            if (node) {
+                this.options.onRowDragEnd({
+                    node,
+                    data: row,
+                    fromIndex,
+                    toIndex,
+                    event: new MouseEvent('dragend')
+                });
             }
         }
 

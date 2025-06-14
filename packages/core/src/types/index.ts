@@ -59,6 +59,11 @@ export interface Column {
     editable?: boolean;
     frozen?: boolean;
     fixed?: boolean;
+    // 特殊列类型
+    checkboxSelection?: boolean;  // 是否显示复选框
+    rowDrag?: boolean;            // 是否允许行拖拽
+    // 合并单元格
+    colSpan?: (params: CellClassParams) => number;  // 列合并
     // 修改渲染器定义
     cellRenderer?: 
         | ((params: CellRendererParams) => HTMLElement) 
@@ -88,6 +93,11 @@ export interface RowNode {
     data: any;
     rowIndex: number;
     selected: boolean;
+    draggable?: boolean;  // 是否可拖拽
+    expanded?: boolean;   // 是否展开（用于父子行）
+    parent?: RowNode;     // 父节点
+    children?: RowNode[]; // 子节点
+    level?: number;       // 节点层级
 }
 
 export interface GridApi {
@@ -113,6 +123,10 @@ export interface GridApi {
     getFilterModel(): { [key: string]: FilterModel };
     setFilterModel(model: { [key: string]: FilterModel }): void;
     clearFilters(): void;
+    // 新增行操作API
+    addRow(data: any, position?: 'top' | 'bottom'): void;
+    removeRow(id: string | number): void;
+    moveRow(fromIndex: number, toIndex: number): void;
 }
 
 export interface SortModel {
@@ -164,6 +178,9 @@ export interface GridOptions {
     headerHeight?: number;
     frozenColumns?: number;
     
+    // 行合并
+    rowSpan?: (params: RowSpanParams) => number;
+    
     // 事件处理
     onCellClicked?: (event: CellClickedEvent) => void;
     onCellDoubleClicked?: (event: CellClickedEvent) => void;
@@ -171,6 +188,8 @@ export interface GridOptions {
     onRowClicked?: (event: RowClickedEvent) => void;
     onRowDoubleClicked?: (event: RowClickedEvent) => void;
     onSortChanged?: (event: SortChangedEvent) => void;
+    onRowDragEnd?: (event: RowDragEndEvent) => void;  // 行拖拽结束事件
+    onSelectionChanged?: (event: SelectionChangedEvent) => void;  // 选择变更事件
     
     // 自定义类和样式
     rowClass?: string | ((params: RowClassParams) => string | string[]);
@@ -181,6 +200,8 @@ export interface GridOptions {
     enableFilter?: boolean;
     enableColResize?: boolean;
     enableRangeSelection?: boolean;
+    enableRowDrag?: boolean;  // 是否启用行拖拽
+    rowSelection?: 'single' | 'multiple';  // 行选择模式
     
     // 默认列定义
     defaultColDef?: Partial<Column>;
@@ -276,4 +297,30 @@ export interface ValueGeneratorParams {
     colId: string;
     originalValue: any;
     startValue: any;
+}
+
+// 新增行拖拽事件接口
+export interface RowDragEndEvent {
+    node: RowNode;
+    data: any;
+    fromIndex: number;
+    toIndex: number;
+    event: MouseEvent;
+}
+
+// 新增选择变更事件接口
+export interface SelectionChangedEvent {
+    selectedNodes: RowNode[];
+    selectedRows: any[];
+    api: GridApi;
+}
+
+// 行合并参数接口
+export interface RowSpanParams {
+    data: any;
+    node: RowNode;
+    rowIndex: number;
+    field: string;
+    colId: string;
+    api: GridApi;
 } 

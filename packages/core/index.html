@@ -95,6 +95,16 @@
       </div>
 
       <div class="demo-section">
+        <h2>树形结构</h2>
+        <div id="treeGrid" class="grid-container"></div>
+      </div>
+
+      <div class="demo-section">
+        <h2>单元格合并</h2>
+        <div id="mergeGrid" class="grid-container"></div>
+      </div>
+
+      <div class="demo-section">
         <h2>功能列表</h2>
         <ul class="feature-list">
           <li>
@@ -140,6 +150,34 @@
               <li>行点击事件</li>
               <li>排序变更事件</li>
               <li>过滤变更事件</li>
+            </ul>
+          </li>
+          <li>
+            <strong>行操作功能</strong>
+            <ul>
+              <li>复选框选择行</li>
+              <li>拖拽调整行顺序</li>
+              <li>添加新行</li>
+              <li>删除行</li>
+              <li>行内操作按钮</li>
+            </ul>
+          </li>
+          <li>
+            <strong>父子行功能</strong>
+            <ul>
+              <li>树形数据结构</li>
+              <li>展开/折叠子节点</li>
+              <li>多级嵌套支持</li>
+              <li>树节点缩进</li>
+            </ul>
+          </li>
+          <li>
+            <strong>单元格合并功能</strong>
+            <ul>
+              <li>行合并</li>
+              <li>列合并</li>
+              <li>自定义合并规则</li>
+              <li>复杂表格布局</li>
             </ul>
           </li>
         </ul>
@@ -206,11 +244,133 @@
             .split("T")[0],
         }));
       }
+      
+      // 树形结构数据
+      function getTreeData() {
+        return [
+          {
+            id: "1",
+            name: "电子产品",
+            expanded: true,
+            children: [
+              {
+                id: "1-1",
+                name: "手机",
+                expanded: true,
+                children: [
+                  { id: "1-1-1", name: "iPhone 14", price: 5999, stock: 120 },
+                  { id: "1-1-2", name: "Samsung S23", price: 6299, stock: 85 },
+                  { id: "1-1-3", name: "Huawei P50", price: 4999, stock: 60 },
+                ],
+              },
+              {
+                id: "1-2",
+                name: "电脑",
+                expanded: false,
+                children: [
+                  { id: "1-2-1", name: "MacBook Pro", price: 13999, stock: 45 },
+                  { id: "1-2-2", name: "Dell XPS", price: 9999, stock: 30 },
+                  { id: "1-2-3", name: "ThinkPad X1", price: 11999, stock: 25 },
+                ],
+              },
+              {
+                id: "1-3",
+                name: "平板",
+                expanded: true,
+                children: [
+                  { id: "1-3-1", name: "iPad Pro", price: 6799, stock: 70 },
+                  { id: "1-3-2", name: "Surface Pro", price: 7599, stock: 40 },
+                ],
+              },
+            ],
+          },
+          {
+            id: "2",
+            name: "家用电器",
+            expanded: false,
+            children: [
+              {
+                id: "2-1",
+                name: "厨房电器",
+                children: [
+                  { id: "2-1-1", name: "微波炉", price: 899, stock: 150 },
+                  { id: "2-1-2", name: "电饭煲", price: 499, stock: 200 },
+                  { id: "2-1-3", name: "电磁炉", price: 399, stock: 180 },
+                ],
+              },
+              {
+                id: "2-2",
+                name: "生活电器",
+                children: [
+                  { id: "2-2-1", name: "吸尘器", price: 1299, stock: 90 },
+                  { id: "2-2-2", name: "加湿器", price: 299, stock: 120 },
+                  { id: "2-2-3", name: "空气净化器", price: 1599, stock: 70 },
+                ],
+              },
+            ],
+          },
+          {
+            id: "3",
+            name: "服装",
+            expanded: true,
+            children: [
+              {
+                id: "3-1",
+                name: "男装",
+                expanded: true,
+                children: [
+                  { id: "3-1-1", name: "T恤", price: 99, stock: 300 },
+                  { id: "3-1-2", name: "牛仔裤", price: 199, stock: 250 },
+                  { id: "3-1-3", name: "夹克", price: 399, stock: 150 },
+                ],
+              },
+              {
+                id: "3-2",
+                name: "女装",
+                children: [
+                  { id: "3-2-1", name: "连衣裙", price: 299, stock: 200 },
+                  { id: "3-2-2", name: "半身裙", price: 199, stock: 180 },
+                  { id: "3-2-3", name: "毛衣", price: 259, stock: 220 },
+                ],
+              },
+            ],
+          },
+        ];
+      }
+
+      // 单元格合并示例数据
+      function getMergeData() {
+        return [
+          { id: 1, region: "华东", province: "上海", q1: 3200, q2: 3500, q3: 3700, q4: 3900, total: 14300 },
+          { id: 2, region: "华东", province: "江苏", q1: 2800, q2: 3000, q3: 3200, q4: 3500, total: 12500 },
+          { id: 3, region: "华东", province: "浙江", q1: 2600, q2: 2800, q3: 3000, q4: 3200, total: 11600 },
+          { id: 4, region: "华南", province: "广东", q1: 3500, q2: 3700, q3: 3900, q4: 4100, total: 15200 },
+          { id: 5, region: "华南", province: "广西", q1: 1800, q2: 2000, q3: 2200, q4: 2400, total: 8400 },
+          { id: 6, region: "华南", province: "海南", q1: 1200, q2: 1300, q3: 1400, q4: 1500, total: 5400 },
+          { id: 7, region: "华北", province: "北京", q1: 3000, q2: 3200, q3: 3400, q4: 3600, total: 13200 },
+          { id: 8, region: "华北", province: "天津", q1: 2200, q2: 2400, q3: 2600, q4: 2800, total: 10000 },
+          { id: 9, region: "华北", province: "河北", q1: 2500, q2: 2700, q3: 2900, q4: 3100, total: 11200 },
+        ];
+      }
 
       // 初始化基础网格
       const basicGridContainer = document.getElementById("basicGrid");
       const basicGrid = new Grid({
         columns: [
+          { 
+            field: "checkbox", 
+            headerName: "", 
+            width: 50, 
+            checkboxSelection: true,
+            frozen: true
+          },
+          { 
+            field: "drag", 
+            headerName: "", 
+            width: 50, 
+            rowDrag: true,
+            frozen: true
+          },
           { field: "id", headerName: "编号", width: 100, frozen: true },
           {
             field: "name",
@@ -227,14 +387,64 @@
             editable: true,
           },
           { field: "city", headerName: "城市", width: 120 },
+          {
+            field: "actions",
+            headerName: "操作",
+            width: 120,
+            cellRenderer: {
+              view: (params) => {
+                const container = document.createElement("div");
+                container.style.display = "flex";
+                container.style.gap = "4px";
+                
+                const editBtn = document.createElement("button");
+                editBtn.textContent = "编辑";
+                editBtn.className = "grid-action-button";
+                editBtn.onclick = (e) => {
+                  e.stopPropagation();
+                  alert(`编辑行: ${params.data.id}`);
+                };
+                
+                const deleteBtn = document.createElement("button");
+                deleteBtn.textContent = "删除";
+                deleteBtn.className = "grid-action-button delete";
+                deleteBtn.onclick = (e) => {
+                  e.stopPropagation();
+                  if (confirm(`确定要删除行 ${params.data.id} 吗?`)) {
+                    params.api.removeRow(params.data.id);
+                  }
+                };
+                
+                container.appendChild(editBtn);
+                container.appendChild(deleteBtn);
+                
+                return container;
+              }
+            }
+          }
         ],
         rowData: getData(),
+        enableRowDrag: true,
+        rowSelection: 'multiple',
+        onRowDragEnd: (event) => {
+          console.log(`行已从索引 ${event.fromIndex} 移动到 ${event.toIndex}`);
+        },
+        onSelectionChanged: (event) => {
+          console.log(`已选择 ${event.selectedNodes.length} 行`);
+        }
       });
       basicGrid.render(basicGridContainer);
 
       // 初始化高级网格
       const advancedGrid = new Grid({
         columns: [
+          {
+            field: "checkbox",
+            headerName: "",
+            width: 50,
+            checkboxSelection: true,
+            frozen: true
+          },
           {
             field: "id",
             headerName: "编号",
@@ -426,8 +636,235 @@
         rowClass: (params) => {
           return params.data.status === "inactive" ? "inactive-row" : "";
         },
+        rowSelection: 'multiple',
+        onSelectionChanged: (event) => {
+          console.log(`已选择 ${event.selectedNodes.length} 行`);
+        }
       });
       advancedGrid.render(document.getElementById("advancedGrid"));
+
+      // 初始化树形表格
+      const treeGrid = new Grid({
+        columns: [
+          {
+            field: "name",
+            headerName: "名称",
+            width: 300,
+            sortable: true,
+          },
+          {
+            field: "price",
+            headerName: "价格",
+            width: 150,
+            sortable: true,
+            editable: true,
+            valueFormatter: (params) => {
+              if (params.value === undefined) return '';
+              return `¥${params.value.toLocaleString()}`;
+            },
+          },
+          {
+            field: "stock",
+            headerName: "库存",
+            width: 150,
+            sortable: true,
+            editable: true,
+            cellRenderer: {
+              view: (params) => {
+                if (params.value === undefined) return document.createElement('div');
+                
+                const el = document.createElement("div");
+                el.textContent = params.value;
+                if (params.value < 50) {
+                  el.style.color = "#ff4d4f";
+                  el.style.fontWeight = "bold";
+                } else if (params.value < 100) {
+                  el.style.color = "#faad14";
+                }
+                return el;
+              },
+              edit: (params) => {
+                if (params.value === undefined) return document.createElement('div');
+                
+                const input = document.createElement("input");
+                input.type = "number";
+                input.min = "0";
+                input.value = params.value;
+
+                input.onchange = () => {
+                  params.onComplete(parseInt(input.value, 10));
+                };
+
+                input.onblur = () => {
+                  params.onComplete(parseInt(input.value, 10));
+                };
+
+                return input;
+              },
+            },
+          },
+          {
+            field: "actions",
+            headerName: "操作",
+            width: 150,
+            cellRenderer: {
+              view: (params) => {
+                // 只有叶子节点才显示操作按钮
+                if (!params.node.children) {
+                  const container = document.createElement("div");
+                  container.style.display = "flex";
+                  container.style.gap = "4px";
+                  
+                  const editBtn = document.createElement("button");
+                  editBtn.textContent = "编辑";
+                  editBtn.className = "grid-action-button";
+                  editBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    alert(`编辑: ${params.data.name}`);
+                  };
+                  
+                  const deleteBtn = document.createElement("button");
+                  deleteBtn.textContent = "删除";
+                  deleteBtn.className = "grid-action-button delete";
+                  deleteBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    alert(`删除: ${params.data.name}`);
+                  };
+                  
+                  container.appendChild(editBtn);
+                  container.appendChild(deleteBtn);
+                  
+                  return container;
+                }
+                return document.createElement("div");
+              }
+            }
+          }
+        ],
+        rowData: getTreeData(),
+        onRowClicked: (event) => {
+          console.log("点击行:", event.data);
+        }
+      });
+      treeGrid.render(document.getElementById("treeGrid"));
+
+      // 初始化单元格合并表格
+      const mergeGrid = new Grid({
+        columns: [
+          {
+            field: "region",
+            headerName: "区域",
+            width: 120,
+            // 列合并：相同区域合并
+            colSpan: (params) => {
+              // 只对第一列应用列合并
+              if (params.colId !== "region") return 1;
+              
+              // 如果是每个区域的第一行，则合并两列
+              const currentRegion = params.data.region;
+              const rowIndex = params.rowIndex;
+              const data = getMergeData();
+              
+              // 检查是否是该区域的第一行
+              if (rowIndex === 0 || data[rowIndex - 1].region !== currentRegion) {
+                return 2; // 合并区域和省份列
+              }
+              
+              return 1; // 不合并
+            }
+          },
+          {
+            field: "province",
+            headerName: "省份",
+            width: 120
+          },
+          {
+            field: "q1",
+            headerName: "第一季度",
+            width: 100,
+            editable: true
+          },
+          {
+            field: "q2",
+            headerName: "第二季度",
+            width: 100,
+            editable: true
+          },
+          {
+            field: "q3",
+            headerName: "第三季度",
+            width: 100,
+            editable: true
+          },
+          {
+            field: "q4",
+            headerName: "第四季度",
+            width: 100,
+            editable: true
+          },
+          {
+            field: "total",
+            headerName: "总计",
+            width: 100,
+            cellRenderer: {
+              view: (params) => {
+                const el = document.createElement("div");
+                el.textContent = params.value.toLocaleString();
+                el.style.fontWeight = "bold";
+                el.style.color = "#1890ff";
+                return el;
+              }
+            }
+          }
+        ],
+        rowData: getMergeData(),
+        // 行合并：相同区域合并
+        rowSpan: (params) => {
+          // 只对区域列应用行合并
+          if (params.field !== "region") return 1;
+          
+          const currentRegion = params.data.region;
+          const rowIndex = params.rowIndex;
+          const data = getMergeData();
+          
+          // 计算当前区域有多少行
+          let spanCount = 1;
+          for (let i = rowIndex + 1; i < data.length; i++) {
+            if (data[i].region === currentRegion) {
+              spanCount++;
+            } else {
+              break;
+            }
+          }
+          
+          // 只在区域的第一行应用行合并
+          if (rowIndex === 0 || data[rowIndex - 1].region !== currentRegion) {
+            return spanCount;
+          }
+          
+          return 1; // 不合并
+        }
+      });
+      
+      // 添加一些额外的样式来确保合并单元格正确显示
+      const mergeStyles = document.createElement("style");
+      mergeStyles.textContent = `
+        #mergeGrid .grid-cell[colspan="2"] {
+          background-color: #f0f9ff;
+          font-weight: bold;
+        }
+        
+        #mergeGrid .grid-cell[rowspan] {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background-color: #f0f9ff;
+          font-weight: bold;
+        }
+      `;
+      document.head.appendChild(mergeStyles);
+      
+      mergeGrid.render(document.getElementById("mergeGrid"));
 
       // 添加一些交互功能示例
       document.addEventListener("DOMContentLoaded", () => {
@@ -446,18 +883,61 @@
         fitBtn.onclick = () => {
           advancedGrid.sizeColumnsToFit();
         };
+        
+        // 添加新行按钮
+        const addRowBtn = document.createElement("button");
+        addRowBtn.textContent = "添加行";
+        addRowBtn.className = "action-button";
+        addRowBtn.onclick = () => {
+          basicGrid.addRow({
+            name: `新用户 ${Math.floor(Math.random() * 100)}`,
+            age: Math.floor(Math.random() * 50) + 20,
+            city: ["北京", "上海", "广州", "深圳"][Math.floor(Math.random() * 4)]
+          });
+        };
+        
+        // 添加删除选中行按钮
+        const deleteSelectedBtn = document.createElement("button");
+        deleteSelectedBtn.textContent = "删除选中行";
+        deleteSelectedBtn.className = "action-button delete";
+        deleteSelectedBtn.onclick = () => {
+          const selectedNodes = basicGrid.getSelectedNodes();
+          if (selectedNodes.length === 0) {
+            alert('请先选择要删除的行');
+            return;
+          }
+          
+          if (confirm(`确定要删除选中的 ${selectedNodes.length} 行吗?`)) {
+            selectedNodes.forEach(node => {
+              basicGrid.removeRow(node.id);
+            });
+          }
+        };
 
         // 添加按钮容器
         const buttonContainer = document.createElement("div");
         buttonContainer.className = "button-container";
         buttonContainer.appendChild(refreshBtn);
         buttonContainer.appendChild(fitBtn);
+        
+        // 添加基础网格的按钮容器
+        const basicButtonContainer = document.createElement("div");
+        basicButtonContainer.className = "button-container";
+        basicButtonContainer.appendChild(addRowBtn);
+        basicButtonContainer.appendChild(deleteSelectedBtn);
 
         // 将按钮添加到高级网格上方
         const advancedGridContainer = document.getElementById("advancedGrid");
         advancedGridContainer.parentElement.insertBefore(
           buttonContainer,
           advancedGridContainer
+        );
+        
+        // 将按钮添加到基础网格上方
+        const basicGridContainer = document.getElementById("basicGrid");
+        basicGridContainer.parentElement.insertBefore(
+          basicButtonContainer,
+          basicGridContainer
         );
       });
 
@@ -482,6 +962,28 @@
         }
         .action-button:active {
           background-color: #096dd9;
+        }
+        .action-button.delete {
+          background-color: #ff4d4f;
+        }
+        .action-button.delete:hover {
+          background-color: #ff7875;
+        }
+        .grid-action-button {
+          padding: 2px 8px;
+          border: 1px solid #d9d9d9;
+          border-radius: 2px;
+          background-color: white;
+          cursor: pointer;
+          font-size: 12px;
+        }
+        .grid-action-button:hover {
+          color: #1890ff;
+          border-color: #1890ff;
+        }
+        .grid-action-button.delete:hover {
+          color: #ff4d4f;
+          border-color: #ff4d4f;
         }
       `;
       document.head.appendChild(style);

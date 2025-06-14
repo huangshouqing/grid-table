@@ -735,3 +735,118 @@
   display: block;
   pointer-events: none;
 }
+
+/* 复选框相关样式 */
+.grid-checkbox-cell,
+.grid-checkbox-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  width: 100%;
+}
+
+.grid-checkbox {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.grid-cell-checkbox-container,
+.grid-header-checkbox-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  width: 100%;
+}
+
+/* 行拖拽相关样式 */
+.grid-row-drag-cell,
+.grid-header-drag-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  width: 100%;
+  cursor: move;
+}
+
+.grid-row-drag-handle,
+.grid-header-drag-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #999;
+  width: 16px;
+  height: 16px;
+}
+
+.grid-row-drag-handle:hover,
+.grid-header-drag-icon:hover {
+  color: #666;
+}
+
+.grid-row-dragging {
+  opacity: 0.5;
+  background-color: #f0f0f0;
+}
+
+.grid-row-drag-above {
+  border-top: 2px solid var(--primary-color, #1890ff);
+}
+
+.grid-row-drag-below {
+  border-bottom: 2px solid var(--primary-color, #1890ff);
+}
+
+/* 树形结构相关样式 */
+.grid-tree-cell {
+  display: flex;
+  align-items: center;
+  height: 100%;
+}
+
+.grid-tree-indent {
+  display: inline-block;
+  height: 100%;
+}
+
+.grid-tree-expand-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+  color: #999;
+}
+
+.grid-tree-expand-button:hover {
+  color: #666;
+}
+
+.grid-tree-content {
+  margin-left: 4px;
+}
+
+/* 行合并和列合并样式 */
+.grid-cell[colspan="2"],
+.grid-cell[colspan="3"],
+.grid-cell[colspan="4"],
+.grid-cell[colspan="5"] {
+  position: relative;
+  z-index: 1;
+  display: block !important; /* 确保显示为块级元素 */
+  overflow: hidden;
+}
+
+.grid-cell[rowspan="2"],
+.grid-cell[rowspan="3"],
+.grid-cell[rowspan="4"],
+.grid-cell[rowspan="5"] {
+  position: relative;
+  z-index: 1;
+  height: auto !important; /* 确保高度自动扩展 */
+  overflow: hidden;
+}
