@@ -405,13 +405,27 @@ export class Grid implements GridApi {
             this.virtualDOM.createElement(contentId, 'div', 'grid-cell-content');
             this.virtualDOM.updateElement(contentId, {
                 styles: {
-                    position: 'relative'
+                    position: 'relative',
+                    width: '100%',
+                    height: '100%',
+                    boxSizing: 'border-box',
+                    overflow: 'hidden'
                 }
             });
             
             // 添加拖拽手柄
             const dragHandleId = `${contentId}-draghandle`;
             this.virtualDOM.createElement(dragHandleId, 'div', 'grid-cell-drag-handle');
+            this.virtualDOM.updateElement(dragHandleId, {
+                styles: {
+                    position: 'absolute',
+                    right: '0',
+                    bottom: '0',
+                    width: '6px',
+                    height: '6px',
+                    zIndex: '2'
+                }
+            });
             this.virtualDOM.appendChild(contentId, dragHandleId);
             
             // 获取创建后的元素
@@ -1355,36 +1369,98 @@ export class Grid implements GridApi {
     private highlightDragRange(startCell: HTMLElement, endCell: HTMLElement) {
         this.clearDragHighlight();
         
-        // 获取表格容器的位置信息
-        const gridRect = this.element.getBoundingClientRect();
-        const startRect = startCell.getBoundingClientRect();
-        const endRect = endCell.getBoundingClientRect();
+        // 获取所有需要高亮的单元格
+        const startRowEl = startCell.closest('.grid-row');
+        const endRowEl = endCell.closest('.grid-row');
         
-        const highlight = document.createElement('div');
-        highlight.className = 'grid-drag-highlight';
+        if (!startRowEl || !endRowEl) return;
         
-        // 计算相对于表格容器的位置
-        const top = Math.min(startRect.top, endRect.top) - gridRect.top;
-        const left = Math.min(startRect.left, endRect.left) - gridRect.left;
-        const width = Math.abs(endRect.left - startRect.left) + endRect.width;
-        const height = Math.abs(endRect.top - startRect.top) + endRect.height;
+        const startRowId = startRowEl.getAttribute('data-row-id');
+        const endRowId = endRowEl.getAttribute('data-row-id');
         
-        highlight.style.position = 'absolute';
-        highlight.style.top = `${top}px`;
-        highlight.style.left = `${left}px`;
-        highlight.style.width = `${width}px`;
-        highlight.style.height = `${height}px`;
+        if (!startRowId || !endRowId) return;
         
-        // 将高亮框添加到表格容器中，而不是 body
-        this.element.appendChild(highlight);
+        const startField = startCell.getAttribute('data-field');
+        const endField = endCell.getAttribute('data-field');
+        
+        if (!startField || !endField) return;
+        
+        // 获取行和列的索引
+        const startNode = this.rowNodes.get(startRowId);
+        const endNode = this.rowNodes.get(endRowId);
+        
+        if (!startNode || !endNode) return;
+        
+        const startColIndex = this.options.columns.findIndex(col => col.field === startField);
+        const endColIndex = this.options.columns.findIndex(col => col.field === endField);
+        
+        if (startColIndex === -1 || endColIndex === -1) return;
+        
+        // 计算范围
+        const minRowIndex = Math.min(startNode.rowIndex, endNode.rowIndex);
+        const maxRowIndex = Math.max(startNode.rowIndex, endNode.rowIndex);
+        const minColIndex = Math.min(startColIndex, endColIndex);
+        const maxColIndex = Math.max(startColIndex, endColIndex);
+        
+        // 获取所有行
+        const rows = this.element.querySelectorAll('.grid-row');
+        
+        // 为范围内的每个单元格添加高亮类
+        for (let i = 0; i < rows.length; i++) {
+            const row = rows[i] as HTMLElement;
+            const rowId = row.getAttribute('data-row-id');
+            if (!rowId) continue;
+            
+            const node = this.rowNodes.get(rowId);
+            if (!node) continue;
+            
+            // 如果行在范围内
+            if (node.rowIndex >= minRowIndex && node.rowIndex <= maxRowIndex) {
+                const cells = row.querySelectorAll('.grid-cell');
+                
+                for (let j = 0; j < cells.length; j++) {
+                    const cell = cells[j] as HTMLElement;
+                    const field = cell.getAttribute('data-field');
+                    if (!field) continue;
+                    
+                    const colIndex = this.options.columns.findIndex(col => col.field === field);
+                    if (colIndex === -1) continue;
+                    
+                    // 如果单元格在范围内
+                    if (colIndex >= minColIndex && colIndex <= maxColIndex) {
+                        cell.classList.add('grid-cell-drag-selected');
+                        
+                        // 添加边框类，根据位置添加不同的边框样式
+                        if (node.rowIndex === minRowIndex) {
+                            cell.classList.add('grid-cell-drag-top');
+                        }
+                        if (node.rowIndex === maxRowIndex) {
+                            cell.classList.add('grid-cell-drag-bottom');
+                        }
+                        if (colIndex === minColIndex) {
+                            cell.classList.add('grid-cell-drag-left');
+                        }
+                        if (colIndex === maxColIndex) {
+                            cell.classList.add('grid-cell-drag-right');
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private clearDragHighlight() {
-        // 从表格容器中移除高亮框
-        const highlight = this.element.querySelector('.grid-drag-highlight');
-        if (highlight) {
-            highlight.remove();
-        }
+        // 移除所有单元格的高亮类
+        const selectedCells = this.element.querySelectorAll('.grid-cell-drag-selected');
+        selectedCells.forEach(cell => {
+            cell.classList.remove(
+                'grid-cell-drag-selected',
+                'grid-cell-drag-top',
+                'grid-cell-drag-bottom',
+                'grid-cell-drag-left',
+                'grid-cell-drag-right'
+            );
+        });
     }
 
     // 实现 GridApi 的批量赋值方法

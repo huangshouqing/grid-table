@@ -648,11 +648,12 @@
   position: absolute;
   right: 0;
   bottom: 0;
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
   cursor: crosshair;
   opacity: 0;
   transition: opacity 0.2s;
+  overflow: hidden;
 }
 
 .grid-cell-content:hover .grid-cell-drag-handle {
@@ -667,16 +668,31 @@
   width: 0;
   height: 0;
   border-style: solid;
-  border-width: 0 0 8px 8px;
+  border-width: 0 0 6px 6px;
   border-color: transparent transparent #999 transparent;
 }
 
-.grid-drag-highlight {
-  position: absolute;
-  pointer-events: none;
-  background: rgba(33, 150, 243, 0.1);
-  border: 2px solid rgb(33, 150, 243);
-  z-index: 999;
+/* 新的拖拽选择样式 */
+.grid-cell-drag-selected {
+  background-color: rgba(33, 150, 243, 0.1);
+  position: relative;
+  z-index: 1;
+}
+
+.grid-cell-drag-top {
+  border-top: 2px solid rgb(33, 150, 243);
+}
+
+.grid-cell-drag-bottom {
+  border-bottom: 2px solid rgb(33, 150, 243);
+}
+
+.grid-cell-drag-left {
+  border-left: 2px solid rgb(33, 150, 243);
+}
+
+.grid-cell-drag-right {
+  border-right: 2px solid rgb(33, 150, 243);
 }
 
 .grid-header-right-area {
