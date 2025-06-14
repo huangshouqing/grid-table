@@ -699,6 +699,14 @@ export class Grid implements GridApi {
         let editContainer = this.virtualDOM.getElement(editContainerId);
         if (!editContainer) {
             this.virtualDOM.createElement(editContainerId, 'div', 'grid-cell-edit-container');
+            this.virtualDOM.updateElement(editContainerId, {
+                styles: {
+                    overflow: 'hidden',
+                    width: '100%',
+                    height: '100%',
+                    boxSizing: 'border-box'
+                }
+            });
             editContainer = this.virtualDOM.getElement(editContainerId);
             if (editContainer) {
                 this.virtualDOM.appendChild(contentId, editContainerId);
@@ -709,6 +717,10 @@ export class Grid implements GridApi {
         if (editContainer) {
             editContainer.style.display = 'flex';
             editContainer.innerHTML = '';
+            
+            // 处理特殊组件，确保它们不会溢出
+            this.constrainEditComponent(editComponent, column);
+            
             editContainer.appendChild(editComponent);
             
             // 尝试自动聚焦到输入元素
@@ -744,6 +756,34 @@ export class Grid implements GridApi {
         setTimeout(() => {
             document.addEventListener('click', handleClickOutside);
         }, 0);
+    }
+    
+    // 约束编辑组件，确保它不会溢出容器
+    private constrainEditComponent(component: HTMLElement, column: Column): void {
+        // 对下拉菜单进行特殊处理
+        const select = component.querySelector('select') as HTMLSelectElement;
+        if (select) {
+            select.style.width = '100%';
+            select.style.maxWidth = '100%';
+            select.style.overflow = 'hidden';
+            select.style.textOverflow = 'ellipsis';
+        }
+        
+        // 对输入框进行处理
+        const input = component.querySelector('input') as HTMLInputElement;
+        if (input) {
+            input.style.width = '100%';
+            input.style.maxWidth = '100%';
+            input.style.boxSizing = 'border-box';
+        }
+        
+        // 对其他自定义组件进行处理
+        const customElements = component.querySelectorAll('div');
+        customElements.forEach(el => {
+            el.style.maxWidth = '100%';
+            el.style.overflow = 'hidden';
+            el.style.textOverflow = 'ellipsis';
+        });
     }
 
     private finishEditing(cell: HTMLElement, column: Column, row: any, newValue: any) {

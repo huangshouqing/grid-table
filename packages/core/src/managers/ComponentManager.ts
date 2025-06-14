@@ -154,6 +154,22 @@ export class ComponentManager {
             ? params.value.toString() 
             : '';
         
+        // 设置样式，确保不会溢出容器
+        input.style.width = '100%';
+        input.style.maxWidth = '100%';
+        input.style.boxSizing = 'border-box';
+        input.style.overflow = 'hidden';
+        input.style.textOverflow = 'ellipsis';
+        
+        // 根据数据类型设置适当的输入类型
+        if (typeof params.value === 'number') {
+            input.type = 'number';
+            input.step = '1';  // 可以根据需要调整步长
+        } else if (typeof params.value === 'boolean') {
+            input.type = 'checkbox';
+            input.checked = Boolean(params.value);
+        }
+        
         // 聚焦
         setTimeout(() => {
             input.focus();
@@ -167,7 +183,9 @@ export class ComponentManager {
             input.addEventListener('keydown', (e: KeyboardEvent) => {
                 if (e.key === 'Enter') {
                     e.preventDefault();
-                    onComplete(input.value);
+                    onComplete(input.type === 'number' ? parseFloat(input.value) : 
+                               input.type === 'checkbox' ? input.checked : 
+                               input.value);
                 } else if (e.key === 'Escape' && params.onCancel) {
                     e.preventDefault();
                     params.onCancel();
@@ -175,7 +193,9 @@ export class ComponentManager {
             });
             
             input.addEventListener('blur', () => {
-                onComplete(input.value);
+                onComplete(input.type === 'number' ? parseFloat(input.value) : 
+                           input.type === 'checkbox' ? input.checked : 
+                           input.value);
             });
         }
         

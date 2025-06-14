@@ -457,6 +457,7 @@
   height: 100%;
   padding: 1px 1px;
   box-sizing: border-box;
+  position: relative;
 }
 
 /* 纯文本模式的样式 */
@@ -484,6 +485,7 @@
   padding: 0 8px;
   display: flex;
   align-items: center;
+  overflow: hidden;
 }
 
 .grid-cell-view-container,
@@ -493,6 +495,24 @@
   padding: 0 8px;
   display: flex;
   align-items: center;
+  overflow: hidden;
+}
+
+/* 确保下拉菜单和其他编辑组件不超出容器 */
+.grid-cell-edit-container select,
+.grid-cell-edit-container input,
+.grid-cell-edit-container textarea,
+.grid-cell-edit-container div {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 下拉框特殊处理 */
+.grid-cell-edit-container select {
+  padding-right: 15px; /* 为下拉箭头留出空间 */
+  background-position: right center;
+  background-repeat: no-repeat;
 }
 
 /* 编辑器样式 */
@@ -505,6 +525,8 @@
   outline: none;
   font: inherit;
   box-sizing: border-box;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* 滚动条样式 */
