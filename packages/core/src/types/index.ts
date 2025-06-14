@@ -20,6 +20,36 @@ export interface CellEditorParams extends CellRendererParams {
     onCancel: () => void;
 }
 
+// 组件接口 - 通用的组件参数类型
+export interface ComponentParams {
+    value: any;
+    data: any;
+    rowIndex: number;
+    colId: string;
+    column: Column;
+    api: GridApi;
+    node: RowNode;
+    // 编辑器特有参数
+    startValue?: any;  // 编辑开始时的值
+    onComplete?: (value: any) => void;
+    onCancel?: () => void;
+    stopEditing?: () => void;
+}
+
+// 组件接口 - 单元格组件接口
+export interface CellComponent {
+    // 初始化组件
+    init?(params: ComponentParams): void;
+    // 组件被附加到DOM后调用
+    afterGuiAttached?(): void;
+    // 获取组件的DOM元素
+    getGui(): HTMLElement;
+    // 数据刷新时调用
+    refresh?(params: ComponentParams): boolean;
+    // 组件销毁前调用
+    destroy?(): void;
+}
+
 export interface Column {
     field: string;
     headerName: string;
@@ -30,12 +60,15 @@ export interface Column {
     frozen?: boolean;
     fixed?: boolean;
     // 修改渲染器定义
-    cellRenderer?: {
-        // 非编辑状态的渲染器
-        view?: (params: CellRendererParams) => HTMLElement;
-        // 编辑状态的渲染器
-        edit?: (params: CellEditorParams) => HTMLElement;
-    } | ((params: CellRendererParams) => HTMLElement); // 保持向后兼容
+    cellRenderer?: 
+        | ((params: CellRendererParams) => HTMLElement) 
+        | { new(): CellComponent } 
+        | { 
+            // 非编辑状态的渲染器
+            view: ((params: CellRendererParams) => HTMLElement) | { new(): CellComponent },
+            // 编辑状态的渲染器
+            edit?: ((params: CellEditorParams) => HTMLElement) | { new(): CellComponent }
+        };
     valueFormatter?: (params: ValueFormatterParams) => string;
     comparator?: (valueA: any, valueB: any, nodeA: RowNode, nodeB: RowNode) => number;
     filterable?: boolean;

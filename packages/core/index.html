@@ -212,19 +212,19 @@
       const basicGrid = new Grid({
         columns: [
           { field: "id", headerName: "编号", width: 100, frozen: true },
-          { 
-            field: "name", 
-            headerName: "名称", 
-            width: 150, 
+          {
+            field: "name",
+            headerName: "名称",
+            width: 150,
             sortable: true,
-            editable: true // 纯文本编辑模式
+            editable: true, // 纯文本编辑模式
           },
-          { 
-            field: "age", 
-            headerName: "年龄", 
-            width: 100, 
+          {
+            field: "age",
+            headerName: "年龄",
+            width: 100,
             sortable: true,
-            editable: true
+            editable: true,
           },
           { field: "city", headerName: "城市", width: 120 },
         ],
@@ -267,18 +267,18 @@
                   <option value="AirPods Pro">AirPods Pro</option>
                 `;
                 select.value = params.value;
-                
+
                 select.onchange = () => {
                   params.onComplete(select.value);
                 };
-                
+
                 select.onblur = () => {
                   params.onComplete(select.value);
                 };
-                
+
                 return select;
-              }
-            }
+              },
+            },
           },
           {
             field: "category",
@@ -302,19 +302,20 @@
                   <option value="Audio">Audio</option>
                   <option value="Wearables">Wearables</option>
                 `;
+                // 设置默认选中项：将 params.value 赋给 select.value
                 select.value = params.value;
-                
+
                 select.onchange = () => {
                   params.onComplete(select.value);
                 };
-                
+
                 select.onblur = () => {
                   params.onComplete(select.value);
                 };
-                
+
                 return select;
-              }
-            }
+              },
+            },
           },
           {
             field: "status",
@@ -336,19 +337,30 @@
                   <option value="inactive">未激活</option>
                   <option value="pending">待处理</option>
                 `;
-                select.value = params.value;
                 
+                // 记录原始值
+                const originalValue = params.value;
+                select.value = originalValue;
+                
+                // 只在真正改变时才提交
                 select.onchange = () => {
-                  params.onComplete(select.value);
+                  if (select.value !== originalValue) {
+                    params.onComplete(select.value);
+                  }
                 };
                 
+                // 失焦时，如果没改变就取消
                 select.onblur = () => {
-                  params.onComplete(select.value);
+                  if (select.value === originalValue) {
+                    params.onCancel(); // 如果没变，就取消编辑
+                  } else {
+                    params.onComplete(select.value); // 如果已变，则提交
+                  }
                 };
                 
                 return select;
-              }
-            }
+              },
+            },
           },
           {
             field: "price",
@@ -358,7 +370,7 @@
             editable: true,
             valueFormatter: (params) => {
               return `¥${params.value.toLocaleString()}`;
-            }
+            },
           },
           {
             field: "stock",
@@ -383,31 +395,31 @@
                 input.type = "number";
                 input.min = "0";
                 input.value = params.value;
-                
+
                 input.onchange = () => {
                   params.onComplete(parseInt(input.value, 10));
                 };
-                
+
                 input.onblur = () => {
                   params.onComplete(parseInt(input.value, 10));
                 };
-                
+
                 return input;
-              }
-            }
+              },
+            },
           },
           {
             field: "location",
             headerName: "位置",
             width: 140,
             sortable: true,
-            editable: true
+            editable: true,
           },
           {
             field: "lastUpdated",
             headerName: "更新时间",
             width: 120,
-            sortable: true
+            sortable: true,
           },
         ],
         rowData: getAdvancedData(),

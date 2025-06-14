@@ -5,11 +5,14 @@ import {
     GridApi,
     SortModel,
     FilterModel,
-    ValueSetParams
-} from './types';
+    ValueSetParams,
+    ComponentParams,
+    CellComponent
+} from './types/index';
 import { ScrollSyncManager } from './managers/ScrollSyncManager';
 import { VirtualDOMManager } from './managers/VirtualDOMManager';
 import { EventManager } from './managers/EventManager';
+import { ComponentManager } from './managers/ComponentManager';
 import { GridState } from './interface';
 // 添加状态管理
 
@@ -18,6 +21,7 @@ export class Grid implements GridApi {
     private virtualDOM: VirtualDOMManager;
     private eventManager: EventManager;
     private scrollSyncManager: ScrollSyncManager;
+    private componentManager: ComponentManager;
     private options: GridOptions;
     private element: HTMLElement;
     private rowNodes: Map<string | number, RowNode> = new Map();
@@ -66,6 +70,7 @@ export class Grid implements GridApi {
         this.virtualDOM = new VirtualDOMManager(this);
         this.scrollSyncManager = new ScrollSyncManager();
         this.eventManager = new EventManager();
+        this.componentManager = new ComponentManager();
 
         this.initRowNodes();
         this.initializeEventListeners();
@@ -83,7 +88,12 @@ export class Grid implements GridApi {
     }
 
     private handleScroll = (scrollLeft: number, scrollTop: number) => {
-        this.state.scrollPosition = { top: scrollTop, left: scrollLeft };
+        this.state.scrollPosition = { 
+            top: scrollTop, 
+            left: scrollLeft, 
+            lastLeft: this.state.scrollPosition.left,
+            lastTop: this.state.scrollPosition.top
+        };
         this.refreshView();
     };
 
@@ -268,8 +278,6 @@ export class Grid implements GridApi {
                 this.virtualDOM.appendChild(cellId, resizerId);
             }
 
-
-
             this.virtualDOM.appendChild(headerId, cellId);
         });
 
@@ -328,13 +336,13 @@ export class Grid implements GridApi {
                 this.virtualDOM.createElement(vCellId, 'div', cellClasses.join(' '));
                 
                 const value = row[col.field];
-                const tempCell = document.createElement('div');
-                this.renderCell(tempCell, col, row, value, rowIndex);
-
+                
                 this.virtualDOM.updateElement(vCellId, {
-                    attributes: { 'data-field': col.field },
+                    attributes: { 
+                        'data-field': col.field,
+                        'data-element-id': vCellId
+                    },
                     styles: { width: `${col.width}px` },
-                    content: tempCell.innerHTML,
                     events: {
                         click: (e: MouseEvent) => {
                             this.handleCellClick(e, col, row, value, rowIndex);
@@ -350,6 +358,10 @@ export class Grid implements GridApi {
                         }
                     }
                 });
+                
+                // Render cell using the virtual DOM
+                this.renderCell(this.virtualDOM.getElement(vCellId) as HTMLElement, col, row, value, rowIndex);
+                
                 this.virtualDOM.appendChild(vRowId, vCellId);
             });
             this.virtualDOM.appendChild(contentId, vRowId);
@@ -380,78 +392,90 @@ export class Grid implements GridApi {
     }
 
     private renderCell(cell: HTMLElement, column: Column, row: any, value: any, rowIndex: number) {
-        const cellContent = document.createElement('div');
-        cellContent.className = 'grid-cell-content';
-        cellContent.style.position = 'relative';
-
-        // 添加拖拽手柄到 cellContent 而不是 cell
-        const dragHandle = document.createElement('div');
-        dragHandle.className = 'grid-cell-drag-handle';
-        cellContent.appendChild(dragHandle);
-
-        if (column.cellRenderer) {
-            // 处理自定义组件模式
-            if (typeof column.cellRenderer === 'object') {
-                const node = this.rowNodes.get(row.id || rowIndex);
-                if (node) {
-                    const componentContainer = document.createElement('div');
-                    componentContainer.className = 'grid-cell-custom-component';
-                    
-                    // 渲染非编辑状态组件
-                    if (column.cellRenderer.view) {
-                        // 确保使用正确的值：优先使用传入的value，如果为undefined则使用row中的值
-                        const displayValue = value !== undefined ? value : row[column.field];
-                        const viewComponent = column.cellRenderer.view({
-                            value: displayValue,
-                            data: row,
-                            rowIndex,
-                            colId: column.field,
-                            column,
-                            api: this,
-                            node
-                        });
-                        componentContainer.appendChild(viewComponent);
-                    }
-                    cellContent.appendChild(componentContainer);
+        const cellId = cell.getAttribute('data-element-id');
+        if (!cellId) return;
+        
+        // 获取内容容器ID
+        const contentId = `${cellId}-content`;
+        
+        // 检查内容容器是否存在，如果不存在则创建
+        let contentElement = this.virtualDOM.getElement(contentId);
+        if (!contentElement) {
+            // 创建单元格内容容器
+            this.virtualDOM.createElement(contentId, 'div', 'grid-cell-content');
+            this.virtualDOM.updateElement(contentId, {
+                styles: {
+                    position: 'relative'
                 }
-            } else {
-                // 处理传统的渲染器函数
-                const node = this.rowNodes.get(row.id || rowIndex);
-                if (node) {
-                    const displayValue = value !== undefined ? value : row[column.field];
-                    const customElement = column.cellRenderer({
-                        value: displayValue,
-                        data: row,
-                        rowIndex,
-                        colId: column.field,
-                        column,
-                        api: this,
-                        node
-                    });
-                    cellContent.appendChild(customElement);
-                }
-            }
-        } else if (column.valueFormatter) {
-            // 处理格式化文本
-            const p = document.createElement('p');
-            const displayValue = value !== undefined ? value : row[column.field];
-            p.textContent = column.valueFormatter({
-                value: displayValue,
-                data: row,
-                column
             });
-            cellContent.appendChild(p);
-        } else {
-            // 处理纯文本
-            const p = document.createElement('p');
-            const displayValue = value !== undefined ? value : row[column.field];
-            p.textContent = displayValue?.toString() ?? '';
-            cellContent.appendChild(p);
+            
+            // 添加拖拽手柄
+            const dragHandleId = `${contentId}-draghandle`;
+            this.virtualDOM.createElement(dragHandleId, 'div', 'grid-cell-drag-handle');
+            this.virtualDOM.appendChild(contentId, dragHandleId);
+            
+            // 获取创建后的元素
+            contentElement = this.virtualDOM.getElement(contentId);
         }
-
-        // 清空单元格内容并添加新内容
-        cell.innerHTML = '';
-        cell.appendChild(cellContent);
+        
+        // 创建渲染参数
+        const node = this.rowNodes.get(row.id || rowIndex);
+        if (!node) return;
+        
+        const params: ComponentParams = {
+            value,
+            data: row,
+            rowIndex,
+            colId: column.field,
+            column,
+            api: this,
+            node
+        };
+        
+        // 创建视图容器ID
+        const viewContainerId = `${contentId}-view`;
+        
+        // 如果单元格处于编辑状态，隐藏视图组件但不销毁它
+        if (cell.classList.contains('editing')) {
+            const viewContainer = this.virtualDOM.getElement(viewContainerId);
+            if (viewContainer) {
+                viewContainer.style.display = 'none';
+            }
+            return;
+        }
+        
+        // 创建视图组件
+        const viewComponentId = `${cellId}-view`;
+        const viewElement = this.componentManager.createViewComponent(viewComponentId, column, params);
+        
+        // 创建或获取视图容器
+        let viewContainer = this.virtualDOM.getElement(viewContainerId);
+        if (!viewContainer) {
+            // 如果视图容器不存在，创建它
+            this.virtualDOM.createElement(viewContainerId, 'div', 'grid-cell-view-container');
+            this.virtualDOM.appendChild(contentId, viewContainerId);
+            viewContainer = this.virtualDOM.getElement(viewContainerId);
+        }
+        
+        // 更新视图容器内容
+        if (viewContainer) {
+            // 确保视图容器可见
+            viewContainer.style.display = 'flex';
+            
+            // 清空并添加视图元素
+            viewContainer.innerHTML = '';
+            viewContainer.appendChild(viewElement);
+        }
+        
+        // 确保编辑容器隐藏
+        const editContainerId = `${contentId}-edit`;
+        const editContainer = this.virtualDOM.getElement(editContainerId);
+        if (editContainer) {
+            editContainer.style.display = 'none';
+        }
+        
+        // 附加内容到单元格
+        this.virtualDOM.appendChild(cellId, contentId);
     }
 
     private handleSortClick(e: MouseEvent, column: Column) {
@@ -600,136 +624,147 @@ export class Grid implements GridApi {
     }
 
     private startEditing(cell: HTMLElement, column: Column, row: any, value: any) {
-        // 如果已经在编辑，不要重复创建
+        // 如果已经在编辑，不要重复操作
         if (cell.classList.contains('editing')) return;
         
-        const cellContent = cell.querySelector('.grid-cell-content') as HTMLElement;
-        if (!cellContent) return;
+        const cellId = cell.getAttribute('data-element-id');
+        if (!cellId) return;
         
-        // 保存原始值用于取消编辑 - 使用行数据中的实际值
+        // 获取contentId
+        const contentId = `${cellId}-content`;
+        
+        // 保存原始值用于取消编辑
         this.originalEditValue = row[column.field];
         
-        // 保存原始内容用于取消编辑
-        const originalContent = cellContent.innerHTML;
+        // 设置编辑状态
         cell.classList.add('editing');
-
+        this.virtualDOM.updateElement(cellId, {
+            classes: ['grid-cell', 'editable', 'editing']
+        });
+        
+        // 隐藏视图组件
+        const viewContainerId = `${contentId}-view`;
+        const viewContainer = this.virtualDOM.getElement(viewContainerId);
+        if (viewContainer) {
+            viewContainer.style.display = 'none';
+        }
+        
+        // 创建编辑组件参数
+        const node = this.rowNodes.get(row.id || row.rowIndex);
+        if (!node) return;
+        
+        const params: ComponentParams = {
+            value: this.originalEditValue,
+            startValue: this.originalEditValue,
+            data: row,
+            rowIndex: node.rowIndex,
+            colId: column.field,
+            column,
+            api: this,
+            node,
+            onComplete: (newValue: any) => {
+                document.removeEventListener('click', handleClickOutside);
+                this.finishEditing(cell, column, row, newValue);
+            },
+            onCancel: () => {
+                document.removeEventListener('click', handleClickOutside);
+                this.cancelEditing(cell, column, row);
+            },
+            stopEditing: () => {
+                document.removeEventListener('click', handleClickOutside);
+                this.cancelEditing(cell, column, row);
+            }
+        };
+        
+        // 创建编辑组件
+        const editComponentId = `${cellId}-edit`;
+        const editComponent = this.componentManager.createEditComponent(editComponentId, column, params);
+        
+        // 创建或获取编辑容器
+        const editContainerId = `${contentId}-edit`;
+        let editContainer = this.virtualDOM.getElement(editContainerId);
+        if (!editContainer) {
+            this.virtualDOM.createElement(editContainerId, 'div', 'grid-cell-edit-container');
+            editContainer = this.virtualDOM.getElement(editContainerId);
+            if (editContainer) {
+                this.virtualDOM.appendChild(contentId, editContainerId);
+            }
+        }
+        
+        // 显示并更新编辑容器
+        if (editContainer) {
+            editContainer.style.display = 'flex';
+            editContainer.innerHTML = '';
+            editContainer.appendChild(editComponent);
+            
+            // 尝试自动聚焦到输入元素
+            setTimeout(() => {
+                const input = editContainer.querySelector('input, select, textarea');
+                if (input) {
+                    (input as HTMLElement).focus();
+                    if (input instanceof HTMLInputElement) {
+                        input.select();
+                    }
+                }
+            }, 0);
+        }
+        
         // 添加点击外部监听器
         const handleClickOutside = (e: MouseEvent) => {
             const target = e.target as HTMLElement;
             // 如果点击的不是当前编辑的单元格或其子元素，则退出编辑模式
             if (!cell.contains(target)) {
                 document.removeEventListener('click', handleClickOutside);
-                // 如果没有进行任何编辑，使用原始值
-                const currentValue = this.getCellEditValue(cell);
-                const finalValue = currentValue === null ? this.originalEditValue : currentValue;
-                this.finishEditing(cell, column, row, finalValue);
+                // 直接调用onComplete，让编辑组件自己处理值的获取和提交
+                const input = editComponent.querySelector('input, select, textarea') as HTMLInputElement;
+                if (input) {
+                    params.onComplete!(input.value);
+                } else {
+                    // 如果找不到标准输入元素，取消编辑
+                    this.cancelEditing(cell, column, row);
+                }
             }
         };
-
+        
         // 延迟添加事件监听器，避免触发当前的点击事件
         setTimeout(() => {
             document.addEventListener('click', handleClickOutside);
         }, 0);
-
-        if (column.cellRenderer && typeof column.cellRenderer === 'object' && column.cellRenderer.edit) {
-            // 使用自定义编辑器组件
-            const componentContainer = document.createElement('div');
-            componentContainer.className = 'grid-cell-custom-component';
-            
-            const node = this.rowNodes.get(row.id);
-            if (node) {
-                const editorComponent = column.cellRenderer.edit({
-                    value: this.originalEditValue, // 使用行数据中的实际值
-                    startValue: this.originalEditValue, // 使用行数据中的实际值
-                    data: row,
-                    rowIndex: node.rowIndex,
-                    colId: column.field,
-                    column,
-                    api: this,
-                    node,
-                    onComplete: (newValue) => {
-                        document.removeEventListener('click', handleClickOutside);
-                        this.finishEditing(cell, column, row, newValue);
-                    },
-                    onCancel: () => {
-                        document.removeEventListener('click', handleClickOutside);
-                        cell.classList.remove('editing');
-                        cellContent.innerHTML = originalContent;
-                    }
-                });
-                
-                // 清空内容并添加编辑器
-                cellContent.innerHTML = '';
-                componentContainer.appendChild(editorComponent);
-                cellContent.appendChild(componentContainer);
-            }
-        } else {
-            // 默认文本编辑模式
-            const input = document.createElement('input');
-            input.type = 'text';
-            input.className = 'cell-editor';
-            input.value = this.originalEditValue?.toString() ?? ''; // 使用行数据中的实际值
-            
-            // 清空内容并添加输入框
-            cellContent.innerHTML = '';
-            cellContent.appendChild(input);
-            
-            input.focus();
-            input.select();
-            
-            input.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    document.removeEventListener('click', handleClickOutside);
-                    this.finishEditing(cell, column, row, input.value);
-                } else if (e.key === 'Escape') {
-                    e.preventDefault();
-                    document.removeEventListener('click', handleClickOutside);
-                    cell.classList.remove('editing');
-                    cellContent.innerHTML = originalContent;
-                }
-            });
-        }
-    }
-
-    private getCellEditValue(cell: HTMLElement): any {
-        const input = cell.querySelector('input.cell-editor') as HTMLInputElement;
-        if (input) {
-            return input.value;
-        }
-        
-        // 如果是自定义编辑器，可能需要特殊处理
-        const customComponent = cell.querySelector('.grid-cell-custom-component');
-        if (customComponent) {
-            // 检查 select 元素
-            const select = customComponent.querySelector('select') as HTMLSelectElement;
-            if (select) {
-                return select.value;
-            }
-            
-            // 检查 input 元素
-            const input = customComponent.querySelector('input') as HTMLInputElement;
-            if (input) {
-                return input.type === 'number' ? parseInt(input.value, 10) : input.value;
-            }
-            
-            // 如果没有找到输入元素，返回原始内容
-            const originalContent = customComponent.textContent;
-            return originalContent || null;
-        }
-        
-        return null;
     }
 
     private finishEditing(cell: HTMLElement, column: Column, row: any, newValue: any) {
         // 如果已经不在编辑状态，直接返回
         if (!cell.classList.contains('editing')) return;
         
-        cell.classList.remove('editing');
+        const cellId = cell.getAttribute('data-element-id');
+        if (!cellId) return;
+        
+        // 更新数据
         const oldValue = row[column.field];
         row[column.field] = newValue;
         
-        // 重新渲染单元格
+        // 移除编辑状态
+        cell.classList.remove('editing');
+        this.virtualDOM.updateElement(cellId, {
+            classes: ['grid-cell', 'editable']
+        });
+        
+        // 获取视图和编辑容器
+        const contentId = `${cellId}-content`;
+        const viewContainerId = `${contentId}-view`;
+        const editContainerId = `${contentId}-edit`;
+        const editComponentId = `${cellId}-edit`;
+        
+        // 隐藏编辑容器
+        const editContainer = this.virtualDOM.getElement(editContainerId);
+        if (editContainer) {
+            editContainer.style.display = 'none';
+        }
+        
+        // 销毁编辑组件
+        this.componentManager.destroyComponent(editComponentId);
+        
+        // 重新渲染视图组件以显示新值
         this.renderCell(cell, column, row, newValue, row.rowIndex);
         
         // 触发值变更事件
@@ -748,6 +783,37 @@ export class Grid implements GridApi {
                 });
             }
         }
+    }
+
+    private cancelEditing(cell: HTMLElement, column: Column, row: any) {
+        if (!cell.classList.contains('editing')) return;
+        
+        const cellId = cell.getAttribute('data-element-id');
+        if (!cellId) return;
+        
+        // 移除编辑状态
+        cell.classList.remove('editing');
+        this.virtualDOM.updateElement(cellId, {
+            classes: ['grid-cell', 'editable']
+        });
+        
+        // 获取视图和编辑容器
+        const contentId = `${cellId}-content`;
+        const viewContainerId = `${contentId}-view`;
+        const editContainerId = `${contentId}-edit`;
+        const editComponentId = `${cellId}-edit`;
+        
+        // 隐藏编辑容器
+        const editContainer = this.virtualDOM.getElement(editContainerId);
+        if (editContainer) {
+            editContainer.style.display = 'none';
+        }
+        
+        // 销毁编辑组件
+        this.componentManager.destroyComponent(editComponentId);
+        
+        // 重新渲染视图组件（使用原始值）
+        this.renderCell(cell, column, row, row[column.field], row.rowIndex);
     }
 
     private handleRowClick(e: MouseEvent, row: any, rowIndex: number) {
@@ -1034,7 +1100,6 @@ export class Grid implements GridApi {
     ensureNodeVisible(node: RowNode, position?: 'top' | 'middle' | 'bottom'): void {
         const data = this.getFilteredAndSortedData();
         const index = data.findIndex(row => row.id === node.id);
-// ... (rest of the code remains the same)
         if (index !== -1) {
             this.ensureIndexVisible(index, position);
         }
@@ -1404,8 +1469,6 @@ export class Grid implements GridApi {
         this.refreshView();
     }
 
-
-
     private saveScrollPosition() {
         const gridContent = this.element.querySelector('.grid-content') as HTMLElement;
         if (gridContent) {
@@ -1434,15 +1497,78 @@ export class Grid implements GridApi {
 
     destroy() {
         this.scrollSyncManager.destroy();
+        
+        // 销毁所有组件
+        this.componentManager.destroyAllComponents();
+        
         if (this.virtualDOM) {
             this.virtualDOM.clear();
         }
         this.eventManager.clear();
 
-        // Clean up drag and drop listeners
+        // 清理drag and drop监听器
         this.element.removeEventListener('dragstart', this.handleDragStart.bind(this));
         this.element.removeEventListener('dragover', this.handleDragOver.bind(this));
         this.element.removeEventListener('drop', this.handleDrop.bind(this));
         this.element.removeEventListener('dragend', this.handleDragEnd.bind(this));
+    }
+
+    private getCellEditValue(cell: HTMLElement): any {
+        const cellId = cell.getAttribute('data-element-id');
+        if (!cellId) return null;
+        
+        const contentId = `${cellId}-content`;
+        const inputId = `${contentId}-input`;
+        
+        // 检查标准输入编辑器
+        const inputElement = this.virtualDOM.getElement(inputId) as HTMLInputElement;
+        if (inputElement) {
+            // 确保数字类型输入返回有效数字，而不是NaN
+            if (inputElement.type === 'number') {
+                // 先检查值是否与原值不同，如果没变化则返回原值
+                if (inputElement.value === this.originalEditValue?.toString()) {
+                    return this.originalEditValue;
+                }
+                const numValue = inputElement.value.trim() === '' ? 0 : parseFloat(inputElement.value);
+                return isNaN(numValue) ? 0 : numValue;
+            }
+            return inputElement.value;
+        }
+        
+        // 检查自定义组件编辑器
+        const componentContainerId = `${contentId}-component`;
+        const componentContainer = this.virtualDOM.getElement(componentContainerId);
+        if (componentContainer) {
+            // 检查select元素
+            const select = componentContainer.querySelector('select') as HTMLSelectElement;
+            if (select) {
+                // 关键修复：检查select是否真的改变了值
+                if (!select.dataset.hasChanged && select.value === select.options[0].value) {
+                    // 如果没有设置变更标记，且当前值是第一个选项，返回原始值
+                    return this.originalEditValue;
+                }
+                return select.value;
+            }
+            
+            // 检查输入元素
+            const input = componentContainer.querySelector('input') as HTMLInputElement;
+            if (input) {
+                // 检查输入框是否真的被修改过
+                if (input.type === 'number') {
+                    // 先检查值是否与原值不同，如果没变化则返回原值
+                    if (input.value === this.originalEditValue?.toString()) {
+                        return this.originalEditValue;
+                    }
+                    const numValue = input.value.trim() === '' ? 0 : parseFloat(input.value);
+                    return isNaN(numValue) ? 0 : numValue;  // 防止NaN值产生
+                }
+                return input.value;
+            }
+            
+            // 如果没有找到输入元素，返回文本内容
+            return componentContainer.textContent?.trim() || null;
+        }
+        
+        return this.originalEditValue; // 默认返回原始值
     }
 }

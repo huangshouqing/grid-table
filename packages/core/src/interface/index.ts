@@ -4,6 +4,8 @@ export interface GridState {
   scrollPosition: {
     left: number;
     top: number;
+    lastLeft: number;
+    lastTop: number;
   };
   editingCell: {
     rowId: string | number;
