@@ -5,19 +5,15 @@
  * [✓] 渲染模块 (GridRenderers) - 提取所有与DOM渲染相关的逻辑到单独的类中
  * [✓] 编辑模块 (GridEditManager) - 提取与单元格编辑相关的所有方法
  * [✓] 数据管理模块 (GridDataManager) - 提取所有数据相关逻辑，包括行节点管理
+ * [✓] 拖放模块 (GridDragDropManager) - 提取拖放和拖动填充功能
  * 
  * 未来拆分计划:
  * 1. 事件处理模块 (GridEventHandlers)
  *    - 提取所有的事件处理程序(handle*)
- *    - 包括: 点击, 双击, 滚动, 拖拽事件等
+ *    - 包括: 点击, 双击, 滚动等
  *    - 将使事件逻辑与UI渲染和数据管理分离
  * 
- * 2. 拖放模块 (GridDragDropManager)
- *    - 提取拖放和拖动填充功能
- *    - 包括: 行拖拽, 单元格拖放, 列拖动等
- *    - 分离复杂的拖放交互逻辑
- * 
- * 3. 过滤排序模块 (GridFilterSortManager)
+ * 2. 过滤排序模块 (GridFilterSortManager)
  *    - 提取过滤和排序相关功能
  *    - 包括: showFilterMenu, createDefaultFilterMenu, sortModel等
  *    - 将过滤和排序算法解耦，便于扩展和维护
@@ -41,6 +37,7 @@ import { GridState } from "./interface";
 import { GridRenderers } from "./renderers/GridRenderers";
 import { GridEditManager } from "./managers/GridEditManager";
 import { GridDataManager } from "./managers/GridDataManager";
+import { GridDragDropManager } from "./managers/GridDragDropManager";
 // 添加状态管理
 
 export class Grid implements GridApi {
@@ -58,11 +55,12 @@ export class Grid implements GridApi {
   private editManager: GridEditManager;
   // 添加数据管理器实例
   private dataManager: GridDataManager;
+  // 添加拖拽管理器实例
+  private dragDropManager: GridDragDropManager;
 
   private lastScrollTop: number = 0;
   private lastScrollLeft: number = 0;
   private readonly instanceId: string;
-  private _dragOverAnimFrame: number | null = null; // 添加帧动画ID跟踪
 
   // 辅助方法，用于获取GridApi类型的this引用
   private getApi(): GridApi {
@@ -130,7 +128,6 @@ export class Grid implements GridApi {
         // 添加渲染器需要的回调
         onSortClick: this.handleSortClick.bind(this),
         onFilterClick: this.showFilterMenu.bind(this),
-        onResizeStart: this.handleResizeStart.bind(this),
         onStartEditing: this.startEditing.bind(this),
         onScroll: this.handleScroll.bind(this)
       },
@@ -151,12 +148,48 @@ export class Grid implements GridApi {
       this.options
     );
 
+    // 初始化拖拽管理器
+    this.dragDropManager = new GridDragDropManager(
+      this.element,
+      this.virtualDOM,
+      this.state,
+      this.options,
+      this.rowNodes,
+      this.getApi.bind(this),
+      this.dataManager,
+      this.refreshView.bind(this)
+    );
+
     // 初始化行节点
     this.dataManager.initRowNodes();
     
     this.initializeEventListeners();
-    this.initializeDragToFill();
-    this.initializeDragAndDropListeners();
+    
+    // 初始化拖拽相关功能
+    this.dragDropManager.initializeDragAndDropListeners();
+    
+    // 在渲染器选项中添加列宽调整回调
+    const renderOptions = {
+      ...this.options,
+      // 添加渲染器需要的回调
+      onSortClick: this.handleSortClick.bind(this),
+      onFilterClick: this.showFilterMenu.bind(this),
+      onResizeStart: this.dragDropManager.handleResizeStart.bind(this.dragDropManager),
+      onStartEditing: this.startEditing.bind(this),
+      onScroll: this.handleScroll.bind(this)
+    };
+    
+    // 重新初始化渲染器
+    this.renderers = new GridRenderers(
+      this.virtualDOM,
+      this.scrollSyncManager,
+      this.componentManager,
+      renderOptions,
+      this.state,
+      this.instanceId,
+      this.rowNodes,
+      this.getApi.bind(this)
+    );
   }
 
   private initializeEventListeners() {
@@ -166,133 +199,6 @@ export class Grid implements GridApi {
     this.eventManager.on("filterChange", this.handleFilterChange);
     this.eventManager.on("editStart", this.handleEditStart);
     this.eventManager.on("editEnd", this.handleEditEnd);
-
-    // 初始化行拖拽事件
-    if (this.options.enableRowDrag) {
-      this.initializeRowDragEvents();
-    }
-  }
-
-  private initializeRowDragEvents() {
-    // 添加拖拽相关事件监听
-    this.element.addEventListener("dragover", this.handleRowDragOver);
-    this.element.addEventListener("drop", this.handleRowDrop);
-    this.element.addEventListener("dragend", this.handleRowDragEnd);
-  }
-
-  private handleRowDragOver = (e: DragEvent) => {
-    e.preventDefault();
-    if (!e.dataTransfer) return;
-
-    e.dataTransfer.dropEffect = "move";
-
-    // 获取目标行
-    const targetRow = (e.target as HTMLElement).closest(
-      ".grid-row"
-    ) as HTMLElement;
-    if (!targetRow) return;
-
-    // 使用requestAnimationFrame防止过度绘制
-    if (this._dragOverAnimFrame) {
-      cancelAnimationFrame(this._dragOverAnimFrame);
-    }
-
-    this._dragOverAnimFrame = requestAnimationFrame(() => {
-      // 移除所有拖拽指示器
-      const allRows = this.element.querySelectorAll(".grid-row");
-      allRows.forEach((row) => {
-        row.classList.remove("grid-row-drag-above", "grid-row-drag-below");
-      });
-
-      // 确定拖拽位置（上方或下方）
-      const rect = targetRow.getBoundingClientRect();
-      const middleY = rect.top + rect.height / 2;
-      const isAbove = e.clientY < middleY;
-
-      // 添加拖拽指示器
-      if (isAbove) {
-        targetRow.classList.add("grid-row-drag-above");
-      } else {
-        targetRow.classList.add("grid-row-drag-below");
-      }
-    });
-  };
-
-  private handleRowDrop = (e: DragEvent) => {
-    e.preventDefault();
-    if (!e.dataTransfer) return;
-
-    try {
-      // 获取拖拽数据
-      const dragData = JSON.parse(e.dataTransfer.getData("application/json"));
-      const { rowId, rowIndex: fromIndex } = dragData;
-
-      // 获取目标行
-      const targetRow = (e.target as HTMLElement).closest(
-        ".grid-row"
-      ) as HTMLElement;
-      if (!targetRow) return;
-
-      const targetRowId = targetRow.getAttribute("data-row-id");
-      if (!targetRowId) return;
-
-      const targetNode = this.rowNodes.get(targetRowId);
-      if (!targetNode) return;
-
-      const toIndex = targetNode.rowIndex;
-
-      // 如果是同一行，不执行操作
-      if (fromIndex === toIndex) return;
-
-      // 确定拖拽位置（上方或下方）
-      const rect = targetRow.getBoundingClientRect();
-      const middleY = rect.top + rect.height / 2;
-      const isAbove = e.clientY < middleY;
-
-      // 计算实际的目标索引
-      const actualToIndex = isAbove ? toIndex : toIndex + 1;
-
-      // 移动行
-      const movedNode = this.dataManager.moveRow(fromIndex, actualToIndex);
-
-      // 移除所有拖拽指示器
-      this.clearDragStyles();
-
-      // 触发行拖拽结束事件
-      if (this.options.onRowDragEnd && movedNode) {
-        this.options.onRowDragEnd({
-          node: movedNode,
-          data: movedNode.data,
-          fromIndex,
-          toIndex: actualToIndex,
-          event: e,
-        });
-      }
-
-      this.refreshView();
-    } catch (error) {
-      console.error("Error handling row drop:", error);
-    }
-  };
-
-  private handleRowDragEnd = () => {
-    // 移除所有拖拽指示器
-    this.clearDragStyles();
-  };
-
-  // 清理所有拖拽相关样式
-  private clearDragStyles(): void {
-    // 确保在下一帧执行，让DOM有时间更新
-    requestAnimationFrame(() => {
-      const allRows = this.element.querySelectorAll(".grid-row");
-      allRows.forEach((row) => {
-        row.classList.remove(
-          "grid-row-drag-above",
-          "grid-row-drag-below",
-          "grid-row-dragging"
-        );
-      });
-    });
   }
 
   private handleScroll = (scrollLeft: number, scrollTop: number) => {
@@ -378,144 +284,7 @@ export class Grid implements GridApi {
     this.refreshView();
   }
 
-  private initializeDragAndDropListeners() {
-    this.element.addEventListener("dragstart", this.handleDragStart.bind(this));
-    this.element.addEventListener("dragover", this.handleDragOver.bind(this));
-    this.element.addEventListener("drop", this.handleDrop.bind(this));
-    this.element.addEventListener("dragend", this.handleDragEnd.bind(this));
-  }
-
-  private handleDragStart(e: DragEvent) {
-    const element = (e.target as HTMLElement).closest(".grid-header-cell");
-    if (!element || !e.dataTransfer || !(e.target as HTMLElement).draggable) {
-      return;
-    }
-
-    const field = (element as HTMLElement).dataset.field;
-    if (!field) return;
-
-    const column = this.options.columns.find((c) => c.field === field);
-    if (!column) return;
-
-    this.state.dragState.draggedColumn = column;
-    this.state.dragState.draggedElement = element as HTMLElement;
-
-    e.dataTransfer.effectAllowed = "move";
-    e.dataTransfer.setData("text/plain", column.field);
-
-    element.classList.add("dragging");
-  }
-
-  private handleDragOver(e: DragEvent) {
-    const element = (e.target as HTMLElement).closest(".grid-header-cell");
-    if (!element) return;
-
-    e.preventDefault();
-    if (e.dataTransfer) {
-      e.dataTransfer.dropEffect = "move";
-    }
-  }
-
-  private handleDrop(e: DragEvent) {
-    e.preventDefault();
-    const targetElement = (e.target as HTMLElement).closest(
-      ".grid-header-cell"
-    );
-    if (!targetElement) return;
-
-    const field = (targetElement as HTMLElement).dataset.field;
-    if (!field) return;
-
-    const targetColumn = this.options.columns.find((c) => c.field === field);
-    const { draggedColumn } = this.state.dragState;
-
-    if (!draggedColumn || !targetColumn || draggedColumn === targetColumn)
-      return;
-
-    const sourceIndex = this.options.columns.indexOf(draggedColumn);
-    const targetIndex = this.options.columns.indexOf(targetColumn);
-
-    if (sourceIndex === -1 || targetIndex === -1) return;
-
-    const columns = [...this.options.columns];
-    columns.splice(sourceIndex, 1);
-    columns.splice(targetIndex, 0, draggedColumn);
-
-    this.options.columns = columns;
-
-    // 清理拖拽样式
-    this.clearDragStyles();
-
-    this.refreshView();
-  }
-
-  private handleDragEnd() {
-    const { draggedElement } = this.state.dragState;
-    if (draggedElement) {
-      draggedElement.classList.remove("dragging");
-    }
-    this.state.dragState.draggedColumn = null;
-    this.state.dragState.draggedElement = null;
-    
-    // 清理所有拖拽相关样式
-    this.clearDragStyles();
-  }
-
-  private handleResizeStart(
-    e: MouseEvent,
-    column: Column,
-    element: HTMLElement
-  ) {
-    e.preventDefault();
-    this.state.dragState.resizeStartX = e.clientX;
-    this.state.dragState.resizeColumn = column;
-    this.state.dragState.resizeElement = element;
-    document.body.style.cursor = "col-resize";
-
-    // 添加全局鼠标事件监听
-    document.addEventListener("mousemove", this.handleResizeMove);
-    document.addEventListener("mouseup", this.handleResizeEnd);
-  }
-
-  private handleResizeMove = (e: MouseEvent) => {
-    if (
-      !this.state.dragState.resizeColumn ||
-      !this.state.dragState.resizeElement
-    )
-      return;
-
-    const diff = e.clientX - this.state.dragState.resizeStartX;
-    const newWidth = Math.max(
-      50,
-      this.state.dragState.resizeColumn.width + diff
-    );
-
-    this.state.dragState.resizeColumn.width = newWidth;
-    this.state.dragState.resizeElement.style.width = `${newWidth}px`;
-
-    // 更新对应的数据单元格宽度
-    const columnIndex = this.options.columns.indexOf(
-      this.state.dragState.resizeColumn
-    );
-    const cells = this.element.querySelectorAll(
-      `.grid-row .grid-cell:nth-child(${columnIndex + 1})`
-    );
-    cells.forEach(
-      (cell) => ((cell as HTMLElement).style.width = `${newWidth}px`)
-    );
-
-    this.state.dragState.resizeStartX = e.clientX;
-  };
-
-  private handleResizeEnd = () => {
-    this.state.dragState.resizeColumn = null;
-    this.state.dragState.resizeElement = null;
-    document.body.style.cursor = "";
-
-    // 移除全局鼠标事件监听
-    document.removeEventListener("mousemove", this.handleResizeMove);
-    document.removeEventListener("mouseup", this.handleResizeEnd);
-  };
+  // 列宽调整功能已移至 GridDragDropManager 类
 
   private startEditing(
     cell: HTMLElement,
@@ -719,7 +488,7 @@ export class Grid implements GridApi {
       this.saveScrollPosition();
 
       // 清理所有拖拽样式
-      this.clearDragStyles();
+      this.dragDropManager.clearDragStyles();
 
       // 重新渲染整个表格内容，确保 header 和 body 的一致性
       this.element.innerHTML = "";
@@ -926,299 +695,12 @@ export class Grid implements GridApi {
     menu.appendChild(buttonContainer);
   }
 
-  private initializeDragToFill() {
-    let isDragging = false;
-    let startCell: HTMLElement | null = null;
-    let startNode: RowNode | null = null;
-    let startColumn: Column | null = null;
-    let startValue: any = null;
-
-    // 添加拖拽事件监听
-    this.element.addEventListener("mousedown", (e: MouseEvent) => {
-      const handle = (e.target as HTMLElement).closest(
-        ".grid-cell-drag-handle"
-      );
-      if (!handle) return;
-
-      const cell = handle.closest(".grid-cell") as HTMLElement;
-      const row = cell.closest(".grid-row") as HTMLElement;
-      if (!cell || !row) return;
-
-      e.preventDefault(); // 阻止默认行为
-      e.stopPropagation();
-      isDragging = true;
-      startCell = cell;
-
-      // 添加禁止选择文本的样式
-      document.body.style.userSelect = "none";
-      (document.body.style as any).webkitUserSelect = "none";
-
-      const rowId = row.getAttribute("data-row-id");
-      const field = cell.getAttribute("data-field");
-
-      if (rowId && field) {
-        const node = this.rowNodes.get(rowId);
-        const column = this.options.columns.find((col) => col.field === field);
-
-        if (node && column) {
-          startNode = node;
-          startColumn = column;
-          startValue = node.data[field];
-        }
-      }
-
-      document.body.style.cursor = "crosshair";
-      document.addEventListener("mousemove", handleDrag);
-      document.addEventListener("mouseup", handleDragEnd);
-    });
-
-    const handleDrag = (e: MouseEvent) => {
-      if (!isDragging || !startCell) return;
-
-      e.preventDefault(); // 阻止默认行为
-      const currentCell = (e.target as HTMLElement).closest(
-        ".grid-cell"
-      ) as HTMLElement;
-      if (currentCell) {
-        this.highlightDragRange(startCell, currentCell);
-      }
-    };
-
-    const handleDragEnd = (e: MouseEvent) => {
-      if (!isDragging || !startCell || !startNode || !startColumn) return;
-
-      e.preventDefault(); // 阻止默认行为
-
-      // 恢复文本选择
-      document.body.style.userSelect = "";
-      (document.body.style as any).webkitUserSelect = "";
-
-      const endCell = (e.target as HTMLElement).closest(
-        ".grid-cell"
-      ) as HTMLElement;
-      if (endCell) {
-        const endRow = endCell.closest(".grid-row") as HTMLElement;
-        if (endRow) {
-          const endRowId = endRow.getAttribute("data-row-id");
-          const endColField = endCell.getAttribute("data-field");
-
-          if (endRowId && endColField) {
-            const endNode = this.rowNodes.get(endRowId);
-            const endColumn = this.options.columns.find(
-              (col) => col.field === endColField
-            );
-
-            if (endNode && endColumn) {
-              this.setValues({
-                startNode,
-                startColumn,
-                endNode,
-                endColumn,
-                value: startValue,
-                valueGenerator: startColumn.valueSetParams?.valueGenerator,
-              });
-            }
-          }
-        }
-      }
-
-      // 清理
-      isDragging = false;
-      startCell = null;
-      startNode = null;
-      startColumn = null;
-      startValue = null;
-      document.body.style.cursor = "";
-      this.clearDragHighlight();
-      document.removeEventListener("mousemove", handleDrag);
-      document.removeEventListener("mouseup", handleDragEnd);
-    };
-  }
-
-  private highlightDragRange(startCell: HTMLElement, endCell: HTMLElement) {
-    this.clearDragHighlight();
-
-    // 获取所有需要高亮的单元格
-    const startRowEl = startCell.closest(".grid-row");
-    const endRowEl = endCell.closest(".grid-row");
-
-    if (!startRowEl || !endRowEl) return;
-
-    const startRowId = startRowEl.getAttribute("data-row-id");
-    const endRowId = endRowEl.getAttribute("data-row-id");
-
-    if (!startRowId || !endRowId) return;
-
-    const startField = startCell.getAttribute("data-field");
-    const endField = endCell.getAttribute("data-field");
-
-    if (!startField || !endField) return;
-
-    // 获取行和列的索引
-    const startNode = this.rowNodes.get(startRowId);
-    const endNode = this.rowNodes.get(endRowId);
-
-    if (!startNode || !endNode) return;
-
-    const startColIndex = this.options.columns.findIndex(
-      (col) => col.field === startField
-    );
-    const endColIndex = this.options.columns.findIndex(
-      (col) => col.field === endField
-    );
-
-    if (startColIndex === -1 || endColIndex === -1) return;
-
-    // 计算范围
-    const minRowIndex = Math.min(startNode.rowIndex, endNode.rowIndex);
-    const maxRowIndex = Math.max(startNode.rowIndex, endNode.rowIndex);
-    const minColIndex = Math.min(startColIndex, endColIndex);
-    const maxColIndex = Math.max(startColIndex, endColIndex);
-
-    // 获取所有行
-    const rows = this.element.querySelectorAll(".grid-row");
-
-    // 为范围内的每个单元格添加高亮类
-    for (let i = 0; i < rows.length; i++) {
-      const row = rows[i] as HTMLElement;
-      const rowId = row.getAttribute("data-row-id");
-      if (!rowId) continue;
-
-      const node = this.rowNodes.get(rowId);
-      if (!node) continue;
-
-      // 如果行在范围内
-      if (node.rowIndex >= minRowIndex && node.rowIndex <= maxRowIndex) {
-        const cells = row.querySelectorAll(".grid-cell");
-
-        for (let j = 0; j < cells.length; j++) {
-          const cell = cells[j] as HTMLElement;
-          const field = cell.getAttribute("data-field");
-          if (!field) continue;
-
-          const colIndex = this.options.columns.findIndex(
-            (col) => col.field === field
-          );
-          if (colIndex === -1) continue;
-
-          // 如果单元格在范围内
-          if (colIndex >= minColIndex && colIndex <= maxColIndex) {
-            cell.classList.add("grid-cell-drag-selected");
-
-            // 添加边框类，根据位置添加不同的边框样式
-            if (node.rowIndex === minRowIndex) {
-              cell.classList.add("grid-cell-drag-top");
-            }
-            if (node.rowIndex === maxRowIndex) {
-              cell.classList.add("grid-cell-drag-bottom");
-            }
-            if (colIndex === minColIndex) {
-              cell.classList.add("grid-cell-drag-left");
-            }
-            if (colIndex === maxColIndex) {
-              cell.classList.add("grid-cell-drag-right");
-            }
-          }
-        }
-      }
-    }
-  }
-
-  private clearDragHighlight() {
-    // 移除所有单元格的高亮类
-    const selectedCells = this.element.querySelectorAll(
-      ".grid-cell-drag-selected"
-    );
-    selectedCells.forEach((cell) => {
-      cell.classList.remove(
-        "grid-cell-drag-selected",
-        "grid-cell-drag-top",
-        "grid-cell-drag-bottom",
-        "grid-cell-drag-left",
-        "grid-cell-drag-right"
-      );
-    });
-  }
+  // 拖拽填充功能已迁移到 GridDragDropManager 类
 
   // 实现 GridApi 的批量赋值方法
   setValues(params: ValueSetParams): void {
-    const {
-      startNode,
-      startColumn,
-      endNode,
-      endColumn,
-      value,
-      valueGenerator,
-    } = params;
-
-    if (!startNode || !endNode || !startColumn || !endColumn) {
-      return;
-    }
-
     this.saveScrollPosition();
-
-    const minRowIndex = Math.min(startNode.rowIndex, endNode.rowIndex);
-    const maxRowIndex = Math.max(startNode.rowIndex, endNode.rowIndex);
-    const minColIndex = this.options.columns.indexOf(startColumn);
-    const maxColIndex = this.options.columns.indexOf(endColumn);
-
-    if (minColIndex === -1 || maxColIndex === -1) {
-      return;
-    }
-
-    // Get all row nodes sorted by row index
-    const allNodes: RowNode[] = [];
-    this.rowNodes.forEach(node => {
-      allNodes.push(node);
-    });
-    
-    // Sort by row index
-    allNodes.sort((a, b) => a.rowIndex - b.rowIndex);
-    
-    // Filter to only nodes within our range
-    const targetNodes = allNodes.filter(
-      node => node.rowIndex >= minRowIndex && node.rowIndex <= maxRowIndex
-    );
-
-    // Go through each node and update applicable columns
-    targetNodes.forEach(node => {
-      for (let colIndex = minColIndex; colIndex <= maxColIndex; colIndex++) {
-        const column = this.options.columns[colIndex];
-        if (!column) continue;
-        
-        // Skip non-editable columns
-        if (column.editable === false) continue;
-
-        const oldValue = node.data[column.field];
-        const finalValue = valueGenerator
-          ? valueGenerator({
-              rowIndex: node.rowIndex,
-              colId: column.field,
-              originalValue: oldValue,
-              startValue: value,
-            })
-          : value;
-
-        // Update the data model
-        node.data[column.field] = finalValue;
-
-        // Trigger callbacks
-        if (this.options.onCellValueChanged) {
-          this.options.onCellValueChanged({
-            node,
-            data: node.data,
-            column,
-            colId: column.field,
-            value: finalValue,
-            oldValue,
-            newValue: finalValue,
-            event: new MouseEvent("click"),
-          });
-        }
-      }
-    });
-
-    this.refreshView();
+    this.dragDropManager.setValues(params);
     this.restoreScrollPosition();
   }
 
@@ -1234,22 +716,7 @@ export class Grid implements GridApi {
   }
 
   moveRow(fromIndex: number, toIndex: number): void {
-    const movedNode = this.dataManager.moveRow(fromIndex, toIndex);
-    
-    if (movedNode && this.options.onRowDragEnd) {
-      this.options.onRowDragEnd({
-        node: movedNode,
-        data: movedNode.data,
-        fromIndex,
-        toIndex,
-        event: new MouseEvent("dragend"),
-      });
-    }
-    
-    // 确保清理拖拽样式
-    this.clearDragStyles();
-    
-    this.refreshView();
+    this.dragDropManager.moveRow(fromIndex, toIndex);
   }
 
   // 实现缺失的 GridApi 方法
@@ -1320,22 +787,13 @@ export class Grid implements GridApi {
     // 销毁所有组件
     this.componentManager.destroyAllComponents();
 
+    // 销毁拖拽管理器
+    this.dragDropManager.destroy();
+
     if (this.virtualDOM) {
       this.virtualDOM.clear();
     }
     this.eventManager.clear();
-
-    // 清理drag and drop监听器
-    this.element.removeEventListener(
-      "dragstart",
-      this.handleDragStart.bind(this)
-    );
-    this.element.removeEventListener(
-      "dragover",
-      this.handleDragOver.bind(this)
-    );
-    this.element.removeEventListener("drop", this.handleDrop.bind(this));
-    this.element.removeEventListener("dragend", this.handleDragEnd.bind(this));
   }
 
   /**
