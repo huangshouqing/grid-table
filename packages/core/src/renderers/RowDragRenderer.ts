@@ -57,10 +57,16 @@ export class RowDragRenderer implements CellComponent {
         if (!rowElement) return;
         
         // 设置拖拽数据
-        event.dataTransfer.setData('application/json', JSON.stringify({
+        const rowData = {
             rowId: rowNode.id,
-            rowIndex: rowNode.rowIndex
-        }));
+            rowIndex: rowNode.rowIndex,
+            isRowDrag: true  // 明确标记这是行拖拽
+        };
+        
+        // 设置应用自定义类型，确保可以识别行拖拽
+        event.dataTransfer.setData('application/grid-row', JSON.stringify(rowData));
+        // 同时设置通用JSON数据，以兼容旧代码
+        event.dataTransfer.setData('application/json', JSON.stringify(rowData));
         
         // 设置拖拽效果
         event.dataTransfer.effectAllowed = 'move';

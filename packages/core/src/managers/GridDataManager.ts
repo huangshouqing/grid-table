@@ -1,5 +1,6 @@
-import { Column, GridApi, GridOptions, RowNode, SortModel } from "../types";
+import { Column, FilterModel, GridApi, GridOptions, RowNode, SortModel } from "../types";
 import { GridState } from "../interface";
+import { GridFilterSortManager } from "./GridFilterSortManager";
 
 /**
  * GridDataManager - 负责管理表格的数据逻辑
@@ -10,17 +11,28 @@ export class GridDataManager {
   private options: GridOptions;
   private rowNodes: Map<string | number, RowNode>;
   private getApi: () => GridApi;
+  private filterSortManager?: GridFilterSortManager;
 
   constructor(
     state: GridState,
     options: GridOptions,
     rowNodes: Map<string | number, RowNode>,
-    getApi: () => GridApi
+    getApi: () => GridApi,
+    filterSortManager?: GridFilterSortManager
   ) {
     this.state = state;
     this.options = options;
     this.rowNodes = rowNodes;
     this.getApi = getApi;
+    this.filterSortManager = filterSortManager;
+  }
+
+  /**
+   * 设置FilterSortManager引用
+   * 可在初始化后设置，解决循环依赖问题
+   */
+  public setFilterSortManager(manager: GridFilterSortManager): void {
+    this.filterSortManager = manager;
   }
 
   /**
@@ -110,78 +122,104 @@ export class GridDataManager {
    * 获取过滤和排序后的数据
    */
   public getFilteredAndSortedData(): any[] {
-    // 获取所有行节点
-    const allNodes: RowNode[] = [];
-    this.rowNodes.forEach((node) => {
-      allNodes.push(node);
-    });
+    if (!this.options.rowData) return [];
 
-    // 首先按照行索引排序，确保树形结构的正确顺序
-    allNodes.sort((a, b) => a.rowIndex - b.rowIndex);
+    let result = [...this.options.rowData];
 
-    // 过滤出可见的节点（考虑父子结构）
-    const visibleNodes = this.getVisibleNodes(allNodes);
+    // 如果已经设置了filterSortManager，则使用它的过滤和排序功能
+    if (this.filterSortManager) {
+      result = this.filterSortManager.applyFilters(result);
+      result = this.filterSortManager.applySort(result);
+      return result;
+    }
 
-    // 应用过滤
-    let filteredNodes = visibleNodes;
+    // 如果没有filterSortManager，则使用内部过滤和排序逻辑（兼容旧代码）
+    // 应用过滤器
     if (this.state.filterModel.size > 0) {
-      filteredNodes = visibleNodes.filter((node) => {
-        return Array.from(this.state.filterModel.entries()).every(
-          ([columnId, model]) => {
-            const value = node.data[columnId];
-
-            // 实现默认过滤逻辑
-            if (model.filter && value !== undefined) {
-              const filterValue = model.filter.toString().toLowerCase();
-              const cellValue = value.toString().toLowerCase();
-
-              switch (model.type) {
-                case "equals":
-                  return cellValue === filterValue;
-                case "notEqual":
-                  return cellValue !== filterValue;
-                case "contains":
-                  return cellValue.includes(filterValue);
-                case "notContains":
-                  return !cellValue.includes(filterValue);
-                case "startsWith":
-                  return cellValue.startsWith(filterValue);
-                case "endsWith":
-                  return cellValue.endsWith(filterValue);
-                default:
-                  return true;
-              }
-            }
-            return true;
-          }
-        );
-      });
+      result = this.applyFilters(result);
     }
 
-    // 应用排序（如果不是树形数据）
-    if (this.state.sortModel.length > 0 && !this.hasTreeData()) {
-      filteredNodes.sort((a, b) => {
-        for (const sort of this.state.sortModel) {
-          const column = this.options.columns.find(
-            (col) => col.field === sort.colId
-          );
-          const valueA = a.data[sort.colId];
-          const valueB = b.data[sort.colId];
+    // 应用排序
+    if (this.state.sortModel.length > 0) {
+      result = this.applySort(result);
+    }
 
-          if (column?.comparator) {
-            const result = column.comparator(valueA, valueB, a, b);
-            if (result !== 0) return sort.sort === "asc" ? result : -result;
-          } else {
-            if (valueA < valueB) return sort.sort === "asc" ? -1 : 1;
-            if (valueA > valueB) return sort.sort === "asc" ? 1 : -1;
-          }
+    return result;
+  }
+
+  /**
+   * 应用过滤器（旧方法，为兼容保留）
+   * @deprecated 请使用 filterSortManager.applyFilters
+   */
+  private applyFilters(data: any[]): any[] {
+    return data.filter((item) => {
+      for (const [field, filterModel] of this.state.filterModel.entries()) {
+        const value = item[field];
+        const filterValue = filterModel.filter as string;
+
+        if ((value === null || value === undefined) && filterValue) {
+          return false;
         }
-        return 0;
-      });
-    }
 
-    // 返回数据对象
-    return filteredNodes.map((node) => node.data);
+        const strValue = String(value || "").toLowerCase();
+        const strFilter = String(filterValue || "").toLowerCase();
+
+        switch (filterModel.type) {
+          case "equals":
+            if (strValue !== strFilter) return false;
+            break;
+          case "notEqual":
+            if (strValue === strFilter) return false;
+            break;
+          case "contains":
+            if (!strValue.includes(strFilter)) return false;
+            break;
+          case "notContains":
+            if (strValue.includes(strFilter)) return false;
+            break;
+          case "startsWith":
+            if (!strValue.startsWith(strFilter)) return false;
+            break;
+          case "endsWith":
+            if (!strValue.endsWith(strFilter)) return false;
+            break;
+        }
+      }
+      return true;
+    });
+  }
+
+  /**
+   * 应用排序（旧方法，为兼容保留）
+   * @deprecated 请使用 filterSortManager.applySort
+   */
+  private applySort(data: any[]): any[] {
+    const { colId, sort } = this.state.sortModel[0];
+
+    return [...data].sort((a, b) => {
+      const valueA = a[colId];
+      const valueB = b[colId];
+
+      if (valueA === null || valueA === undefined) return sort === "asc" ? -1 : 1;
+      if (valueB === null || valueB === undefined) return sort === "asc" ? 1 : -1;
+
+      if (typeof valueA === "number" && typeof valueB === "number") {
+        return sort === "asc" ? valueA - valueB : valueB - valueA;
+      }
+
+      if (valueA instanceof Date && valueB instanceof Date) {
+        return sort === "asc"
+          ? valueA.getTime() - valueB.getTime()
+          : valueB.getTime() - valueA.getTime();
+      }
+
+      const strA = String(valueA).toLowerCase();
+      const strB = String(valueB).toLowerCase();
+      
+      return sort === "asc"
+        ? strA.localeCompare(strB)
+        : strB.localeCompare(strA);
+    });
   }
 
   /**

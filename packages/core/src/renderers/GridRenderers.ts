@@ -94,7 +94,7 @@ export class GridRenderers {
       this.virtualDOM.updateElement(cellId, {
         attributes: {
           "data-field": col.field,
-          draggable: col.rowDrag ? "false" : "true",
+          draggable: col.draggable !== false ? "true" : "false", // 除非明确设置为false，否则允许拖拽
         },
         styles: {
           width: `${col.width}px`,
@@ -894,5 +894,19 @@ export class GridRenderers {
 
     // 附加内容到单元格
     this.virtualDOM.appendChild(cellId, contentId);
+  }
+
+  /**
+   * 更新列配置
+   * 在列排序或其他列更改操作后调用，确保渲染器使用最新的列定义
+   * @param columns 新的列定义数组
+   */
+  public updateColumns(columns: Column[]): void {
+    if (!columns || !Array.isArray(columns)) {
+      return;
+    }
+    
+    // 更新选项中的列定义
+    this.options.columns = [...columns];
   }
 } 

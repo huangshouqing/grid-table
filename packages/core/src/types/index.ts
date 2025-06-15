@@ -59,6 +59,7 @@ export interface Column {
     editable?: boolean;
     frozen?: boolean;
     fixed?: boolean;
+    draggable?: boolean;          // 是否允许列拖拽
     // 特殊列类型
     checkboxSelection?: boolean;  // 是否显示复选框
     rowDrag?: boolean;            // 是否允许行拖拽
@@ -196,6 +197,7 @@ export interface GridOptions {
     onRowDoubleClicked?: (event: RowClickedEvent) => void;
     onSortChanged?: (event: SortChangedEvent) => void;
     onRowDragEnd?: (event: RowDragEndEvent) => void;  // 行拖拽结束事件
+    onColumnMoved?: (event: ColumnMovedEvent) => void; // 列移动事件
     onSelectionChanged?: (event: SelectionChangedEvent) => void;  // 选择变更事件
     
     // 自定义类和样式
@@ -313,6 +315,12 @@ export interface RowDragEndEvent {
     fromIndex: number;
     toIndex: number;
     event: MouseEvent;
+}
+
+export interface ColumnMovedEvent {
+    column: Column;
+    fromIndex: number;
+    toIndex: number;
 }
 
 // 新增选择变更事件接口

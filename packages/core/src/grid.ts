@@ -6,17 +6,13 @@
  * [✓] 编辑模块 (GridEditManager) - 提取与单元格编辑相关的所有方法
  * [✓] 数据管理模块 (GridDataManager) - 提取所有数据相关逻辑，包括行节点管理
  * [✓] 拖放模块 (GridDragDropManager) - 提取拖放和拖动填充功能
+ * [✓] 过滤排序模块 (GridFilterSortManager) - 提取过滤和排序相关功能
  * 
  * 未来拆分计划:
  * 1. 事件处理模块 (GridEventHandlers)
  *    - 提取所有的事件处理程序(handle*)
  *    - 包括: 点击, 双击, 滚动等
- *    - 将使事件逻辑与UI渲染和数据管理分离
- * 
- * 2. 过滤排序模块 (GridFilterSortManager)
- *    - 提取过滤和排序相关功能
- *    - 包括: showFilterMenu, createDefaultFilterMenu, sortModel等
- *    - 将过滤和排序算法解耦，便于扩展和维护
+ *    - 将事件逻辑与UI渲染和数据管理分离
  */
 
 import {
@@ -38,6 +34,7 @@ import { GridRenderers } from "./renderers/GridRenderers";
 import { GridEditManager } from "./managers/GridEditManager";
 import { GridDataManager } from "./managers/GridDataManager";
 import { GridDragDropManager } from "./managers/GridDragDropManager";
+import { GridFilterSortManager } from "./managers/GridFilterSortManager";
 // 添加状态管理
 
 export class Grid implements GridApi {
@@ -57,6 +54,8 @@ export class Grid implements GridApi {
   private dataManager: GridDataManager;
   // 添加拖拽管理器实例
   private dragDropManager: GridDragDropManager;
+  // 添加过滤排序管理器实例
+  private filterSortManager: GridFilterSortManager;
 
   private lastScrollTop: number = 0;
   private lastScrollLeft: number = 0;
@@ -118,6 +117,18 @@ export class Grid implements GridApi {
       this.getApi.bind(this)
     );
 
+    // 初始化过滤排序管理器
+    this.filterSortManager = new GridFilterSortManager(
+      this.element,
+      this.state,
+      this.options,
+      this.getApi.bind(this),
+      this.refreshView.bind(this)
+    );
+    
+    // 设置数据管理器与过滤排序管理器的关联
+    this.dataManager.setFilterSortManager(this.filterSortManager);
+
     // 初始化渲染器
     this.renderers = new GridRenderers(
       this.virtualDOM,
@@ -126,8 +137,8 @@ export class Grid implements GridApi {
       {
         ...this.options,
         // 添加渲染器需要的回调
-        onSortClick: this.handleSortClick.bind(this),
-        onFilterClick: this.showFilterMenu.bind(this),
+        onSortClick: this.filterSortManager.handleSortClick.bind(this.filterSortManager),
+        onFilterClick: this.filterSortManager.showFilterMenu.bind(this.filterSortManager),
         onStartEditing: this.startEditing.bind(this),
         onScroll: this.handleScroll.bind(this)
       },
@@ -172,8 +183,8 @@ export class Grid implements GridApi {
     const renderOptions = {
       ...this.options,
       // 添加渲染器需要的回调
-      onSortClick: this.handleSortClick.bind(this),
-      onFilterClick: this.showFilterMenu.bind(this),
+      onSortClick: this.filterSortManager.handleSortClick.bind(this.filterSortManager),
+      onFilterClick: this.filterSortManager.showFilterMenu.bind(this.filterSortManager),
       onResizeStart: this.dragDropManager.handleResizeStart.bind(this.dragDropManager),
       onStartEditing: this.startEditing.bind(this),
       onScroll: this.handleScroll.bind(this)
@@ -245,44 +256,7 @@ export class Grid implements GridApi {
     this.refreshView();
   };
 
-  private handleSortClick(e: MouseEvent, column: Column) {
-    if (!column.sortable) return;
-
-    const headerCell = (e.target as HTMLElement).closest(".grid-header-cell");
-    if (!headerCell) return;
-
-    const existingSort = this.state.sortModel.find(
-      (s) => s.colId === column.field
-    );
-
-    // 更新排序状态
-    if (!existingSort) {
-      this.state.sortModel = [{ colId: column.field, sort: "asc" }];
-      headerCell.setAttribute("data-sort", "asc");
-    } else if (existingSort.sort === "asc") {
-      this.state.sortModel = [{ colId: column.field, sort: "desc" }];
-      headerCell.setAttribute("data-sort", "desc");
-    } else {
-      this.state.sortModel = [];
-      headerCell.removeAttribute("data-sort");
-    }
-
-    // 清除其他列的排序状态
-    const otherHeaders = this.element.querySelectorAll(
-      `.grid-header-cell:not([data-field="${column.field}"])`
-    );
-    otherHeaders.forEach((header) => header.removeAttribute("data-sort"));
-
-    // 触发排序变更事件
-    if (this.options.onSortChanged) {
-      this.options.onSortChanged({
-        sortModel: this.state.sortModel,
-        api: this.getApi(),
-      });
-    }
-
-    this.refreshView();
-  }
+  // handleSortClick 方法已迁移到 GridFilterSortManager
 
   // 列宽调整功能已移至 GridDragDropManager 类
 
@@ -449,17 +423,22 @@ export class Grid implements GridApi {
   }
 
   setSort(sortModel: SortModel[]): void {
-    this.state.sortModel = sortModel;
-    this.refreshView();
+    this.filterSortManager.setSort(sortModel);
   }
 
   setFilter(columnId: string, filterModel: FilterModel): void {
-    this.state.filterModel.set(columnId, filterModel);
-    this.refreshView();
+    this.filterSortManager.setFilter(columnId, filterModel);
   }
 
   setColumnDefs(colDefs: Column[]): void {
-    this.options.columns = colDefs;
+    // 使用新的列数组副本，确保引用已更改
+    this.options.columns = [...colDefs];
+    
+    // 确保渲染器和过滤排序管理器也更新列定义
+    if (this.renderers) {
+      this.renderers.updateColumns(this.options.columns);
+    }
+    
     this.refreshView();
   }
 
@@ -489,6 +468,9 @@ export class Grid implements GridApi {
 
       // 清理所有拖拽样式
       this.dragDropManager.clearDragStyles();
+
+      // 确保渲染器使用最新的列配置
+      this.renderers.updateColumns(this.options.columns);
 
       // 重新渲染整个表格内容，确保 header 和 body 的一致性
       this.element.innerHTML = "";
@@ -547,153 +529,7 @@ export class Grid implements GridApi {
     }
   }
 
-  private showFilterMenu(e: MouseEvent, column: Column) {
-    const button = e.currentTarget as HTMLElement;
-    const buttonRect = button.getBoundingClientRect();
-    const headerRect = this.element.getBoundingClientRect();
-
-    // 创建筛选菜单
-    const menu = document.createElement("div");
-    menu.className = "grid-filter-menu";
-
-    // 如果有自定义筛选组件
-    if (column.filterParams?.filterComponent) {
-      const filterModel = this.state.filterModel.get(column.field) || {
-        type: "equals",
-        filterType: "text",
-      };
-
-      const component = column.filterParams.filterComponent({
-        column,
-        api: this.getApi(),
-        value: filterModel.filter,
-        filterModel,
-        onFilterChanged: (model) => {
-          if (model.filter) {
-            this.state.filterModel.set(column.field, model);
-          } else {
-            this.state.filterModel.delete(column.field);
-          }
-          this.refreshView();
-          menu.remove();
-        },
-        getUniqueValues: () => {
-          const values = new Set<any>();
-          if (Array.isArray(this.options.rowData)) {
-            this.options.rowData.forEach((row) => {
-              const value = row[column.field];
-              if (value !== undefined && value !== null) {
-                values.add(value);
-              }
-            });
-          }
-          return Array.from(values);
-        },
-      });
-
-      menu.appendChild(component);
-    } else {
-      // 默认筛选菜单
-      this.createDefaultFilterMenu(menu, column);
-    }
-
-    // 定位菜单 - 相对于按钮定位
-    menu.style.position = "absolute";
-    menu.style.top = `${buttonRect.bottom - headerRect.top}px`;
-    // 水平居中对齐按钮
-    menu.style.left = `${
-      buttonRect.left - headerRect.left - (200 - buttonRect.width) / 2
-    }px`;
-
-    // 添加点击外部关闭
-    const closeMenu = (e: MouseEvent) => {
-      if (!menu.contains(e.target as Node)) {
-        menu.remove();
-        document.removeEventListener("click", closeMenu);
-      }
-    };
-
-    // 延迟添加事件监听，避免立即触发
-    setTimeout(() => {
-      document.addEventListener("click", closeMenu);
-    });
-
-    this.element.appendChild(menu);
-  }
-
-  private createDefaultFilterMenu(menu: HTMLElement, column: Column) {
-    const filterModel = this.state.filterModel.get(column.field) || {
-      type: "equals",
-      filterType: "text",
-    };
-
-    // 筛选类型选择
-    const typeSelect = document.createElement("select");
-    typeSelect.className = "grid-filter-type-select";
-
-    const types = [
-      { value: "equals", label: "等于" },
-      { value: "notEqual", label: "不等于" },
-      { value: "contains", label: "包含" },
-      { value: "notContains", label: "不包含" },
-      { value: "startsWith", label: "开头是" },
-      { value: "endsWith", label: "结尾是" },
-    ];
-
-    types.forEach((type) => {
-      const option = document.createElement("option");
-      option.value = type.value;
-      option.textContent = type.label;
-      if (type.value === filterModel.type) {
-        option.selected = true;
-      }
-      typeSelect.appendChild(option);
-    });
-
-    // 筛选值输入
-    const input = document.createElement("input");
-    input.className = "grid-filter-input";
-    input.type = "text";
-    input.value = (filterModel.filter as string) || "";
-
-    // 按钮容器
-    const buttonContainer = document.createElement("div");
-    buttonContainer.className = "grid-filter-buttons";
-
-    // 确定按钮
-    const applyButton = document.createElement("button");
-    applyButton.textContent = "确定";
-    applyButton.addEventListener("click", () => {
-      const value = input.value.trim();
-      if (value) {
-        this.state.filterModel.set(column.field, {
-          type: typeSelect.value as FilterModel["type"],
-          filter: value,
-          filterType: "text",
-        });
-      } else {
-        this.state.filterModel.delete(column.field);
-      }
-      this.refreshView();
-      menu.remove();
-    });
-
-    // 清除按钮
-    const clearButton = document.createElement("button");
-    clearButton.textContent = "清除";
-    clearButton.addEventListener("click", () => {
-      this.state.filterModel.delete(column.field);
-      this.refreshView();
-      menu.remove();
-    });
-
-    buttonContainer.appendChild(clearButton);
-    buttonContainer.appendChild(applyButton);
-
-    menu.appendChild(typeSelect);
-    menu.appendChild(input);
-    menu.appendChild(buttonContainer);
-  }
+  // showFilterMenu 和 createDefaultFilterMenu 方法已迁移到 GridFilterSortManager
 
   // 拖拽填充功能已迁移到 GridDragDropManager 类
 
@@ -721,24 +557,15 @@ export class Grid implements GridApi {
 
   // 实现缺失的 GridApi 方法
   getFilterModel(): { [key: string]: FilterModel } {
-    const model: { [key: string]: FilterModel } = {};
-    this.state.filterModel.forEach((value, key) => {
-      model[key] = value;
-    });
-    return model;
+    return this.filterSortManager.getFilterModel();
   }
 
   setFilterModel(model: { [key: string]: FilterModel }): void {
-    this.state.filterModel.clear();
-    Object.entries(model).forEach(([key, value]) => {
-      this.state.filterModel.set(key, value);
-    });
-    this.refreshView();
+    this.filterSortManager.setFilterModel(model);
   }
 
   clearFilters(): void {
-    this.state.filterModel.clear();
-    this.refreshView();
+    this.filterSortManager.clearFilters();
   }
 
   private saveScrollPosition() {
@@ -789,6 +616,8 @@ export class Grid implements GridApi {
 
     // 销毁拖拽管理器
     this.dragDropManager.destroy();
+
+    // filterSortManager没有特殊资源需要清理
 
     if (this.virtualDOM) {
       this.virtualDOM.clear();
