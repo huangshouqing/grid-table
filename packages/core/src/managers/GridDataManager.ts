@@ -130,6 +130,22 @@ export class GridDataManager {
     if (this.filterSortManager) {
       result = this.filterSortManager.applyFilters(result);
       result = this.filterSortManager.applySort(result);
+      
+      // 如果是树形数据，只返回可见的节点数据
+      if (this.hasTreeData()) {
+        // 将结果数据转换为节点
+        const allNodes = result.map(data => {
+          const id = data.id !== undefined ? data.id : -1;
+          return this.rowNodes.get(id);
+        }).filter(Boolean) as RowNode[];
+        
+        // 获取可见节点
+        const visibleNodes = this.getVisibleNodes(allNodes);
+        
+        // 将可见节点转换回数据
+        return visibleNodes.map(node => node.data);
+      }
+
       return result;
     }
 
@@ -142,6 +158,21 @@ export class GridDataManager {
     // 应用排序
     if (this.state.sortModel.length > 0) {
       result = this.applySort(result);
+    }
+
+    // 如果是树形数据，只返回可见的节点数据
+    if (this.hasTreeData()) {
+      // 将结果数据转换为节点
+      const allNodes = result.map(data => {
+        const id = data.id !== undefined ? data.id : -1;
+        return this.rowNodes.get(id);
+      }).filter(Boolean) as RowNode[];
+      
+      // 获取可见节点
+      const visibleNodes = this.getVisibleNodes(allNodes);
+      
+      // 将可见节点转换回数据
+      return visibleNodes.map(node => node.data);
     }
 
     return result;

@@ -253,7 +253,7 @@ export class Grid implements GridApi {
 
   private handleEditEnd = (save: boolean) => {
     this.editManager.handleEditEnd(save);
-    this.refreshView();
+      this.refreshView();
   };
 
   // handleSortClick 方法已迁移到 GridFilterSortManager
@@ -548,7 +548,7 @@ export class Grid implements GridApi {
 
   removeRow(id: string | number): void {
     this.dataManager.removeRow(id);
-    this.refreshView();
+      this.refreshView();
   }
 
   moveRow(fromIndex: number, toIndex: number): void {
