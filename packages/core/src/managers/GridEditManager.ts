@@ -49,6 +49,24 @@ export class GridEditManager {
     const cellId = cell.getAttribute("data-element-id");
     if (!cellId) return;
 
+    // 先处理可能存在的其他编辑单元格
+    const existingEditCell = document.querySelector(".grid-cell.editing");
+    if (existingEditCell && existingEditCell !== cell) {
+      // 找到关联的数据并取消编辑
+      const existingField = existingEditCell.getAttribute("data-field");
+      const existingRowId = existingEditCell.closest(".grid-row")?.getAttribute("data-row-id");
+      
+      if (existingField && existingRowId) {
+        const existingNode = this.rowNodes.get(existingRowId);
+        if (existingNode) {
+          const existingColumn = this.options.columns.find(c => c.field === existingField);
+          if (existingColumn) {
+            this.cancelEditing(existingEditCell as HTMLElement, existingColumn, existingNode.data);
+          }
+        }
+      }
+    }
+
     // 获取contentId
     const contentId = `${cellId}-content`;
 
@@ -148,6 +166,13 @@ export class GridEditManager {
       }, 0);
     }
 
+    // 当前正在编辑的单元格信息存储起来
+    this.state.editingCell = {
+      rowId: row.id || row.rowIndex,
+      field: column.field,
+      value: this.originalEditValue
+    };
+
     // 添加点击外部监听器
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
@@ -163,11 +188,6 @@ export class GridEditManager {
     setTimeout(() => {
       document.addEventListener("click", handleClickOutside);
     }, 0);
-
-    // 确保编辑状态的一致性，确保DOM和虚拟DOM同步
-    if (!cell.classList.contains("editing")) {
-      cell.classList.add("editing");
-    }
   }
 
   /**
@@ -224,6 +244,7 @@ export class GridEditManager {
 
     // 获取视图和编辑容器
     const contentId = `${cellId}-content`;
+    const viewContainerId = `${contentId}-view`;
     const editContainerId = `${contentId}-edit`;
     const editComponentId = `${cellId}-edit`;
 
@@ -231,6 +252,12 @@ export class GridEditManager {
     const editContainer = this.virtualDOM.getElement(editContainerId);
     if (editContainer) {
       editContainer.style.display = "none";
+    }
+
+    // 显示视图容器
+    const viewContainer = this.virtualDOM.getElement(viewContainerId);
+    if (viewContainer) {
+      viewContainer.style.display = "block";
     }
 
     // 销毁编辑组件
@@ -258,11 +285,6 @@ export class GridEditManager {
         });
       }
     }
-
-    // 确保编辑状态的一致性，确保DOM和虚拟DOM同步
-    if (cell.classList.contains("editing")) {
-      cell.classList.remove("editing");
-    }
   }
 
   /**
@@ -282,6 +304,7 @@ export class GridEditManager {
 
     // 获取视图和编辑容器
     const contentId = `${cellId}-content`;
+    const viewContainerId = `${contentId}-view`;
     const editContainerId = `${contentId}-edit`;
     const editComponentId = `${cellId}-edit`;
 
@@ -289,6 +312,12 @@ export class GridEditManager {
     const editContainer = this.virtualDOM.getElement(editContainerId);
     if (editContainer) {
       editContainer.style.display = "none";
+    }
+
+    // 显示视图容器
+    const viewContainer = this.virtualDOM.getElement(viewContainerId);
+    if (viewContainer) {
+      viewContainer.style.display = "block";
     }
 
     // 销毁编辑组件
@@ -299,11 +328,6 @@ export class GridEditManager {
 
     // 重新渲染视图组件（使用原始值）
     this.renderCell(cell, column, row, row[column.field], row.rowIndex);
-
-    // 确保编辑状态的一致性，确保DOM和虚拟DOM同步
-    if (cell.classList.contains("editing")) {
-      cell.classList.remove("editing");
-    }
   }
 
   /**

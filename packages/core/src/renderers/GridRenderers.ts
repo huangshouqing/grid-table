@@ -23,6 +23,10 @@ interface RendererCallbacks {
   onResizeStart?: (e: MouseEvent, col: Column, element: HTMLElement) => void;
   onStartEditing?: (cell: HTMLElement, col: Column, row: any, value: any) => void;
   onScroll?: (scrollLeft: number, scrollTop: number) => void;
+  onRowClick?: (e: MouseEvent, row: any, rowIndex: number) => void;
+  onRowDoubleClick?: (e: MouseEvent, row: any, rowIndex: number) => void;
+  onCellClick?: (e: MouseEvent, column: Column, row: any, value: any, rowIndex: number) => void;
+  onCellDoubleClick?: (e: MouseEvent, column: Column, row: any, value: any, rowIndex: number) => void;
 }
 
 /**
@@ -300,9 +304,18 @@ export class GridRenderers {
   /**
    * 渲染表格主体内容
    * @param getFilteredAndSortedData 获取过滤和排序后的数据函数
+   * @param eventHandlers 事件处理回调
    * @returns HTMLElement 渲染后的主体元素
    */
-  renderBody(getFilteredAndSortedData: () => any[]): HTMLElement | null {
+  renderBody(
+    getFilteredAndSortedData: () => any[],
+    eventHandlers?: {
+      onRowClick?: (e: MouseEvent, row: any, rowIndex: number) => void;
+      onRowDoubleClick?: (e: MouseEvent, row: any, rowIndex: number) => void;
+      onCellClick?: (e: MouseEvent, column: Column, row: any, value: any, rowIndex: number) => void;
+      onCellDoubleClick?: (e: MouseEvent, column: Column, row: any, value: any, rowIndex: number) => void;
+    }
+  ): HTMLElement | null {
     const bodyId = `${this.instanceId}-body`;
     this.virtualDOM.createElement(bodyId, "div", "grid-body");
     this.virtualDOM.updateElement(bodyId, {
@@ -348,27 +361,15 @@ export class GridRenderers {
         },
         events: {
           click: (e: MouseEvent) => {
-            if (this.options.onRowClicked) {
-              const node = this.rowNodes.get(rowId);
-              if (node) {
-                this.options.onRowClicked({
-                  node,
-                  data: row,
-                  event: e
-                });
-              }
+            // 只有当点击目标是行本身而不是单元格时，才触发行点击事件
+            if (e.target === e.currentTarget && eventHandlers?.onRowClick) {
+              eventHandlers.onRowClick(e, row, rowIndex);
             }
           },
           dblclick: (e: MouseEvent) => {
-            if (this.options.onRowDoubleClicked) {
-              const node = this.rowNodes.get(rowId);
-              if (node) {
-                this.options.onRowDoubleClicked({
-                  node,
-                  data: row,
-                  event: e
-                });
-              }
+            // 只有当点击目标是行本身而不是单元格时，才触发行双击事件
+            if (e.target === e.currentTarget && eventHandlers?.onRowDoubleClick) {
+              eventHandlers.onRowDoubleClick(e, row, rowIndex);
             }
           },
         },
@@ -523,43 +524,25 @@ export class GridRenderers {
           classes: cellClasses,
           events: {
             click: (e: MouseEvent) => {
-              if (this.options.onCellClicked && node) {
-                this.options.onCellClicked({
-                  node,
-                  data: row,
-                  column: col,
-                  colId: col.field,
-                  value,
-                  event: e
-                });
+              if (eventHandlers?.onCellClick) {
+                eventHandlers.onCellClick(e, col, row, value, rowIndex);
               }
               if (col.editable && this.options.onStartEditing) {
-                this.options.onStartEditing(
-                  e.currentTarget as HTMLElement,
-                  col,
-                  row,
-                  value
-                );
+                const cellElement = this.virtualDOM.getElement(vCellId);
+                if (cellElement) {
+                  this.options.onStartEditing(cellElement as HTMLElement, col, row, value);
+                }
               }
             },
             dblclick: (e: MouseEvent) => {
-              if (this.options.onCellDoubleClicked && node) {
-                this.options.onCellDoubleClicked({
-                  node,
-                  data: row,
-                  column: col,
-                  colId: col.field,
-                  value,
-                  event: e
-                });
+              if (eventHandlers?.onCellDoubleClick) {
+                eventHandlers.onCellDoubleClick(e, col, row, value, rowIndex);
               }
               if (col.editable && this.options.onStartEditing) {
-                this.options.onStartEditing(
-                  e.currentTarget as HTMLElement,
-                  col,
-                  row,
-                  value
-                );
+                const cellElement = this.virtualDOM.getElement(vCellId);
+                if (cellElement) {
+                  this.options.onStartEditing(cellElement as HTMLElement, col, row, value);
+                }
               }
             },
           },

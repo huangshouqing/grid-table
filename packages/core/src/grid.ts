@@ -7,9 +7,7 @@
  * [✓] 数据管理模块 (GridDataManager) - 提取所有数据相关逻辑，包括行节点管理
  * [✓] 拖放模块 (GridDragDropManager) - 提取拖放和拖动填充功能
  * [✓] 过滤排序模块 (GridFilterSortManager) - 提取过滤和排序相关功能
- * 
- * 未来拆分计划:
- * 1. 事件处理模块 (GridEventHandlers)
+ * [✓] 事件处理模块 (GridEventHandlers)
  *    - 提取所有的事件处理程序(handle*)
  *    - 包括: 点击, 双击, 滚动等
  *    - 将事件逻辑与UI渲染和数据管理分离
@@ -23,7 +21,6 @@ import {
   SortModel,
   FilterModel,
   ValueSetParams,
-  ComponentParams,
 } from "./types/index";
 import { ScrollSyncManager } from "./managers/ScrollSyncManager";
 import { VirtualDOMManager } from "./managers/VirtualDOMManager";
@@ -35,6 +32,7 @@ import { GridEditManager } from "./managers/GridEditManager";
 import { GridDataManager } from "./managers/GridDataManager";
 import { GridDragDropManager } from "./managers/GridDragDropManager";
 import { GridFilterSortManager } from "./managers/GridFilterSortManager";
+import { GridEventHandlers } from "./managers/GridEventHandlers";
 // 添加状态管理
 
 export class Grid implements GridApi {
@@ -56,16 +54,25 @@ export class Grid implements GridApi {
   private dragDropManager: GridDragDropManager;
   // 添加过滤排序管理器实例
   private filterSortManager: GridFilterSortManager;
+  // 添加事件处理器实例
+  private eventHandlers: GridEventHandlers;
 
   private lastScrollTop: number = 0;
   private lastScrollLeft: number = 0;
   private readonly instanceId: string;
 
-  // 辅助方法，用于获取GridApi类型的this引用
+  /**
+   * 辅助方法，用于获取GridApi类型的this引用
+   * @returns GridApi实例
+   */
   private getApi(): GridApi {
     return this as any as GridApi;
   }
 
+  /**
+   * 构造函数 - 初始化表格及其所有管理器
+   * @param options 表格配置选项
+   */
   constructor(options: GridOptions) {
     this.instanceId = `grid-${Math.random().toString(36).substr(2, 9)}`;
     this.options = {
@@ -129,6 +136,18 @@ export class Grid implements GridApi {
     // 设置数据管理器与过滤排序管理器的关联
     this.dataManager.setFilterSortManager(this.filterSortManager);
 
+    // 临时的事件处理方法，稍后会被替换
+    // 用于解决初始化依赖循环问题
+    const tempHandleScroll = (scrollLeft: number, scrollTop: number) => {
+      // 暂时什么都不做
+    };
+    
+    // 临时的编辑启动方法
+    // 用于解决初始化依赖循环问题
+    const tempStartEditing = (cell: HTMLElement, column: Column, row: any, value: any) => {
+      // 暂时什么都不做
+    };
+    
     // 初始化渲染器
     this.renderers = new GridRenderers(
       this.virtualDOM,
@@ -139,15 +158,16 @@ export class Grid implements GridApi {
         // 添加渲染器需要的回调
         onSortClick: this.filterSortManager.handleSortClick.bind(this.filterSortManager),
         onFilterClick: this.filterSortManager.showFilterMenu.bind(this.filterSortManager),
-        onStartEditing: this.startEditing.bind(this),
-        onScroll: this.handleScroll.bind(this)
+        // 先使用临时方法
+        onStartEditing: tempStartEditing,
+        onScroll: tempHandleScroll
       },
       this.state,
       this.instanceId,
       this.rowNodes,
       this.getApi.bind(this)
     );
-
+    
     // 初始化编辑管理器
     this.editManager = new GridEditManager(
       this.virtualDOM,
@@ -157,6 +177,35 @@ export class Grid implements GridApi {
       this.getApi.bind(this),
       this.renderers.renderCell.bind(this.renderers),
       this.options
+    );
+
+    // 初始化事件处理器
+    this.eventHandlers = new GridEventHandlers(
+      this.state,
+      this.options,
+      this.rowNodes,
+      this.getApi.bind(this),
+      this.editManager,
+      this.refreshView.bind(this)
+    );
+    
+    // 更新渲染器使用事件处理器
+    this.renderers = new GridRenderers(
+      this.virtualDOM,
+      this.scrollSyncManager,
+      this.componentManager,
+      {
+        ...this.options,
+        // 添加渲染器需要的回调
+        onSortClick: this.filterSortManager.handleSortClick.bind(this.filterSortManager),
+        onFilterClick: this.filterSortManager.showFilterMenu.bind(this.filterSortManager),
+        onStartEditing: this.eventHandlers.startEditing.bind(this.eventHandlers),
+        onScroll: this.eventHandlers.handleScroll.bind(this.eventHandlers)
+      },
+      this.state,
+      this.instanceId,
+      this.rowNodes,
+      this.getApi.bind(this)
     );
 
     // 初始化拖拽管理器
@@ -186,8 +235,8 @@ export class Grid implements GridApi {
       onSortClick: this.filterSortManager.handleSortClick.bind(this.filterSortManager),
       onFilterClick: this.filterSortManager.showFilterMenu.bind(this.filterSortManager),
       onResizeStart: this.dragDropManager.handleResizeStart.bind(this.dragDropManager),
-      onStartEditing: this.startEditing.bind(this),
-      onScroll: this.handleScroll.bind(this)
+      onStartEditing: this.eventHandlers.startEditing.bind(this.eventHandlers),
+      onScroll: this.eventHandlers.handleScroll.bind(this.eventHandlers)
     };
     
     // 重新初始化渲染器
@@ -203,149 +252,59 @@ export class Grid implements GridApi {
     );
   }
 
+  /**
+   * 初始化所有事件监听器
+   * 将事件与事件处理器关联
+   */
   private initializeEventListeners() {
-    this.eventManager.on("scroll", this.handleScroll);
-    this.eventManager.on("selectionChange", this.handleSelectionChange);
-    this.eventManager.on("sortChange", this.handleSortChange);
-    this.eventManager.on("filterChange", this.handleFilterChange);
-    this.eventManager.on("editStart", this.handleEditStart);
-    this.eventManager.on("editEnd", this.handleEditEnd);
+    this.eventManager.on("scroll", this.eventHandlers.handleScroll);
+    this.eventManager.on("selectionChange", this.eventHandlers.handleSelectionChange);
+    this.eventManager.on("sortChange", this.eventHandlers.handleSortChange);
+    this.eventManager.on("filterChange", this.eventHandlers.handleFilterChange);
+    this.eventManager.on("editStart", this.eventHandlers.handleEditStart);
+    this.eventManager.on("editEnd", this.eventHandlers.handleEditEnd);
   }
 
-  private handleScroll = (scrollLeft: number, scrollTop: number) => {
-    // 保存当前的滚动位置
-    this.state.scrollPosition = {
-      top: scrollTop,
-      left: scrollLeft,
-      lastLeft: this.state.scrollPosition.left,
-      lastTop: this.state.scrollPosition.top,
-    };
-
-    // 不要在每次滚动时刷新视图，这可能会导致滚动位置重置
-    // 仅在需要时（例如视口变化显著）才刷新视图
-    const rowHeight = this.options.rowHeight || 40;
-    if (
-      Math.abs(
-        this.state.scrollPosition.top - this.state.scrollPosition.lastTop
-      ) >
-      rowHeight * 5
-    ) {
-      this.refreshView();
-    }
-  };
-
-  private handleSelectionChange = () => {
-    this.refreshView();
-  };
-
-  private handleSortChange = () => {
-    this.refreshView();
-  };
-
-  private handleFilterChange = () => {
-    this.refreshView();
-  };
-
-  private handleEditStart = (params: any) => {
-    this.editManager.handleEditStart(params);
-    this.refreshView();
-  };
-
-  private handleEditEnd = (save: boolean) => {
-    this.editManager.handleEditEnd(save);
-      this.refreshView();
-  };
-
-  // handleSortClick 方法已迁移到 GridFilterSortManager
-
-  // 列宽调整功能已移至 GridDragDropManager 类
-
+  /**
+   * 启动单元格编辑 - 保留此方法用于向后兼容
+   * @param cell 要编辑的单元格DOM元素
+   * @param column 列定义
+   * @param row 行数据对象
+   * @param value 单元格当前值
+   */
   private startEditing(
     cell: HTMLElement,
     column: Column,
     row: any,
     value: any
   ) {
-    this.editManager.startEditing(cell, column, row, value);
-  }
-
-  private handleRowClick(e: MouseEvent, row: any, rowIndex: number) {
-    if (this.options.onRowClicked) {
-      const node = this.rowNodes.get(row.id || rowIndex);
-      if (node) {
-        this.options.onRowClicked({
-          node,
-          data: row,
-          event: e,
-        });
-      }
+    // 委托给事件处理器(如果可用)，否则直接使用编辑管理器
+    if (this.eventHandlers) {
+      this.eventHandlers.startEditing(cell, column, row, value);
+    } else if (this.editManager) {
+      this.editManager.startEditing(cell, column, row, value);
     }
   }
 
-  private handleRowDoubleClick(e: MouseEvent, row: any, rowIndex: number) {
-    if (this.options.onRowDoubleClicked) {
-      const node = this.rowNodes.get(row.id || rowIndex);
-      if (node) {
-        this.options.onRowDoubleClicked({
-          node,
-          data: row,
-          event: e,
-        });
-      }
-    }
-  }
-
-  private handleCellClick(
-    e: MouseEvent,
-    column: Column,
-    row: any,
-    value: any,
-    rowIndex: number
-  ) {
-    if (this.options.onCellClicked) {
-      const node = this.rowNodes.get(row.id || rowIndex);
-      if (node) {
-        this.options.onCellClicked({
-          node,
-          data: row,
-          column,
-          colId: column.field,
-          value,
-          event: e,
-        });
-      }
-    }
-  }
-
-  private handleCellDoubleClick(
-    e: MouseEvent,
-    column: Column,
-    row: any,
-    value: any,
-    rowIndex: number
-  ) {
-    if (this.options.onCellDoubleClicked) {
-      const node = this.rowNodes.get(row.id || rowIndex);
-      if (node) {
-        this.options.onCellDoubleClicked({
-          node,
-          data: row,
-          column,
-          colId: column.field,
-          value,
-          event: e,
-        });
-      }
-    }
-  }
-
+  /**
+   * 将表格渲染到指定容器
+   * @param container 要渲染表格的DOM容器
+   */
   render(container: HTMLElement) {
     // 清空容器
     this.element.innerHTML = "";
 
     // 使用渲染器渲染表格
     const headerElement = this.renderers.renderHeader();
-    const bodyElement = this.renderers.renderBody(this.dataManager.getFilteredAndSortedData.bind(this.dataManager));
+    const bodyElement = this.renderers.renderBody(
+      this.dataManager.getFilteredAndSortedData.bind(this.dataManager),
+      {
+        onRowClick: this.eventHandlers.handleRowClick.bind(this.eventHandlers),
+        onRowDoubleClick: this.eventHandlers.handleRowDoubleClick.bind(this.eventHandlers),
+        onCellClick: this.eventHandlers.handleCellClick.bind(this.eventHandlers),
+        onCellDoubleClick: this.eventHandlers.handleCellDoubleClick.bind(this.eventHandlers)
+      }
+    );
 
     if (headerElement) {
       this.element.appendChild(headerElement);
@@ -359,25 +318,46 @@ export class Grid implements GridApi {
     container.appendChild(this.element);
   }
 
-  // GridApi implementation
+  /**
+   * 设置表格行数据
+   * @param data 新的行数据数组
+   */
   setRowData(data: any[]): void {
     this.options.rowData = data;
     this.dataManager.initRowNodes();
     this.refreshView();
   }
 
+  /**
+   * 获取特定ID的行节点
+   * @param id 行ID
+   * @returns 找到的行节点或undefined
+   */
   getRowNode(id: string | number): RowNode | undefined {
     return this.dataManager.getRowNode(id);
   }
 
+  /**
+   * 获取指定索引处显示的行节点
+   * @param index 行索引
+   * @returns 行节点或undefined
+   */
   getDisplayedRowAtIndex(index: number): RowNode | undefined {
     return this.dataManager.getDisplayedRowAtIndex(index);
   }
 
+  /**
+   * 获取当前显示的行数量
+   * @returns 显示的行数
+   */
   getDisplayedRowCount(): number {
     return this.dataManager.getDisplayedRowCount();
   }
 
+  /**
+   * 遍历所有行节点
+   * @param callback 对每个行节点调用的回调函数
+   */
   forEachNode(callback: (node: RowNode, index: number) => void): void {
     let index = 0;
     this.rowNodes.forEach((node) => {
@@ -386,6 +366,9 @@ export class Grid implements GridApi {
     });
   }
 
+  /**
+   * 选择所有行
+   */
   selectAll(): void {
     this.rowNodes.forEach((node) => {
       node.selected = true;
@@ -394,12 +377,20 @@ export class Grid implements GridApi {
     this.refreshView();
   }
 
+  /**
+   * 取消选择所有行
+   */
   deselectAll(): void {
     this.state.selectedNodes.clear();
     this.rowNodes.forEach((node) => (node.selected = false));
     this.refreshView();
   }
 
+  /**
+   * 选择指定ID的行
+   * @param id 要选择的行ID
+   * @param clearOthers 是否清除其他已选行
+   */
   selectRow(id: string | number, clearOthers = true): void {
     if (clearOthers) {
       this.deselectAll();
@@ -412,24 +403,45 @@ export class Grid implements GridApi {
     }
   }
 
+  /**
+   * 获取所有已选择的行节点
+   * @returns 已选择的行节点数组
+   */
   getSelectedNodes(): RowNode[] {
     return Array.from(this.state.selectedNodes).map(
       (id) => this.rowNodes.get(id)!
     );
   }
 
+  /**
+   * 获取所有已选择的行数据
+   * @returns 已选择的行数据数组
+   */
   getSelectedRows(): any[] {
     return this.getSelectedNodes().map((node) => node.data);
   }
 
+  /**
+   * 设置表格排序模型
+   * @param sortModel 排序模型数组
+   */
   setSort(sortModel: SortModel[]): void {
     this.filterSortManager.setSort(sortModel);
   }
 
+  /**
+   * 设置列的过滤条件
+   * @param columnId 列ID
+   * @param filterModel 过滤模型
+   */
   setFilter(columnId: string, filterModel: FilterModel): void {
     this.filterSortManager.setFilter(columnId, filterModel);
   }
 
+  /**
+   * 设置列定义
+   * @param colDefs 新的列定义数组
+   */
   setColumnDefs(colDefs: Column[]): void {
     // 使用新的列数组副本，确保引用已更改
     this.options.columns = [...colDefs];
@@ -442,6 +454,9 @@ export class Grid implements GridApi {
     this.refreshView();
   }
 
+  /**
+   * 调整列宽以适应容器宽度
+   */
   sizeColumnsToFit(): void {
     if (!this.element) return;
 
@@ -456,11 +471,19 @@ export class Grid implements GridApi {
     this.refreshView();
   }
 
+  /**
+   * 自动调整列宽以适应内容
+   * 尚未实现
+   */
   autoSizeColumns(): void {
     // 这里可以实现自动调整列宽的逻辑
     // 可以根据内容计算最大宽度
   }
 
+  /**
+   * 刷新表格视图
+   * 重新渲染整个表格，保持滚动位置
+   */
   refreshView(): void {
     if (this.element && this.element.parentElement) {
       // 保存当前滚动位置
@@ -475,7 +498,15 @@ export class Grid implements GridApi {
       // 重新渲染整个表格内容，确保 header 和 body 的一致性
       this.element.innerHTML = "";
       const headerElement = this.renderers.renderHeader();
-      const bodyElement = this.renderers.renderBody(this.dataManager.getFilteredAndSortedData.bind(this.dataManager));
+      const bodyElement = this.renderers.renderBody(
+        this.dataManager.getFilteredAndSortedData.bind(this.dataManager),
+        {
+          onRowClick: this.eventHandlers.handleRowClick.bind(this.eventHandlers),
+          onRowDoubleClick: this.eventHandlers.handleRowDoubleClick.bind(this.eventHandlers),
+          onCellClick: this.eventHandlers.handleCellClick.bind(this.eventHandlers),
+          onCellDoubleClick: this.eventHandlers.handleCellDoubleClick.bind(this.eventHandlers)
+        }
+      );
 
       if (headerElement) {
         this.element.appendChild(headerElement);
@@ -489,6 +520,11 @@ export class Grid implements GridApi {
     }
   }
 
+  /**
+   * 确保指定索引的行可见
+   * @param index 行索引
+   * @param position 显示位置("top","middle","bottom")
+   */
   ensureIndexVisible(
     index: number,
     position: "top" | "middle" | "bottom" = "middle"
@@ -518,6 +554,11 @@ export class Grid implements GridApi {
     );
   }
 
+  /**
+   * 确保指定节点的行可见
+   * @param node 要显示的行节点
+   * @param position 显示位置("top","middle","bottom")
+   */
   ensureNodeVisible(
     node: RowNode,
     position?: "top" | "middle" | "bottom"
@@ -529,45 +570,71 @@ export class Grid implements GridApi {
     }
   }
 
-  // showFilterMenu 和 createDefaultFilterMenu 方法已迁移到 GridFilterSortManager
-
-  // 拖拽填充功能已迁移到 GridDragDropManager 类
-
-  // 实现 GridApi 的批量赋值方法
+  /**
+   * 批量设置单元格值
+   * @param params 批量赋值参数
+   */
   setValues(params: ValueSetParams): void {
     this.saveScrollPosition();
     this.dragDropManager.setValues(params);
     this.restoreScrollPosition();
   }
 
-  // 实现新增行操作API
+  /**
+   * 添加新行数据
+   * @param data 要添加的行数据
+   * @param position 添加位置("top" 或 "bottom")
+   */
   addRow(data: any, position: "top" | "bottom" = "bottom"): void {
     this.dataManager.addRow(data, position);
     this.refreshView();
   }
 
+  /**
+   * 删除指定ID的行
+   * @param id 要删除的行ID
+   */
   removeRow(id: string | number): void {
     this.dataManager.removeRow(id);
-      this.refreshView();
+    this.refreshView();
   }
 
+  /**
+   * 移动行的位置
+   * @param fromIndex 起始索引
+   * @param toIndex 目标索引
+   */
   moveRow(fromIndex: number, toIndex: number): void {
     this.dragDropManager.moveRow(fromIndex, toIndex);
   }
 
-  // 实现缺失的 GridApi 方法
+  /**
+   * 获取当前过滤模型
+   * @returns 过滤模型对象
+   */
   getFilterModel(): { [key: string]: FilterModel } {
     return this.filterSortManager.getFilterModel();
   }
 
+  /**
+   * 设置过滤模型
+   * @param model 新的过滤模型
+   */
   setFilterModel(model: { [key: string]: FilterModel }): void {
     this.filterSortManager.setFilterModel(model);
   }
 
+  /**
+   * 清除所有过滤条件
+   */
   clearFilters(): void {
     this.filterSortManager.clearFilters();
   }
 
+  /**
+   * 保存当前滚动位置
+   * 在表格刷新前调用
+   */
   private saveScrollPosition() {
     // 保存body的滚动位置
     const gridBody = this.element.querySelector(".grid-body") as HTMLElement;
@@ -577,6 +644,10 @@ export class Grid implements GridApi {
     }
   }
 
+  /**
+   * 恢复之前保存的滚动位置
+   * 在表格刷新后调用
+   */
   private restoreScrollPosition() {
     // 使用更可靠的方法恢复滚动位置
     requestAnimationFrame(() => {
@@ -602,12 +673,21 @@ export class Grid implements GridApi {
     });
   }
 
+  /**
+   * 批量更新行
+   * 通过虚拟DOM实现高效更新
+   * @param updatedRows 要更新的行映射
+   */
   public batchUpdateRows(updatedRows: Map<string | number, any>) {
-    // This is a placeholder for the virtual DOM implementation.
-    console.log("Batch updating rows via VirtualDOMManager", updatedRows);
-    // TODO: Implement virtual DOM row updates
+    // 这是虚拟DOM实现的占位符
+    console.log("通过VirtualDOMManager批量更新行", updatedRows);
+    // TODO: 实现虚拟DOM行更新
   }
 
+  /**
+   * 销毁表格实例及释放资源
+   * 在组件卸载时调用
+   */
   destroy() {
     this.scrollSyncManager.destroy();
 
