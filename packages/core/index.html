@@ -259,7 +259,7 @@
             .split("T")[0],
         }));
       }
-      
+
       // 树形结构数据
       function getTreeData() {
         return [
@@ -355,19 +355,25 @@
 
       // 单元格合并示例
       const mergeData = [
-        { id: 1, name: "合并单元格示例", age: 25, city: "北京", address: "朝阳区" },
+        {
+          id: 1,
+          name: "合并单元格示例",
+          age: 25,
+          city: "北京",
+          address: "朝阳区",
+        },
         { id: 2, name: "张三", age: 28, city: "上海", address: "浦东新区" },
         { id: 3, name: "张三", age: 28, city: "上海", address: "浦东新区" },
         { id: 4, name: "李四", age: 32, city: "广州", address: "天河区" },
         { id: 5, name: "王五", age: 35, city: "深圳", address: "南山区" },
-        { id: 6, name: "赵六", age: 40, city: "杭州", address: "西湖区" }
+        { id: 6, name: "赵六", age: 40, city: "杭州", address: "西湖区" },
       ];
 
       const mergeColumns = [
         { field: "name", headerName: "姓名", width: 150 },
         { field: "age", headerName: "年龄", width: 100 },
         { field: "city", headerName: "城市", width: 120 },
-        { field: "address", headerName: "地址", width: 200 }
+        { field: "address", headerName: "地址", width: 200 },
       ];
 
       const mergeGrid = new Grid({
@@ -376,18 +382,18 @@
         // rowHeight: 50,
         // 列合并
         colSpan: (params) => {
-          if (params.rowIndex === 0 && params.colDef.field === 'name') {
+          if (params.rowIndex === 0 && params.colDef.field === "name") {
             return 2; // 第一行的姓名单元格横跨2列
           }
           return 1;
         },
         // 行合并
         rowSpan: (params) => {
-          if (params.rowIndex === 1 && params.field === 'city') {
+          if (params.rowIndex === 1 && params.field === "city") {
             return 2; // 第二行的城市单元格纵跨2行
           }
           return 1;
-        }
+        },
       });
 
       mergeGrid.render(document.getElementById("mergeGrid"));
@@ -437,15 +443,96 @@
 
       // 添加一个更复杂的单元格合并示例
       const complexMergeData = [
-        { id: 1, region: "华东", province: "上海", q1: 3200, q2: 3500, q3: 3700, q4: 3900, total: 14300 },
-        { id: 2, region: "华东", province: "江苏", q1: 2800, q2: 3000, q3: 3200, q4: 3500, total: 12500 },
-        { id: 3, region: "华东", province: "浙江", q1: 2600, q2: 2800, q3: 3000, q4: 3200, total: 11600 },
-        { id: 4, region: "华南", province: "广东", q1: 3500, q2: 3700, q3: 3900, q4: 4100, total: 15200 },
-        { id: 5, region: "华南", province: "广西", q1: 1800, q2: 2000, q3: 2200, q4: 2400, total: 8400 },
-        { id: 6, region: "华南", province: "海南", q1: 1200, q2: 1300, q3: 1400, q4: 1500, total: 5400 },
-        { id: 7, region: "华北", province: "北京", q1: 3000, q2: 3200, q3: 3400, q4: 3600, total: 13200 },
-        { id: 8, region: "华北", province: "天津", q1: 2200, q2: 2400, q3: 2600, q4: 2800, total: 10000 },
-        { id: 9, region: "华北", province: "河北", q1: 2500, q2: 2700, q3: 2900, q4: 3100, total: 11200 },
+        {
+          id: 1,
+          region: "华东",
+          province: "上海",
+          q1: 3200,
+          q2: 3500,
+          q3: 3700,
+          q4: 3900,
+          total: 14300,
+        },
+        {
+          id: 2,
+          region: "华东",
+          province: "江苏",
+          q1: 2800,
+          q2: 3000,
+          q3: 3200,
+          q4: 3500,
+          total: 12500,
+        },
+        {
+          id: 3,
+          region: "华东",
+          province: "浙江",
+          q1: 2600,
+          q2: 2800,
+          q3: 3000,
+          q4: 3200,
+          total: 11600,
+        },
+        {
+          id: 4,
+          region: "华南",
+          province: "广东",
+          q1: 3500,
+          q2: 3700,
+          q3: 3900,
+          q4: 4100,
+          total: 15200,
+        },
+        {
+          id: 5,
+          region: "华南",
+          province: "广西",
+          q1: 1800,
+          q2: 2000,
+          q3: 2200,
+          q4: 2400,
+          total: 8400,
+        },
+        {
+          id: 6,
+          region: "华南",
+          province: "海南",
+          q1: 1200,
+          q2: 1300,
+          q3: 1400,
+          q4: 1500,
+          total: 5400,
+        },
+        {
+          id: 7,
+          region: "华北",
+          province: "北京",
+          q1: 3000,
+          q2: 3200,
+          q3: 3400,
+          q4: 3600,
+          total: 13200,
+        },
+        {
+          id: 8,
+          region: "华北",
+          province: "天津",
+          q1: 2200,
+          q2: 2400,
+          q3: 2600,
+          q4: 2800,
+          total: 10000,
+        },
+        {
+          id: 9,
+          region: "华北",
+          province: "河北",
+          q1: 2500,
+          q2: 2700,
+          q3: 2900,
+          q4: 3100,
+          total: 11200,
+        },
       ];
 
       // 创建一个复杂合并表格的容器
@@ -464,43 +551,43 @@
       container.appendChild(complexMergeTitle);
       container.appendChild(complexMergeContainer);
       */
-      
+
       // 初始化复杂合并表格
       const complexMergeGrid = new Grid({
         columns: [
           {
             field: "region",
             headerName: "区域",
-            width: 120
+            width: 120,
           },
           {
             field: "province",
             headerName: "省份",
-            width: 120
+            width: 120,
           },
           {
             field: "q1",
             headerName: "第一季度",
             width: 100,
-            editable: true
+            editable: true,
           },
           {
             field: "q2",
             headerName: "第二季度",
             width: 100,
-            editable: true
+            editable: true,
           },
           {
             field: "q3",
             headerName: "第三季度",
             width: 100,
-            editable: true
+            editable: true,
           },
           {
             field: "q4",
             headerName: "第四季度",
             width: 100,
-            editable: true
+            editable: true,
           },
           {
             field: "total",
@@ -513,35 +600,38 @@
                 el.style.fontWeight = "bold";
                 el.style.color = "#1890ff";
                 return el;
-              }
-            }
-          }
+              },
+            },
+          },
         ],
         rowData: complexMergeData,
         // 列合并：相同区域合并
         colSpan: (params) => {
           // 只对第一列应用列合并
           if (params.colId !== "region") return 1;
-          
+
           // 如果是每个区域的第一行，则合并两列
           const currentRegion = params.data.region;
           const rowIndex = params.rowIndex;
-          
+
           // 检查是否是该区域的第一行
-          if (rowIndex === 0 || complexMergeData[rowIndex - 1].region !== currentRegion) {
+          if (
+            rowIndex === 0 ||
+            complexMergeData[rowIndex - 1].region !== currentRegion
+          ) {
             return 2; // 合并区域和省份列
           }
-          
+
           return 1; // 不合并
         },
         // 行合并：相同区域合并
         rowSpan: (params) => {
           // 只对区域列应用行合并
           if (params.field !== "region") return 1;
-          
+
           const currentRegion = params.data.region;
           const rowIndex = params.rowIndex;
-          
+
           // 计算当前区域有多少行
           let spanCount = 1;
           for (let i = rowIndex + 1; i < complexMergeData.length; i++) {
@@ -551,16 +641,19 @@
               break;
             }
           }
-          
+
           // 只在区域的第一行应用行合并
-          if (rowIndex === 0 || complexMergeData[rowIndex - 1].region !== currentRegion) {
+          if (
+            rowIndex === 0 ||
+            complexMergeData[rowIndex - 1].region !== currentRegion
+          ) {
             return spanCount;
           }
-          
+
           return 1; // 不合并
-        }
+        },
       });
-      
+
       complexMergeGrid.render(document.getElementById("complexMergeGrid"));
 
       // 添加一些交互功能示例
@@ -569,19 +662,19 @@
       const basicGridContainer = document.getElementById("basicGrid");
       const basicGrid = new Grid({
         columns: [
-          { 
-            field: "checkbox", 
-            headerName: "", 
-            width: 50, 
+          {
+            field: "checkbox",
+            headerName: "",
+            width: 50,
             checkboxSelection: true,
-            pinned: 'left'
+            pinned: "left",
           },
-          { 
-            field: "drag", 
-            headerName: "", 
-            width: 50, 
+          {
+            field: "drag",
+            headerName: "",
+            width: 50,
             rowDrag: true,
-            frozen: true
+            frozen: true,
           },
           { field: "id", headerName: "编号", width: 100, frozen: true },
           {
@@ -608,7 +701,7 @@
                 const container = document.createElement("div");
                 container.style.display = "flex";
                 container.style.gap = "4px";
-                
+
                 const editBtn = document.createElement("button");
                 editBtn.textContent = "编辑";
                 editBtn.className = "grid-action-button";
@@ -616,7 +709,7 @@
                   e.stopPropagation();
                   alert(`编辑行: ${params.data.id}`);
                 };
-                
+
                 const deleteBtn = document.createElement("button");
                 deleteBtn.textContent = "删除";
                 deleteBtn.className = "grid-action-button delete";
@@ -626,24 +719,24 @@
                     params.api.removeRow(params.data.id);
                   }
                 };
-                
+
                 container.appendChild(editBtn);
                 container.appendChild(deleteBtn);
-                
+
                 return container;
-              }
-            }
-          }
+              },
+            },
+          },
         ],
         rowData: getData(),
         enableRowDrag: true,
-        rowSelection: 'multiple',
+        rowSelection: "multiple",
         onRowDragEnd: (event) => {
           console.log(`行已从索引 ${event.fromIndex} 移动到 ${event.toIndex}`);
         },
         onSelectionChanged: (event) => {
           console.log(`已选择 ${event.selectedNodes.length} 行`);
-        }
+        },
       });
       basicGrid.render(basicGridContainer);
 
@@ -655,7 +748,7 @@
             headerName: "",
             width: 50,
             checkboxSelection: true,
-            frozen: true
+            frozen: true,
           },
           {
             field: "id",
@@ -711,7 +804,6 @@
             cellRenderer: {
               view: (params) => {
                 const div = document.createElement("div");
-                console.log(params.value);
                 div.textContent = params.value;
                 return div;
               },
@@ -759,18 +851,18 @@
                   <option value="inactive">未激活</option>
                   <option value="pending">待处理</option>
                 `;
-                
+
                 // 记录原始值
                 const originalValue = params.value;
                 select.value = originalValue;
-                
+
                 // 只在真正改变时才提交
                 select.onchange = () => {
                   if (select.value !== originalValue) {
                     params.onComplete(select.value);
                   }
                 };
-                
+
                 // 失焦时，如果没改变就取消
                 select.onblur = () => {
                   if (select.value === originalValue) {
@@ -779,7 +871,7 @@
                     params.onComplete(select.value); // 如果已变，则提交
                   }
                 };
-                
+
                 return select;
               },
             },
@@ -792,6 +884,37 @@
             editable: true,
             valueFormatter: (params) => {
               return `¥${params.value.toLocaleString()}`;
+            },
+          },
+          {
+            field: "quantity",
+            headerName: "数量",
+            width: 120,
+            sortable: true,
+            editable: true,
+            valueFormatter: (params) => {
+              return `¥${params.value.toLocaleString()}`;
+            },
+          },
+          {
+            field: "total",
+            headerName: "总价",
+            width: 120,
+            formula: "[price] * [quantity]", // <--- 添加这行
+            valueFormatter: (params) => {
+              // <--- 使用 valueFormatter
+              if (params.value === undefined) return "";
+              return params.value.toLocaleString();
+            },
+            cellRenderer: {
+              // <--- 保留原有的样式渲染
+              view: (params) => {
+                const el = document.createElement("div");
+                el.textContent = params.value?.toLocaleString() || "";
+                el.style.fontWeight = "bold";
+                el.style.color = "#1890ff";
+                return el;
+              },
             },
           },
           {
@@ -848,21 +971,21 @@
         rowClass: (params) => {
           return params.data.status === "inactive" ? "inactive-row" : "";
         },
-        rowSelection: 'multiple',
+        rowSelection: "multiple",
         onSelectionChanged: (event) => {
           console.log(`已选择 ${event.selectedNodes.length} 行`);
-        }
+        },
       });
       advancedGrid.render(document.getElementById("advancedGrid"));
 
       // 初始化树形表格
       const treeGrid = new Grid({
         columns: [
-          { 
-            field: "drag", 
-            headerName: "拖拽", 
-            width: 60, 
-            rowDrag: true 
+          {
+            field: "drag",
+            headerName: "拖拽",
+            width: 60,
+            rowDrag: true,
           },
           {
             field: "name",
@@ -872,14 +995,20 @@
             treeColumn: true, // 指定这一列为树形结构的展示列
           },
           {
+            field: "parent_name", // 新增：父级引用
+            headerName: "分类名称",
+            width: 150,
+            formula: "parent.name",
+          },
+          {
             field: "price",
             headerName: "价格",
             width: 150,
             sortable: true,
             editable: true,
             valueFormatter: (params) => {
-              if (params.value === undefined) return '';
-              return `¥${params.value.toLocaleString()}`;
+              if (params.value === undefined) return "";
+              return params.value.toLocaleString();
             },
           },
           {
@@ -888,38 +1017,22 @@
             width: 150,
             sortable: true,
             editable: true,
-            cellRenderer: {
-              view: (params) => {
-                if (params.value === undefined) return document.createElement('div');
-                
-                const el = document.createElement("div");
-                el.textContent = params.value;
-                if (params.value < 50) {
-                  el.style.color = "#ff4d4f";
-                  el.style.fontWeight = "bold";
-                } else if (params.value < 100) {
-                  el.style.color = "#faad14";
-                }
-                return el;
-              },
-              edit: (params) => {
-                if (params.value === undefined) return document.createElement('div');
-                
-                const input = document.createElement("input");
-                input.type = "number";
-                input.min = "0";
-                input.value = params.value;
-
-                input.onchange = () => {
-                  params.onComplete(parseInt(input.value, 10));
-                };
-
-                input.onblur = () => {
-                  params.onComplete(parseInt(input.value, 10));
-                };
-
-                return input;
-              },
+            valueFormatter: (params) => {
+              if (params.value === undefined) return "";
+              return Number(params.value);
+            },
+          },
+          {
+            field: "total_stock", // 新增：子级聚合
+            headerName: "子项总库存",
+            width: 150,
+            formula: "SUM(children, 'stock')",
+            valueFormatter: (params) => {
+              // 如果是叶子节点，则不显示这个聚合值
+              if (!params.node.children || params.node.children.length === 0) {
+                return "";
+              }
+              return Number(params.value);
             },
           },
           {
@@ -928,12 +1041,12 @@
             width: 150,
             cellRenderer: {
               view: (params) => {
-                // 只有叶子节点才显示操作按钮 (逻辑修正)
+                // 只有叶子节点才显示操作按钮
                 if (params.node.children && params.node.children.length === 0) {
                   const container = document.createElement("div");
                   container.style.display = "flex";
                   container.style.gap = "4px";
-                  
+
                   const editBtn = document.createElement("button");
                   editBtn.textContent = "编辑";
                   editBtn.className = "grid-action-button";
@@ -941,7 +1054,7 @@
                     e.stopPropagation();
                     alert(`编辑: ${params.data.name}`);
                   };
-                  
+
                   const deleteBtn = document.createElement("button");
                   deleteBtn.textContent = "删除";
                   deleteBtn.className = "grid-action-button delete";
@@ -949,23 +1062,23 @@
                     e.stopPropagation();
                     alert(`删除: ${params.data.name}`);
                   };
-                  
+
                   container.appendChild(editBtn);
                   container.appendChild(deleteBtn);
-                  
+
                   return container;
                 }
                 return document.createElement("div");
-              }
-            }
-          }
+              },
+            },
+          },
         ],
         treeData: true, // 启用树形数据模式
         enableRowDrag: true, // 启用行拖拽
         rowData: getTreeData(),
         onRowClicked: (event) => {
           console.log("点击行:", event.data);
-        }
+        },
       });
       treeGrid.render(document.getElementById("treeGrid"));
 
@@ -1032,71 +1145,73 @@
       container.appendChild(complexComponentTitle);
       container.appendChild(complexComponentContainer);
       */
-      
+
       // 多选选项
       const HOBBIES_OPTIONS = [
-        { value: 'reading', label: '阅读' },
-        { value: 'sports', label: '运动' },
-        { value: 'music', label: '音乐' },
-        { value: 'travel', label: '旅行' },
-        { value: 'cooking', label: '烹饪' },
-        { value: 'gaming', label: '游戏' }
+        { value: "reading", label: "阅读" },
+        { value: "sports", label: "运动" },
+        { value: "music", label: "音乐" },
+        { value: "travel", label: "旅行" },
+        { value: "cooking", label: "烹饪" },
+        { value: "gaming", label: "游戏" },
       ];
-      
+
       // 创建标签渲染器
       function createTagsRenderer(tags) {
-        const container = document.createElement('div');
-        container.className = 'tags-container';
-        
+        const container = document.createElement("div");
+        container.className = "tags-container";
+
         if (Array.isArray(tags)) {
-          tags.forEach(tag => {
-            const tagEl = document.createElement('span');
-            tagEl.className = 'tag';
-            
+          tags.forEach((tag) => {
+            const tagEl = document.createElement("span");
+            tagEl.className = "tag";
+
             // 如果是对象，寻找label属性
-            if (typeof tag === 'object' && tag !== null) {
+            if (typeof tag === "object" && tag !== null) {
               tagEl.textContent = tag.label || tag.name || JSON.stringify(tag);
             } else {
               // 如果是字符串值，查找对应的标签
-              const option = HOBBIES_OPTIONS.find(opt => opt.value === tag);
+              const option = HOBBIES_OPTIONS.find((opt) => opt.value === tag);
               tagEl.textContent = option ? option.label : tag;
             }
-            
+
             container.appendChild(tagEl);
           });
-        } else if (typeof tags === 'object' && tags !== null) {
+        } else if (typeof tags === "object" && tags !== null) {
           // 如果是对象，显示其属性
           Object.entries(tags).forEach(([key, value]) => {
-            const tagEl = document.createElement('span');
-            tagEl.className = 'tag';
+            const tagEl = document.createElement("span");
+            tagEl.className = "tag";
             tagEl.textContent = `${key}: ${value}`;
             container.appendChild(tagEl);
           });
         }
-        
+
         return container;
       }
-      
+
       // 创建多选编辑器
       function createMultiSelectEditor(params) {
-        const container = document.createElement('div');
-        container.className = 'multi-select-container';
-        
+        const container = document.createElement("div");
+        container.className = "multi-select-container";
+
         // 当前值
         const currentValues = Array.isArray(params.value) ? params.value : [];
-        
+
         // 创建选项
-        HOBBIES_OPTIONS.forEach(option => {
-          const optionContainer = document.createElement('div');
-          optionContainer.className = 'checkbox-option';
-          
-          const checkbox = document.createElement('input');
-          checkbox.type = 'checkbox';
+        HOBBIES_OPTIONS.forEach((option) => {
+          const optionContainer = document.createElement("div");
+          optionContainer.className = "checkbox-option";
+
+          const checkbox = document.createElement("input");
+          checkbox.type = "checkbox";
           checkbox.value = option.value;
-          checkbox.id = `hobby-${option.value}-${Math.random().toString(36).substring(2, 9)}`;
+          checkbox.id = `hobby-${option.value}-${Math.random()
+            .toString(36)
+            .substring(2, 9)}`;
           checkbox.checked = currentValues.includes(option.value);
-          
-          checkbox.addEventListener('change', () => {
+
+          checkbox.addEventListener("change", () => {
             if (checkbox.checked) {
               if (!currentValues.includes(option.value)) {
                 currentValues.push(option.value);
@@ -1108,143 +1223,158 @@
               }
             }
           });
-          
-          const label = document.createElement('label');
+
+          const label = document.createElement("label");
           label.htmlFor = checkbox.id;
           label.textContent = option.label;
-          
+
           optionContainer.appendChild(checkbox);
           optionContainer.appendChild(label);
           container.appendChild(optionContainer);
         });
-        
+
         // 添加完成按钮
-        const buttonContainer = document.createElement('div');
-        buttonContainer.className = 'editor-buttons';
-        
-        const saveButton = document.createElement('button');
-        saveButton.textContent = '保存';
-        saveButton.className = 'editor-save-btn';
-        saveButton.addEventListener('click', () => {
+        const buttonContainer = document.createElement("div");
+        buttonContainer.className = "editor-buttons";
+
+        const saveButton = document.createElement("button");
+        saveButton.textContent = "保存";
+        saveButton.className = "editor-save-btn";
+        saveButton.addEventListener("click", () => {
           params.onComplete(currentValues);
         });
-        
-        const cancelButton = document.createElement('button');
-        cancelButton.textContent = '取消';
-        cancelButton.className = 'editor-cancel-btn';
-        cancelButton.addEventListener('click', () => {
+
+        const cancelButton = document.createElement("button");
+        cancelButton.textContent = "取消";
+        cancelButton.className = "editor-cancel-btn";
+        cancelButton.addEventListener("click", () => {
           params.onCancel();
         });
-        
+
         buttonContainer.appendChild(cancelButton);
         buttonContainer.appendChild(saveButton);
         container.appendChild(buttonContainer);
-        
+
         return container;
       }
-      
+
       // 创建地址对象编辑器
       function createAddressEditor(params) {
-        const container = document.createElement('div');
-        container.className = 'address-editor';
-        
+        const container = document.createElement("div");
+        container.className = "address-editor";
+
         // 当前值
         const currentValue = params.value || {};
-        
+
         // 创建表单
         const fields = [
-          { name: 'province', label: '省份' },
-          { name: 'city', label: '城市' },
-          { name: 'district', label: '区县' },
-          { name: 'street', label: '街道' }
+          { name: "province", label: "省份" },
+          { name: "city", label: "城市" },
+          { name: "district", label: "区县" },
+          { name: "street", label: "街道" },
         ];
-        
-        fields.forEach(field => {
-          const fieldContainer = document.createElement('div');
-          fieldContainer.className = 'field-container';
-          
-          const label = document.createElement('label');
+
+        fields.forEach((field) => {
+          const fieldContainer = document.createElement("div");
+          fieldContainer.className = "field-container";
+
+          const label = document.createElement("label");
           label.textContent = field.label;
-          
-          const input = document.createElement('input');
-          input.type = 'text';
-          input.value = currentValue[field.name] || '';
-          input.addEventListener('input', () => {
+
+          const input = document.createElement("input");
+          input.type = "text";
+          input.value = currentValue[field.name] || "";
+          input.addEventListener("input", () => {
             currentValue[field.name] = input.value;
           });
-          
+
           fieldContainer.appendChild(label);
           fieldContainer.appendChild(input);
           container.appendChild(fieldContainer);
         });
-        
+
         // 添加完成按钮
-        const buttonContainer = document.createElement('div');
-        buttonContainer.className = 'editor-buttons';
-        
-        const saveButton = document.createElement('button');
-        saveButton.textContent = '保存';
-        saveButton.className = 'editor-save-btn';
-        saveButton.addEventListener('click', () => {
+        const buttonContainer = document.createElement("div");
+        buttonContainer.className = "editor-buttons";
+
+        const saveButton = document.createElement("button");
+        saveButton.textContent = "保存";
+        saveButton.className = "editor-save-btn";
+        saveButton.addEventListener("click", () => {
           params.onComplete(currentValue);
         });
-        
-        const cancelButton = document.createElement('button');
-        cancelButton.textContent = '取消';
-        cancelButton.className = 'editor-cancel-btn';
-        cancelButton.addEventListener('click', () => {
+
+        const cancelButton = document.createElement("button");
+        cancelButton.textContent = "取消";
+        cancelButton.className = "editor-cancel-btn";
+        cancelButton.addEventListener("click", () => {
           params.onCancel();
         });
-        
+
         buttonContainer.appendChild(cancelButton);
         buttonContainer.appendChild(saveButton);
         container.appendChild(buttonContainer);
-        
+
         return container;
       }
-      
+
       // 复杂组件示例数据
       const complexComponentData = [
         {
           id: 1,
           name: "张三",
           hobbies: ["reading", "sports", "music"],
-          address: { province: "上海市", city: "上海市", district: "浦东新区", street: "张杨路500号" },
+          address: {
+            province: "上海市",
+            city: "上海市",
+            district: "浦东新区",
+            street: "张杨路500号",
+          },
           skills: [
             { name: "JavaScript", level: "高级" },
             { name: "CSS", level: "中级" },
-            { name: "React", level: "高级" }
-          ]
+            { name: "React", level: "高级" },
+          ],
         },
         {
           id: 2,
           name: "李四",
           hobbies: ["travel", "cooking"],
-          address: { province: "北京市", city: "北京市", district: "朝阳区", street: "建国路88号" },
+          address: {
+            province: "北京市",
+            city: "北京市",
+            district: "朝阳区",
+            street: "建国路88号",
+          },
           skills: [
             { name: "Java", level: "高级" },
-            { name: "Python", level: "初级" }
-          ]
+            { name: "Python", level: "初级" },
+          ],
         },
         {
           id: 3,
           name: "王五",
           hobbies: ["gaming", "reading"],
-          address: { province: "广东省", city: "广州市", district: "天河区", street: "天河路100号" },
+          address: {
+            province: "广东省",
+            city: "广州市",
+            district: "天河区",
+            street: "天河路100号",
+          },
           skills: [
             { name: "C++", level: "高级" },
             { name: "Go", level: "中级" },
-            { name: "Rust", level: "初级" }
-          ]
-        }
+            { name: "Rust", level: "初级" },
+          ],
+        },
       ];
-      
+
       // 复杂组件示例列定义
       const complexComponentColumns = [
         {
           field: "name",
           headerName: "姓名",
-          width: 100
+          width: 100,
         },
         {
           field: "hobbies",
@@ -1257,8 +1387,8 @@
             },
             edit: (params) => {
               return createPopupMultiSelectEditor(params);
-            }
-          }
+            },
+          },
         },
         {
           field: "address",
@@ -1268,19 +1398,21 @@
           cellRenderer: {
             view: (params) => {
               const address = params.value;
-              const container = document.createElement('div');
-              
-              if (typeof address === 'object' && address !== null) {
-                container.textContent = `${address.province || ''} ${address.city || ''} ${address.district || ''} ${address.street || ''}`;
+              const container = document.createElement("div");
+
+              if (typeof address === "object" && address !== null) {
+                container.textContent = `${address.province || ""} ${
+                  address.city || ""
+                } ${address.district || ""} ${address.street || ""}`;
               } else {
-                container.textContent = String(address || '');
+                container.textContent = String(address || "");
               }
-              
+
               return container;
             },
-            edit:(params) => {
+            edit: (params) => {
               return createPopupAddressEditor(params);
-            }
+            },
           },
         },
         {
@@ -1290,17 +1422,17 @@
           cellRenderer: {
             view: (params) => {
               return createTagsRenderer(params.value);
-            }
-          }
-        }
+            },
+          },
+        },
       ];
-      
+
       // 初始化复杂组件表格
       const complexComponentGrid = new Grid({
         columns: complexComponentColumns,
-        rowData: complexComponentData
+        rowData: complexComponentData,
       });
-      
+
       // 添加复杂组件表格的样式
       const complexComponentStyles = document.createElement("style");
       complexComponentStyles.textContent = `
@@ -1403,18 +1535,20 @@
         }
       `;
       document.head.appendChild(complexComponentStyles);
-      
-      complexComponentGrid.render(document.getElementById("complexComponentGrid"));
+
+      complexComponentGrid.render(
+        document.getElementById("complexComponentGrid")
+      );
 
       // 创建弹出式多选编辑器
       function createPopupMultiSelectEditor(params) {
         console.log("Creating popup multi-select editor", params);
-        
+
         // 创建一个弹出容器
-        const popupContainer = document.createElement('div');
-        popupContainer.className = 'popup-editor-container';
+        const popupContainer = document.createElement("div");
+        popupContainer.className = "popup-editor-container";
         document.body.appendChild(popupContainer);
-        
+
         // 创建编辑器内容
         const editor = createMultiSelectEditor({
           ...params,
@@ -1427,62 +1561,62 @@
             params.onCancel();
             // 移除弹出容器
             document.body.removeChild(popupContainer);
-          }
+          },
         });
-        
+
         // 添加到弹出容器
         popupContainer.appendChild(editor);
-        
+
         // 定位弹出容器
-        const cellElement = params.event?.target?.closest('.grid-cell');
+        const cellElement = params.event?.target?.closest(".grid-cell");
         if (cellElement) {
           const rect = cellElement.getBoundingClientRect();
-          popupContainer.style.position = 'fixed';
+          popupContainer.style.position = "fixed";
           popupContainer.style.top = `${rect.bottom}px`;
           popupContainer.style.left = `${rect.left}px`;
           popupContainer.style.minWidth = `${rect.width}px`;
-          popupContainer.style.zIndex = '1000';
-          popupContainer.style.backgroundColor = '#fff';
-          popupContainer.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.15)';
-          popupContainer.style.border = '1px solid #d9d9d9';
-          popupContainer.style.borderRadius = '2px';
-          popupContainer.style.padding = '8px';
-          popupContainer.style.maxHeight = '300px';
-          popupContainer.style.overflowY = 'auto';
+          popupContainer.style.zIndex = "1000";
+          popupContainer.style.backgroundColor = "#fff";
+          popupContainer.style.boxShadow = "0 2px 8px rgba(0, 0, 0, 0.15)";
+          popupContainer.style.border = "1px solid #d9d9d9";
+          popupContainer.style.borderRadius = "2px";
+          popupContainer.style.padding = "8px";
+          popupContainer.style.maxHeight = "300px";
+          popupContainer.style.overflowY = "auto";
         }
-        
+
         // 点击外部关闭
         const handleClickOutside = (e) => {
           if (!popupContainer.contains(e.target) && e.target !== cellElement) {
-            document.removeEventListener('mousedown', handleClickOutside);
+            document.removeEventListener("mousedown", handleClickOutside);
             params.onCancel();
             if (document.body.contains(popupContainer)) {
               document.body.removeChild(popupContainer);
             }
           }
         };
-        
+
         // 延迟添加事件监听，避免立即触发
         setTimeout(() => {
-          document.addEventListener('mousedown', handleClickOutside);
+          document.addEventListener("mousedown", handleClickOutside);
         }, 0);
-        
+
         // 返回一个空的占位元素，因为实际编辑器在弹出容器中
-        const placeholder = document.createElement('div');
-        placeholder.style.width = '100%';
-        placeholder.style.height = '100%';
+        const placeholder = document.createElement("div");
+        placeholder.style.width = "100%";
+        placeholder.style.height = "100%";
         return placeholder;
       }
-      
+
       // 创建弹出式地址编辑器
       function createPopupAddressEditor(params) {
         console.log("Creating popup address editor", params);
-        
+
         // 创建一个弹出容器
-        const popupContainer = document.createElement('div');
-        popupContainer.className = 'popup-editor-container';
+        const popupContainer = document.createElement("div");
+        popupContainer.className = "popup-editor-container";
         document.body.appendChild(popupContainer);
-        
+
         // 创建编辑器内容
         const editor = createAddressEditor({
           ...params,
@@ -1495,252 +1629,260 @@
             params.onCancel();
             // 移除弹出容器
             document.body.removeChild(popupContainer);
-          }
+          },
         });
-        
+
         // 添加到弹出容器
         popupContainer.appendChild(editor);
-        
+
         // 定位弹出容器
-        const cellElement = params.event?.target?.closest('.grid-cell');
+        const cellElement = params.event?.target?.closest(".grid-cell");
         if (cellElement) {
           const rect = cellElement.getBoundingClientRect();
-          popupContainer.style.position = 'fixed';
+          popupContainer.style.position = "fixed";
           popupContainer.style.top = `${rect.bottom}px`;
           popupContainer.style.left = `${rect.left}px`;
           popupContainer.style.minWidth = `${rect.width}px`;
-          popupContainer.style.zIndex = '1000';
-          popupContainer.style.backgroundColor = '#fff';
-          popupContainer.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.15)';
-          popupContainer.style.border = '1px solid #d9d9d9';
-          popupContainer.style.borderRadius = '2px';
-          popupContainer.style.padding = '8px';
-          popupContainer.style.maxHeight = '300px';
-          popupContainer.style.overflowY = 'auto';
+          popupContainer.style.zIndex = "1000";
+          popupContainer.style.backgroundColor = "#fff";
+          popupContainer.style.boxShadow = "0 2px 8px rgba(0, 0, 0, 0.15)";
+          popupContainer.style.border = "1px solid #d9d9d9";
+          popupContainer.style.borderRadius = "2px";
+          popupContainer.style.padding = "8px";
+          popupContainer.style.maxHeight = "300px";
+          popupContainer.style.overflowY = "auto";
         }
-        
+
         // 点击外部关闭
         const handleClickOutside = (e) => {
           if (!popupContainer.contains(e.target) && e.target !== cellElement) {
-            document.removeEventListener('mousedown', handleClickOutside);
+            document.removeEventListener("mousedown", handleClickOutside);
             params.onCancel();
             if (document.body.contains(popupContainer)) {
               document.body.removeChild(popupContainer);
             }
           }
         };
-        
+
         // 延迟添加事件监听，避免立即触发
         setTimeout(() => {
-          document.addEventListener('mousedown', handleClickOutside);
+          document.addEventListener("mousedown", handleClickOutside);
         }, 0);
-        
+
         // 返回一个空的占位元素，因为实际编辑器在弹出容器中
-        const placeholder = document.createElement('div');
-        placeholder.style.width = '100%';
-        placeholder.style.height = '100%';
+        const placeholder = document.createElement("div");
+        placeholder.style.width = "100%";
+        placeholder.style.height = "100%";
         return placeholder;
       }
     </script>
-    
+
     <script type="module">
       // 自定义组件系统示例
       import { Grid } from "./src/grid.ts";
-      
-      document.addEventListener('DOMContentLoaded', function() {
+
+      document.addEventListener("DOMContentLoaded", function () {
         // 标签视图组件
         function TagViewComponent(params) {
-          const container = document.createElement('div');
-          container.className = 'tag-container';
-          
+          const container = document.createElement("div");
+          container.className = "tag-container";
+
           if (Array.isArray(params.value)) {
-            params.value.forEach(tag => {
-              const tagEl = document.createElement('span');
-              tagEl.className = 'tag';
+            params.value.forEach((tag) => {
+              const tagEl = document.createElement("span");
+              tagEl.className = "tag";
               tagEl.textContent = tag;
               container.appendChild(tagEl);
             });
           }
-          
+
           return container;
         }
-        
+
         // 标签编辑组件
         function TagEditComponent(params) {
-          const container = document.createElement('div');
-          container.className = 'multi-select';
-          
+          const container = document.createElement("div");
+          container.className = "multi-select";
+
           // 可选标签列表
           const availableTags = params.props?.options || [
-            '重要', '紧急', '新客户', '老客户', '潜在客户', '待跟进', '已完成'
+            "重要",
+            "紧急",
+            "新客户",
+            "老客户",
+            "潜在客户",
+            "待跟进",
+            "已完成",
           ];
-          
+
           // 当前选中的标签
           const selectedTags = Array.isArray(params.value) ? params.value : [];
-          
+
           // 创建复选框列表
-          availableTags.forEach(tag => {
-            const item = document.createElement('div');
-            item.className = 'checkbox-item';
-            
-            const checkbox = document.createElement('input');
-            checkbox.type = 'checkbox';
+          availableTags.forEach((tag) => {
+            const item = document.createElement("div");
+            item.className = "checkbox-item";
+
+            const checkbox = document.createElement("input");
+            checkbox.type = "checkbox";
             checkbox.checked = selectedTags.includes(tag);
             checkbox.value = tag;
             checkbox.id = `tag-${tag}`;
-            
-            const label = document.createElement('label');
+
+            const label = document.createElement("label");
             label.htmlFor = checkbox.id;
             label.textContent = tag;
-            
+
             item.appendChild(checkbox);
             item.appendChild(label);
             container.appendChild(item);
-            
+
             // 添加变更事件
-            checkbox.addEventListener('change', () => {
+            checkbox.addEventListener("change", () => {
               const updatedTags = [];
-              container.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-                if (cb.checked) {
-                  updatedTags.push(cb.value);
-                }
-              });
-              
+              container
+                .querySelectorAll('input[type="checkbox"]')
+                .forEach((cb) => {
+                  if (cb.checked) {
+                    updatedTags.push(cb.value);
+                  }
+                });
+
               // 提交更新后的值
               if (params.onComplete) {
                 params.onComplete(updatedTags);
               }
             });
           });
-          
+
           return container;
         }
-        
+
         // 地址视图组件
         function AddressViewComponent(params) {
-          const container = document.createElement('div');
-          container.className = 'address-view';
-          
+          const container = document.createElement("div");
+          container.className = "address-view";
+
           const address = params.value || {};
           const parts = [];
-          
+
           if (address.street) parts.push(address.street);
           if (address.city) parts.push(address.city);
           if (address.state) parts.push(address.state);
           if (address.zip) parts.push(address.zip);
-          
-          container.textContent = parts.join(', ');
-          
+
+          container.textContent = parts.join(", ");
+
           return container;
         }
-        
+
         // 地址编辑组件
         function AddressEditComponent(params) {
-          const container = document.createElement('div');
-          container.className = 'address-edit';
-          
+          const container = document.createElement("div");
+          container.className = "address-edit";
+
           const address = params.value || {};
-          
+
           // 街道字段
-          const streetField = document.createElement('div');
-          streetField.className = 'address-field';
-          
-          const streetLabel = document.createElement('label');
-          streetLabel.textContent = '街道';
-          
-          const streetInput = document.createElement('input');
-          streetInput.type = 'text';
-          streetInput.value = address.street || '';
-          
+          const streetField = document.createElement("div");
+          streetField.className = "address-field";
+
+          const streetLabel = document.createElement("label");
+          streetLabel.textContent = "街道";
+
+          const streetInput = document.createElement("input");
+          streetInput.type = "text";
+          streetInput.value = address.street || "";
+
           streetField.appendChild(streetLabel);
           streetField.appendChild(streetInput);
-          
+
           // 城市字段
-          const cityField = document.createElement('div');
-          cityField.className = 'address-field';
-          
-          const cityLabel = document.createElement('label');
-          cityLabel.textContent = '城市';
-          
-          const cityInput = document.createElement('input');
-          cityInput.type = 'text';
-          cityInput.value = address.city || '';
-          
+          const cityField = document.createElement("div");
+          cityField.className = "address-field";
+
+          const cityLabel = document.createElement("label");
+          cityLabel.textContent = "城市";
+
+          const cityInput = document.createElement("input");
+          cityInput.type = "text";
+          cityInput.value = address.city || "";
+
           cityField.appendChild(cityLabel);
           cityField.appendChild(cityInput);
-          
+
           // 州/省字段
-          const stateField = document.createElement('div');
-          stateField.className = 'address-field';
-          
-          const stateLabel = document.createElement('label');
-          stateLabel.textContent = '州/省';
-          
-          const stateInput = document.createElement('input');
-          stateInput.type = 'text';
-          stateInput.value = address.state || '';
-          
+          const stateField = document.createElement("div");
+          stateField.className = "address-field";
+
+          const stateLabel = document.createElement("label");
+          stateLabel.textContent = "州/省";
+
+          const stateInput = document.createElement("input");
+          stateInput.type = "text";
+          stateInput.value = address.state || "";
+
           stateField.appendChild(stateLabel);
           stateField.appendChild(stateInput);
-          
+
           // 邮编字段
-          const zipField = document.createElement('div');
-          zipField.className = 'address-field';
-          
-          const zipLabel = document.createElement('label');
-          zipLabel.textContent = '邮编';
-          
-          const zipInput = document.createElement('input');
-          zipInput.type = 'text';
-          zipInput.value = address.zip || '';
-          
+          const zipField = document.createElement("div");
+          zipField.className = "address-field";
+
+          const zipLabel = document.createElement("label");
+          zipLabel.textContent = "邮编";
+
+          const zipInput = document.createElement("input");
+          zipInput.type = "text";
+          zipInput.value = address.zip || "";
+
           zipField.appendChild(zipLabel);
           zipField.appendChild(zipInput);
-          
+
           // 按钮容器
-          const buttonsContainer = document.createElement('div');
-          buttonsContainer.className = 'address-buttons';
-          
-          const cancelButton = document.createElement('button');
-          cancelButton.textContent = '取消';
-          cancelButton.className = 'cancel';
-          cancelButton.addEventListener('click', () => {
+          const buttonsContainer = document.createElement("div");
+          buttonsContainer.className = "address-buttons";
+
+          const cancelButton = document.createElement("button");
+          cancelButton.textContent = "取消";
+          cancelButton.className = "cancel";
+          cancelButton.addEventListener("click", () => {
             if (params.onCancel) {
               params.onCancel();
             }
           });
-          
-          const saveButton = document.createElement('button');
-          saveButton.textContent = '保存';
-          saveButton.className = 'save';
-          saveButton.addEventListener('click', () => {
+
+          const saveButton = document.createElement("button");
+          saveButton.textContent = "保存";
+          saveButton.className = "save";
+          saveButton.addEventListener("click", () => {
             const updatedAddress = {
               street: streetInput.value,
               city: cityInput.value,
               state: stateInput.value,
-              zip: zipInput.value
+              zip: zipInput.value,
             };
-            
+
             if (params.onComplete) {
               params.onComplete(updatedAddress);
             }
           });
-          
+
           buttonsContainer.appendChild(cancelButton);
           buttonsContainer.appendChild(saveButton);
-          
+
           // 添加所有字段到容器
           container.appendChild(streetField);
           container.appendChild(cityField);
           container.appendChild(stateField);
           container.appendChild(zipField);
           container.appendChild(buttonsContainer);
-          
+
           return container;
         }
-        
+
         // 添加自定义组件样式
-        const customComponentStyles = document.createElement('style');
+        const customComponentStyles = document.createElement("style");
         customComponentStyles.textContent = `
           /* 标签组件样式 */
           .tag-container {
@@ -1836,93 +1978,99 @@
           }
         `;
         document.head.appendChild(customComponentStyles);
-        
+
         // 初始化表格
         const customGrid = new Grid({
           columns: [
             { field: "id", headerName: "编号", width: 80 },
             { field: "name", headerName: "姓名", width: 150, editable: true },
-            { 
-              field: "tags", 
-              headerName: "标签", 
+            {
+              field: "tags",
+              headerName: "标签",
               width: 200,
               editable: true,
               cellComponent: {
-                type: 'tags',
+                type: "tags",
                 props: {
                   options: [
-                    '重要', '紧急', '新客户', '老客户', '潜在客户', '待跟进', '已完成'
-                  ]
-                }
-              }
+                    "重要",
+                    "紧急",
+                    "新客户",
+                    "老客户",
+                    "潜在客户",
+                    "待跟进",
+                    "已完成",
+                  ],
+                },
+              },
             },
-            { 
-              field: "address", 
-              headerName: "地址", 
+            {
+              field: "address",
+              headerName: "地址",
               width: 300,
               editable: true,
               cellComponent: {
-                type: 'address'
-              }
-            }
+                type: "address",
+              },
+            },
           ],
           rowData: [
-            { 
-              id: 1, 
-              name: '张三', 
-              tags: ['重要', '新客户'],
+            {
+              id: 1,
+              name: "张三",
+              tags: ["重要", "新客户"],
               address: {
-                street: '中关村大街1号',
-                city: '北京',
-                state: '北京市',
-                zip: '100080'
-              }
+                street: "中关村大街1号",
+                city: "北京",
+                state: "北京市",
+                zip: "100080",
+              },
             },
-            { 
-              id: 2, 
-              name: '李四', 
-              tags: ['老客户'],
+            {
+              id: 2,
+              name: "李四",
+              tags: ["老客户"],
               address: {
-                street: '南京路123号',
-                city: '上海',
-                state: '上海市',
-                zip: '200001'
-              }
+                street: "南京路123号",
+                city: "上海",
+                state: "上海市",
+                zip: "200001",
+              },
             },
-            { 
-              id: 3, 
-              name: '王五', 
-              tags: ['潜在客户', '待跟进'],
+            {
+              id: 3,
+              name: "王五",
+              tags: ["潜在客户", "待跟进"],
               address: {
-                street: '天河路88号',
-                city: '广州',
-                state: '广东省',
-                zip: '510000'
-              }
-            }
+                street: "天河路88号",
+                city: "广州",
+                state: "广东省",
+                zip: "510000",
+              },
+            },
           ],
           headerHeight: 40,
           rowHeight: 40,
-          onCellValueChanged: function(params) {
-            console.log('单元格值变更:', params);
-          }
+          onCellValueChanged: function (params) {
+            console.log("单元格值变更:", params);
+          },
         });
-        
+
         // 获取组件管理器
         const componentManager = customGrid.getComponentManager();
-        
+
         // 注册标签组件
-        componentManager.registerComponent('tags', {
+        componentManager.registerComponent("tags", {
           view: TagViewComponent,
-          edit: TagEditComponent
+          edit: TagEditComponent,
         });
-        
+
         // 注册地址组件
-        componentManager.registerComponent('address', {
+        componentManager.registerComponent("address", {
           view: AddressViewComponent,
-          edit: AddressEditComponent
+          edit: AddressEditComponent,
         });
-        
+
         // 渲染表格
         customGrid.render(document.getElementById("customComponentGrid"));
       });

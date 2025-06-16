@@ -259,32 +259,38 @@ export class GridDataManager {
   }
 
   /**
-   * 添加新行
+   * 添加新行数据
+   * @param data 要添加的行数据
+   * @param position 添加位置("top" 或 "bottom")
+   * @returns a new row node
    */
-  public addRow(data: any, position: "top" | "bottom" = "bottom"): void {
-    // 确保rowData是数组
-    if (!Array.isArray(this.options.rowData)) {
-      this.options.rowData = [];
-    }
+  public addRow(data: any, position: "top" | "bottom" = "bottom"): RowNode {
+    const id = data.id || `new-${Math.random().toString(36).substr(2, 9)}`;
+    const newNode: RowNode = {
+      id: id,
+      data: data,
+      rowIndex: -1, // 会在刷新时更新
+      selected: false,
+      children: [],
+      level: 0,
+    };
 
-    // 生成唯一ID
-    if (data.id === undefined) {
-      data.id = Date.now() + Math.floor(Math.random() * 1000);
-    }
+    this.rowNodes.set(id, newNode);
 
-    // 根据位置添加数据
-    if (position === "top") {
-      this.options.rowData.unshift(data);
-    } else {
-      this.options.rowData.push(data);
+    // 更新原始数据数组
+    if (this.options.rowData) {
+        if (position === 'top') {
+            this.options.rowData.unshift(data);
+        } else {
+            this.options.rowData.push(data);
+        }
     }
-
-    // 重新初始化行节点
-    this.initRowNodes();
+    
+    return newNode;
   }
 
   /**
-   * 删除行
+   * 删除指定ID的行
    */
   public removeRow(id: string | number): void {
     if (!Array.isArray(this.options.rowData)) return;

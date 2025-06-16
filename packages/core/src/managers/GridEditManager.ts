@@ -15,6 +15,7 @@ export class GridEditManager {
   private originalEditValue: any;
   private renderCell: (cell: HTMLElement, column: Column, row: any, value: any, rowIndex: number) => void;
   private options: GridOptions;
+  private onCellValueChangedCallback: (node: RowNode, field: string) => void;
   
   constructor(
     virtualDOM: VirtualDOMManager,
@@ -23,7 +24,8 @@ export class GridEditManager {
     rowNodes: Map<string | number, RowNode>,
     getApi: () => GridApi,
     renderCell: (cell: HTMLElement, column: Column, row: any, value: any, rowIndex: number) => void,
-    options: GridOptions
+    options: GridOptions,
+    onCellValueChangedCallback: (node: RowNode, field: string) => void
   ) {
     this.virtualDOM = virtualDOM;
     this.componentManager = componentManager;
@@ -32,6 +34,7 @@ export class GridEditManager {
     this.getApi = getApi;
     this.renderCell = renderCell;
     this.options = options;
+    this.onCellValueChangedCallback = onCellValueChangedCallback;
   }
 
   /**
@@ -86,6 +89,9 @@ export class GridEditManager {
     if (save && newValue !== undefined) {
       // 更新数据模型中的值
       node.data[editingCell.field] = newValue;
+
+      // 调用回调，通知Grid数据已变更
+      this.onCellValueChangedCallback(node, editingCell.field);
 
       // 可选：触发值变化事件
       if (this.options.onCellValueChanged) {

@@ -50,6 +50,13 @@ export interface CellComponent {
     destroy?(): void;
 }
 
+export interface ValueGetterParams {
+    data: any;
+    node: RowNode;
+    column: Column;
+    api: GridApi;
+}
+
 export interface Column {
     field: string;
     headerName: string;
@@ -67,6 +74,7 @@ export interface Column {
     treeColumn?: boolean;         // 是否作为树形结构的展开/折叠列
     // 合并单元格
     colSpan?: (params: CellClassParams) => number;  // 列合并
+    formula?: string;
     // 修改渲染器定义
     cellRenderer?: 
         | ((params: CellRendererParams) => HTMLElement) 

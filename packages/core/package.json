@@ -13,5 +13,8 @@
     "@types/node": "^20.11.17",
     "typescript": "^5.0.0",
     "vite": "^5.0.0"
+  },
+  "dependencies": {
+    "expr-eval": "^2.0.2"
   }
-} 
+}

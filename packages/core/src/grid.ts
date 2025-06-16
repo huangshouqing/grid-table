@@ -33,6 +33,7 @@ import { GridDataManager } from "./managers/GridDataManager";
 import { GridDragDropManager } from "./managers/GridDragDropManager";
 import { GridFilterSortManager } from "./managers/GridFilterSortManager";
 import { GridEventHandlers } from "./managers/GridEventHandlers";
+import { FormulaManager } from "./managers/FormulaManager";
 // 添加状态管理
 
 export class Grid implements GridApi {
@@ -56,6 +57,8 @@ export class Grid implements GridApi {
   private filterSortManager: GridFilterSortManager;
   // 添加事件处理器实例
   private eventHandlers: GridEventHandlers;
+  // 添加公式管理器
+  private formulaManager: FormulaManager;
 
   private leftPinnedColumns: Column[] = [];
   private centerColumns: Column[] = [];
@@ -120,6 +123,9 @@ export class Grid implements GridApi {
     this.eventManager = new EventManager();
     this.componentManager = new ComponentManager();
 
+    // 初始化公式管理器
+    this.formulaManager = new FormulaManager(this.getApi());
+
     // 初始化数据管理器
     this.dataManager = new GridDataManager(
       this.state,
@@ -181,7 +187,8 @@ export class Grid implements GridApi {
       this.rowNodes,
       this.getApi.bind(this),
       this.renderers.renderCell.bind(this.renderers),
-      this.options
+      this.options,
+      this.handleCellValueChange.bind(this)
     );
 
     // 初始化事件处理器
@@ -232,9 +239,13 @@ export class Grid implements GridApi {
 
     // 初始化列数据
     this.separateColumns();
+    // 更新公式管理器列定义
+    this.formulaManager.setColumnDefs(this.options.columns);
 
     // 初始化行节点
     this.dataManager.initRowNodes();
+    // 初始化计算
+    this.formulaManager.processAllRows();
     
     this.initializeEventListeners();
     
@@ -336,6 +347,7 @@ export class Grid implements GridApi {
   setRowData(data: any[]): void {
     this.options.rowData = data;
     this.dataManager.initRowNodes();
+    this.formulaManager.processAllRows();
     this.refreshView();
   }
 
@@ -459,6 +471,8 @@ export class Grid implements GridApi {
     
     // 重新分离列
     this.separateColumns();
+    // 更新公式管理器
+    this.formulaManager.setColumnDefs(this.options.columns);
     
     this.refreshView();
   }
@@ -480,6 +494,8 @@ export class Grid implements GridApi {
         this.centerColumns.push(col);
       }
     });
+    // 更新公式管理器
+    this.formulaManager.setColumnDefs(this.options.columns);
   }
 
   /**
@@ -616,8 +632,16 @@ export class Grid implements GridApi {
    * @param position 添加位置("top" 或 "bottom")
    */
   addRow(data: any, position: "top" | "bottom" = "bottom"): void {
-    this.dataManager.addRow(data, position);
-    this.refreshView();
+    const newNode = this.dataManager.addRow(data, position);
+    if (newNode && newNode.parent) {
+      // New node added, its parent might have aggregation formula.
+      // We trigger an update on the parent, pretending one of its fields changed.
+      // A dummy field '' is used, as the processUpdate will re-calculate all formulas on the parent
+      // that depend on children.
+      const updatedNodes = this.formulaManager.processUpdate(newNode.parent, '');
+      this.refreshAffectedCells(updatedNodes);
+    }
+    this.refreshView(); // Still need a general refresh for now to update rows display
   }
 
   /**
@@ -756,5 +780,28 @@ export class Grid implements GridApi {
       const value = rowNode.data[column.field];
       this.renderers.renderCell(cellElement, column, rowNode.data, value, rowNode.rowIndex);
     }
+  }
+
+  /**
+   * 当单元格值改变时的处理程序
+   * 由 GridEditManager 调用
+   */
+  private handleCellValueChange(node: RowNode, field: string): void {
+    // 步骤 1: 重新计算当前行和所有受级联影响的行
+    const updatedNodes = this.formulaManager.processUpdate(node, field);
+    
+    // 步骤 2: 精确刷新所有受影响的单元格
+    this.refreshAffectedCells(updatedNodes);
+  }
+
+  private refreshAffectedCells(updatedNodes: Map<RowNode, Set<string>>): void {
+    updatedNodes.forEach((fields, node) => {
+      fields.forEach(field => {
+        const column = this.options.columns.find(c => c.field === field);
+        if (column) {
+          this.refreshCell({ rowNode: node, column: column });
+        }
+      });
+    });
   }
 }
