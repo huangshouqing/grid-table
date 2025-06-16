@@ -77,12 +77,11 @@ export class TreeCellRenderer implements CellComponent {
         event.stopPropagation();
         
         const node = this.params.node;
-        const api = this.params.api;
         
         // 切换展开状态
         node.expanded = !node.expanded;
         
-        // 刷新视图
-        api.refreshView();
+        // 只需刷新视图即可，表格会根据新的展开状态重新渲染
+        this.params.api.refreshView();
     }
 } 

@@ -31,9 +31,9 @@ export interface ComponentParams {
     node: RowNode;
     // 编辑器特有参数
     startValue?: any;  // 编辑开始时的值
-    onComplete?: (value: any) => void;
+    onComplete?: (newValue: any) => void;
     onCancel?: () => void;
-    stopEditing?: () => void;
+    stopEditing?: (save: boolean, newValue?: any) => void;
 }
 
 // 组件接口 - 单元格组件接口
@@ -57,12 +57,14 @@ export interface Column {
     sortable?: boolean;
     resizable?: boolean;
     editable?: boolean;
+    pinned?: 'left' | 'right'; // 列固定
     frozen?: boolean;
     fixed?: boolean;
     draggable?: boolean;          // 是否允许列拖拽
     // 特殊列类型
     checkboxSelection?: boolean;  // 是否显示复选框
     rowDrag?: boolean;            // 是否允许行拖拽
+    treeColumn?: boolean;         // 是否作为树形结构的展开/折叠列
     // 合并单元格
     colSpan?: (params: CellClassParams) => number;  // 列合并
     // 修改渲染器定义
@@ -135,6 +137,7 @@ export interface GridApi {
     addRow(data: any, position?: 'top' | 'bottom'): void;
     removeRow(id: string | number): void;
     moveRow(fromIndex: number, toIndex: number): void;
+    refreshCell(params: RefreshCellParams): void;
 }
 
 export interface SortModel {
@@ -185,6 +188,7 @@ export interface GridOptions {
     rowHeight?: number;
     headerHeight?: number;
     frozenColumns?: number;
+    treeData?: boolean;
     
     // 行合并
     rowSpan?: (params: RowSpanParams) => number;
@@ -293,12 +297,9 @@ export interface FilterComponentParams {
 }
 
 export interface ValueSetParams {
-    startNode: RowNode;
-    startColumn: Column;
-    endNode: RowNode;
-    endColumn: Column;
+    rowId: string | number;
+    field: string;
     value: any;
-    valueGenerator?: (params: ValueGeneratorParams) => any;
 }
 
 export interface ValueGeneratorParams {
@@ -338,4 +339,9 @@ export interface RowSpanParams {
     field: string;
     colId: string;
     api: GridApi;
+}
+
+export interface RefreshCellParams {
+    rowNode: RowNode;
+    column: Column;
 } 

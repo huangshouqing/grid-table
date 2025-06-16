@@ -41,79 +41,63 @@ export class GridDataManager {
   public initRowNodes(): void {
     this.rowNodes.clear();
     if (Array.isArray(this.options.rowData)) {
-      // 检查数据是否包含层级结构
-      const hasTreeData = this.options.rowData.some(
-        (data) =>
-          data.children &&
-          Array.isArray(data.children) &&
-          data.children.length > 0
-      );
-
-      if (hasTreeData) {
-        // 处理树形数据
-        this.processTreeData(this.options.rowData);
-      } else {
-        // 处理普通数据
-        this.options.rowData.forEach((data, index) => {
-          const id = data.id || index;
-          const node: RowNode = {
-            id: id,
-            data,
-            rowIndex: index,
-            selected: this.state.selectedNodes.has(id), // 检查节点是否之前已选中
-            level: 0,
-            expanded: true,
-          };
-          this.rowNodes.set(node.id, node);
+      // 在处理树形数据之前，先递归地为所有节点设置初始的展开状态
+      // 这确保了即使数据中没有明确提供 `expanded` 属性，我们也能正确处理
+      const setInitialExpandedState = (nodes: any[], expanded: boolean) => {
+        nodes.forEach(node => {
+          if (node.expanded === undefined) {
+            node.expanded = expanded;
+          }
+          if (node.children) {
+            // 子节点默认折叠
+            setInitialExpandedState(node.children, false);
+          }
         });
+      };
+
+      // 顶级节点默认展开
+      if (this.options.treeData) {
+        setInitialExpandedState(this.options.rowData, true);
       }
+      
+      this.processTreeData(this.options.rowData);
     }
   }
 
   /**
-   * 处理树形数据
+   * 递归处理行数据，构建RowNode树
    */
   public processTreeData(
     rowData: any[],
-    parentNode?: RowNode,
+    parent: RowNode | null = null,
     level: number = 0
-  ): void {
-    if (!Array.isArray(rowData)) return;
-
+  ) {
     rowData.forEach((data, index) => {
-      const id = data.id || `${parentNode ? parentNode.id + "_" : ""}${index}`;
+      // 优先使用data.id，如果没有，则基于父节点和索引创建唯一ID
+      const id = data.id !== undefined ? data.id : `${parent ? parent.id + '-' : ''}${index}`;
+      
+      // 检查节点是否已存在，以保留其状态（如展开/折叠状态）
+      const existingNode = this.rowNodes.get(id);
+
       const node: RowNode = {
         id: id,
-        data,
-        rowIndex: this.rowNodes.size, // 使用当前节点数作为行索引
-        selected: this.state.selectedNodes.has(id), // 检查节点是否之前已选中
-        level,
-        expanded: data.expanded !== undefined ? data.expanded : true,
-        parent: parentNode,
+        data: data,
+        rowIndex: this.rowNodes.size,
+        level: level,
+        parent: parent || undefined,
+        // 保留现有状态，如果数据中有定义则使用，否则默认为 false
+        expanded: existingNode ? existingNode.expanded : (data.expanded !== undefined ? data.expanded : false),
+        selected: this.state.selectedNodes.has(id),
+        children: [], // 初始化children数组
       };
+      this.rowNodes.set(id, node);
 
-      // 处理子节点
-      if (
-        data.children &&
-        Array.isArray(data.children) &&
-        data.children.length > 0
-      ) {
-        node.children = [];
-        this.rowNodes.set(node.id, node);
+      if (parent) {
+        parent.children!.push(node);
+      }
 
-        // 递归处理子节点
+      if (data.children && Array.isArray(data.children) && data.children.length > 0) {
         this.processTreeData(data.children, node, level + 1);
-
-        // 将子节点添加到父节点的children数组中
-        data.children.forEach((childData: any) => {
-          const childId = childData.id || `${node.id}_${node.children!.length}`;
-          const childNode = this.rowNodes.get(childId);
-          if (childNode) {
-            node.children!.push(childNode);
-          }
-        });
-      } else {
-        this.rowNodes.set(node.id, node);
       }
     });
   }
@@ -122,57 +106,37 @@ export class GridDataManager {
    * 获取过滤和排序后的数据
    */
   public getFilteredAndSortedData(): any[] {
-    if (!this.options.rowData) return [];
+    let visibleNodes: RowNode[];
 
-    let result = [...this.options.rowData];
+    // 如果是树形数据，先获取所有可见的节点
+    if (this.options.treeData) {
+      const rootNodes = Array.from(this.rowNodes.values()).filter(node => !node.parent);
+      visibleNodes = this.getVisibleNodes(rootNodes);
+    } else {
+      // 普通数据，所有节点都可见
+      visibleNodes = Array.from(this.rowNodes.values());
+    }
 
-    // 如果已经设置了filterSortManager，则使用它的过滤和排序功能
+    // 更新可见节点的行索引
+    visibleNodes.forEach((node, index) => {
+      node.rowIndex = index;
+    });
+
+    // 从可见节点中提取数据
+    let result = visibleNodes.map(node => node.data);
+
+    // 应用过滤器和排序器
     if (this.filterSortManager) {
       result = this.filterSortManager.applyFilters(result);
       result = this.filterSortManager.applySort(result);
-      
-      // 如果是树形数据，只返回可见的节点数据
-      if (this.hasTreeData()) {
-        // 将结果数据转换为节点
-        const allNodes = result.map(data => {
-          const id = data.id !== undefined ? data.id : -1;
-          return this.rowNodes.get(id);
-        }).filter(Boolean) as RowNode[];
-        
-        // 获取可见节点
-        const visibleNodes = this.getVisibleNodes(allNodes);
-        
-        // 将可见节点转换回数据
-        return visibleNodes.map(node => node.data);
+    } else {
+      // Fallback to old implementation
+      if (this.state.filterModel.size > 0) {
+        result = this.applyFilters(result);
       }
-
-      return result;
-    }
-
-    // 如果没有filterSortManager，则使用内部过滤和排序逻辑（兼容旧代码）
-    // 应用过滤器
-    if (this.state.filterModel.size > 0) {
-      result = this.applyFilters(result);
-    }
-
-    // 应用排序
-    if (this.state.sortModel.length > 0) {
-      result = this.applySort(result);
-    }
-
-    // 如果是树形数据，只返回可见的节点数据
-    if (this.hasTreeData()) {
-      // 将结果数据转换为节点
-      const allNodes = result.map(data => {
-        const id = data.id !== undefined ? data.id : -1;
-        return this.rowNodes.get(id);
-      }).filter(Boolean) as RowNode[];
-      
-      // 获取可见节点
-      const visibleNodes = this.getVisibleNodes(allNodes);
-      
-      // 将可见节点转换回数据
-      return visibleNodes.map(node => node.data);
+      if (this.state.sortModel.length > 0) {
+        result = this.applySort(result);
+      }
     }
 
     return result;
@@ -254,65 +218,28 @@ export class GridDataManager {
   }
 
   /**
-   * 获取可见的节点（考虑树形结构的展开/折叠状态）
+   * 递归地获取所有可见的节点
+   * @param nodes 要开始遍历的节点列表（通常是根节点）
+   * @returns 返回一个包含所有可见节点的扁平化数组
    */
-  public getVisibleNodes(allNodes: RowNode[]): RowNode[] {
+  public getVisibleNodes(nodes: RowNode[]): RowNode[] {
     const visibleNodes: RowNode[] = [];
-
-    // 如果没有树形数据，直接返回所有节点
-    if (!this.hasTreeData()) {
-      return allNodes;
-    }
-
-    // 获取根节点（没有父节点的节点）
-    const rootNodes = allNodes.filter((node) => !node.parent);
-
-    // 递归添加可见节点
-    for (const rootNode of rootNodes) {
-      this.addVisibleNode(rootNode, visibleNodes);
-    }
-
+    nodes.forEach(node => {
+      visibleNodes.push(node);
+      // 如果节点已展开并且有子节点，则递归地将子节点添加到可见列表中
+      if (node.expanded && node.children && node.children.length > 0) {
+        visibleNodes.push(...this.getVisibleNodes(node.children));
+      }
+    });
     return visibleNodes;
   }
 
   /**
-   * 递归添加可见节点
-   */
-  public addVisibleNode(node: RowNode, visibleNodes: RowNode[]): void {
-    // 添加当前节点
-    visibleNodes.push(node);
-
-    // 如果节点展开且有子节点，递归添加子节点
-    if (node.expanded && node.children && node.children.length > 0) {
-      // 查找子节点
-      const childNodes: RowNode[] = [];
-      this.rowNodes.forEach((possibleChild) => {
-        if (possibleChild.parent === node) {
-          childNodes.push(possibleChild);
-        }
-      });
-
-      // 按行索引排序
-      childNodes.sort((a, b) => a.rowIndex - b.rowIndex);
-
-      // 递归添加每个子节点
-      for (const childNode of childNodes) {
-        this.addVisibleNode(childNode, visibleNodes);
-      }
-    }
-  }
-
-  /**
-   * 检查是否有树形数据
+   * 检查是否为树形数据
+   * @deprecated 应该直接使用 this.options.treeData
    */
   public hasTreeData(): boolean {
-    let hasTree = false;
-    this.rowNodes.forEach((node) => {
-      if (node.level && node.level > 0) {
-        hasTree = true;
-      }
-    });
-    return hasTree;
+    return this.options.treeData === true;
   }
 
   /**
@@ -362,37 +289,60 @@ export class GridDataManager {
   public removeRow(id: string | number): void {
     if (!Array.isArray(this.options.rowData)) return;
 
-    const index = this.options.rowData.findIndex((row) => row.id === id);
-    if (index !== -1) {
-      this.options.rowData.splice(index, 1);
+    const removeRecursively = (rows: any[], targetId: string | number): boolean => {
+      const index = rows.findIndex((row) => row.id === targetId);
+      if (index !== -1) {
+        rows.splice(index, 1);
+        return true;
+      }
+      for (const row of rows) {
+        if (row.children && removeRecursively(row.children, targetId)) {
+          return true;
+        }
+      }
+      return false;
+    };
+
+    if (removeRecursively(this.options.rowData, id)) {
       this.rowNodes.delete(id);
       this.initRowNodes();
     }
   }
 
   /**
-   * 移动行
+   * 移动行.
+   * 注意: 当开启排序或过滤时，此功能将被禁用，因为索引会变得不可靠。
    */
-  public moveRow(fromIndex: number, toIndex: number): RowNode | undefined {
+  public moveRow(fromIndex: number, toIndex: number): RowNode | null {
+    // 检查是否有活动的排序或过滤
+    if (this.filterSortManager) {
+      if (this.filterSortManager.isAnyFilterPresent() || this.filterSortManager.getSortModel().length > 0) {
+        console.warn("Row dragging is disabled when sorting or filtering is active to prevent data corruption.");
+        return null;
+      }
+    }
+    
+    // 如果没有排序和过滤，我们可以安全地假设显示的索引与 rowData 中的索引一致
+    const rowData = this.options.rowData;
     if (
-      !Array.isArray(this.options.rowData) ||
+      !Array.isArray(rowData) ||
       fromIndex < 0 ||
-      fromIndex >= this.options.rowData.length ||
+      fromIndex >= rowData.length ||
       toIndex < 0 ||
-      toIndex > this.options.rowData.length
+      toIndex > rowData.length
     ) {
-      return undefined;
+      return null;
     }
 
     // 移动数据行
-    const row = this.options.rowData.splice(fromIndex, 1)[0];
-    this.options.rowData.splice(toIndex, 0, row);
+    const [movedRow] = rowData.splice(fromIndex, 1);
+    rowData.splice(toIndex, 0, movedRow);
 
-    // 更新受影响行的索引而不是完全重新初始化
-    this.updateRowIndices(Math.min(fromIndex, toIndex), Math.max(fromIndex, toIndex));
+    // 重新计算所有节点的元数据
+    this.initRowNodes();
     
     // 返回移动后的行节点
-    return this.rowNodes.get(row.id);
+    return this.rowNodes.get(movedRow.id) || null;
   }
 
   /**

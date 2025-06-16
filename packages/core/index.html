@@ -574,7 +574,7 @@
             headerName: "", 
             width: 50, 
             checkboxSelection: true,
-            frozen: true
+            pinned: 'left'
           },
           { 
             field: "drag", 
@@ -858,11 +858,18 @@
       // 初始化树形表格
       const treeGrid = new Grid({
         columns: [
+          { 
+            field: "drag", 
+            headerName: "拖拽", 
+            width: 60, 
+            rowDrag: true 
+          },
           {
             field: "name",
             headerName: "名称",
             width: 300,
             sortable: true,
+            treeColumn: true, // 指定这一列为树形结构的展示列
           },
           {
             field: "price",
@@ -921,8 +928,8 @@
             width: 150,
             cellRenderer: {
               view: (params) => {
-                // 只有叶子节点才显示操作按钮
-                if (!params.node.children) {
+                // 只有叶子节点才显示操作按钮 (逻辑修正)
+                if (params.node.children && params.node.children.length === 0) {
                   const container = document.createElement("div");
                   container.style.display = "flex";
                   container.style.gap = "4px";
@@ -953,6 +960,8 @@
             }
           }
         ],
+        treeData: true, // 启用树形数据模式
+        enableRowDrag: true, // 启用行拖拽
         rowData: getTreeData(),
         onRowClicked: (event) => {
           console.log("点击行:", event.data);

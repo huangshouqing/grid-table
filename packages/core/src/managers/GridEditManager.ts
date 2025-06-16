@@ -43,151 +43,66 @@ export class GridEditManager {
     row: any,
     value: any
   ): void {
-    // 如果已经在编辑，不要重复操作
-    if (cell.classList.contains("editing")) return;
-
-    const cellId = cell.getAttribute("data-element-id");
-    if (!cellId) return;
-
-    // 先处理可能存在的其他编辑单元格
-    const existingEditCell = document.querySelector(".grid-cell.editing");
-    if (existingEditCell && existingEditCell !== cell) {
-      // 找到关联的数据并取消编辑
-      const existingField = existingEditCell.getAttribute("data-field");
-      const existingRowId = existingEditCell.closest(".grid-row")?.getAttribute("data-row-id");
-      
-      if (existingField && existingRowId) {
-        const existingNode = this.rowNodes.get(existingRowId);
-        if (existingNode) {
-          const existingColumn = this.options.columns.find(c => c.field === existingField);
-          if (existingColumn) {
-            this.cancelEditing(existingEditCell as HTMLElement, existingColumn, existingNode.data);
-          }
-        }
-      }
+    // 如果当前已有单元格在编辑，先停止它
+    if (this.state.editingCell) {
+      this.stopEditing(true); // 假设之前的编辑需要保存
     }
-
-    // 获取contentId
-    const contentId = `${cellId}-content`;
-
-    // 保存原始值用于取消编辑
-    this.originalEditValue = row[column.field];
-
-    // 设置编辑状态
-    cell.classList.add("editing");
-    this.virtualDOM.updateElement(cellId, {
-      classes: ["grid-cell", "editable", "editing"],
-    });
-
-    // 隐藏视图组件
-    const viewContainerId = `${contentId}-view`;
-    const viewContainer = this.virtualDOM.getElement(viewContainerId);
-    if (viewContainer) {
-      viewContainer.style.display = "none";
-    }
-
-    // 创建编辑组件参数
+    
     const node = this.rowNodes.get(row.id || row.rowIndex);
     if (!node) return;
-
-    const params: ComponentParams = {
-      value: this.originalEditValue,
-      startValue: this.originalEditValue,
-      data: row,
-      rowIndex: node.rowIndex,
-      colId: column.field,
-      column,
-      api: this.getApi(),
-      node,
-      onComplete: (newValue: any) => {
-        document.removeEventListener("click", handleClickOutside);
-        this.finishEditing(cell, column, row, newValue);
-      },
-      onCancel: () => {
-        document.removeEventListener("click", handleClickOutside);
-        this.cancelEditing(cell, column, row);
-      },
-      stopEditing: () => {
-        document.removeEventListener("click", handleClickOutside);
-        this.cancelEditing(cell, column, row);
-      },
-    };
-
-    // 创建编辑组件
-    const editComponentId = `${cellId}-edit`;
-    const editComponent = this.componentManager.createEditComponent(
-      editComponentId,
-      column,
-      params
-    );
-
-    // 创建或获取编辑容器
-    const editContainerId = `${contentId}-edit`;
-    let editContainer = this.virtualDOM.getElement(editContainerId);
-    if (!editContainer) {
-      this.virtualDOM.createElement(
-        editContainerId,
-        "div",
-        "grid-cell-edit-container"
-      );
-      this.virtualDOM.updateElement(editContainerId, {
-        styles: {
-          overflow: "hidden",
-          width: "100%",
-          height: "100%",
-          boxSizing: "border-box",
-        },
-      });
-      editContainer = this.virtualDOM.getElement(editContainerId);
-      if (editContainer) {
-        this.virtualDOM.appendChild(contentId, editContainerId);
-      }
-    }
-
-    // 显示并更新编辑容器
-    if (editContainer) {
-      editContainer.style.display = "flex";
-      editContainer.innerHTML = "";
-
-      // 处理特殊组件，确保它们不会溢出
-      this.constrainEditComponent(editComponent, column);
-
-      editContainer.appendChild(editComponent);
-
-      // 尝试自动聚焦到输入元素
-      setTimeout(() => {
-        const input = editContainer.querySelector("input, select, textarea");
-        if (input) {
-          (input as HTMLElement).focus();
-          if (input instanceof HTMLInputElement) {
-            input.select();
-          }
-        }
-      }, 0);
-    }
-
-    // 当前正在编辑的单元格信息存储起来
+    
+    // 更新状态以表明哪个单元格正在被编辑
     this.state.editingCell = {
-      rowId: row.id || row.rowIndex,
+      rowId: node.id,
       field: column.field,
-      value: this.originalEditValue
+      value: value
     };
+    
+    // 只刷新被编辑的单元格
+    this.getApi().refreshCell({ rowNode: node, column });
+  }
 
-    // 添加点击外部监听器
-    const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      // 如果点击的不是当前编辑的单元格或其子元素，则退出编辑模式
-      if (!cell.contains(target)) {
-        document.removeEventListener("click", handleClickOutside);
-        // 点击外部时取消编辑，而不是保存
-        this.cancelEditing(cell, column, row);
+  /**
+   * 停止编辑
+   * @param save - 是否保存当前编辑的值
+   * @param newValue - 从编辑器传来的新值
+   */
+  public stopEditing(save: boolean, newValue?: any): void {
+    const { editingCell } = this.state;
+    if (!editingCell) return;
+    
+    const node = this.rowNodes.get(editingCell.rowId);
+    
+    // 清除编辑状态必须放在前面，这样刷新时才能正确渲染视图模式
+    this.state.editingCell = null;
+
+    if (!node) {
+        return;
+    }
+    
+    const column = this.options.columns.find(c => c.field === editingCell.field);
+    if (!column) return;
+
+    if (save && newValue !== undefined) {
+      // 更新数据模型中的值
+      node.data[editingCell.field] = newValue;
+
+      // 可选：触发值变化事件
+      if (this.options.onCellValueChanged) {
+        this.options.onCellValueChanged({
+            node: node,
+            data: node.data,
+            column: column,
+            colId: editingCell.field,
+            oldValue: editingCell.value,
+            newValue: newValue,
+            value: newValue
+        });
       }
-    };
-
-    // 延迟添加事件监听器，避免触发当前的点击事件
-    setTimeout(() => {
-      document.addEventListener("click", handleClickOutside);
-    }, 0);
+    }
+    
+    // 触发单元格刷新以将单元格切换回视图模式
+    this.getApi().refreshCell({ rowNode: node, column });
   }
 
   /**

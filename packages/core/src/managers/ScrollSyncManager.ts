@@ -10,123 +10,87 @@ interface ScrollPosition {
 
 // 添加滚动同步管理器类
 export class ScrollSyncManager {
-    private scrollableElements: Map<string, HTMLElement> = new Map();
-    private scrollListeners: Map<string, () => void> = new Map();
-    private isScrolling: boolean = false;
-    private scrollTimeout: TimeoutHandle | null = null;
-    private lastScrollPosition: Map<string, ScrollPosition> = new Map();
-    private rafId: number | null = null;
+    private elementsToSync: {
+        vertical: HTMLElement[],
+        horizontal: HTMLElement[]
+    } = { vertical: [], horizontal: [] };
+    
+    private primaryScrollElement: HTMLElement | null = null;
+    private isSyncing: boolean = false;
+    private animationFrameId: number | null = null;
+    
+    constructor() {}
 
-    constructor(private options: {
-        onScroll?: (scrollLeft: number, scrollTop: number) => void;
-        debounceTime?: number;
-    } = {}) {}
+    public register(elements: {
+        bodies: HTMLElement[],
+        centerHeader: HTMLElement,
+        centerBody: HTMLElement,
+    }) {
+        this.unregister(); // 清理旧的监听器
 
-    addScrollable(id: string, element: HTMLElement, config: {
-        syncHorizontal?: boolean;
-        syncVertical?: boolean;
-        master?: boolean;
-    } = {}) {
-        this.scrollableElements.set(id, element);
-        this.lastScrollPosition.set(id, { left: element.scrollLeft, top: element.scrollTop });
+        this.elementsToSync.vertical = [...elements.bodies];
+        this.elementsToSync.horizontal = [elements.centerHeader, elements.centerBody];
+        this.primaryScrollElement = elements.centerBody;
 
-        const listener = () => {
-            const currentPosition = {
-                left: element.scrollLeft,
-                top: element.scrollTop
-            };
-
-            const lastPosition = this.lastScrollPosition.get(id) || { left: 0, top: 0 };
-
-            // 检查是否真的发生了滚动
-            if (currentPosition.left === lastPosition.left && 
-                currentPosition.top === lastPosition.top) {
-                return;
-            }
-
-            // 更新最后的滚动位置
-            this.lastScrollPosition.set(id, { ...currentPosition });
-
-            // 使用 requestAnimationFrame 来优化性能
-            if (this.rafId) {
-                cancelAnimationFrame(this.rafId);
-            }
-
-            this.rafId = requestAnimationFrame(() => {
-                // 同步其他元素的滚动位置
-                this.scrollableElements.forEach((el, elId) => {
-                    if (elId !== id) {
-                        const shouldSyncHorizontal = config.syncHorizontal && 
-                            el.scrollLeft !== currentPosition.left;
-                        const shouldSyncVertical = config.syncVertical && 
-                            el.scrollTop !== currentPosition.top;
-
-                        if (shouldSyncHorizontal) {
-                            el.scrollLeft = currentPosition.left;
-                        }
-                        if (shouldSyncVertical) {
-                            el.scrollTop = currentPosition.top;
-                        }
-                    }
-                });
-
-                // 触发自定义滚动事件
-                if (this.options.onScroll) {
-                    this.options.onScroll(currentPosition.left, currentPosition.top);
-                }
-
-                this.rafId = null;
-            });
-        };
-
-        this.scrollListeners.set(id, listener);
-        element.addEventListener('scroll', listener, { passive: true });
+        if (this.primaryScrollElement) {
+            this.primaryScrollElement.addEventListener('scroll', this.handlePrimaryScroll, { passive: true });
+        }
     }
 
-    removeScrollable(id: string) {
-        const element = this.scrollableElements.get(id);
-        const listener = this.scrollListeners.get(id);
+    private handlePrimaryScroll = () => {
+        if (this.isSyncing) {
+            return;
+        }
+
+        if (this.animationFrameId) {
+            window.cancelAnimationFrame(this.animationFrameId);
+        }
+
+        this.animationFrameId = window.requestAnimationFrame(() => {
+            this.syncScrollPositions();
+            this.animationFrameId = null;
+        });
+    }
+
+    private syncScrollPositions() {
+        if (!this.primaryScrollElement) return;
+
+        this.isSyncing = true;
         
-        if (element && listener) {
-            element.removeEventListener('scroll', listener);
-            this.scrollableElements.delete(id);
-            this.scrollListeners.delete(id);
-            this.lastScrollPosition.delete(id);
-        }
-    }
+        const { scrollTop, scrollLeft } = this.primaryScrollElement;
 
-    scrollTo(scrollLeft: number, scrollTop: number) {
-        if (this.rafId) {
-            cancelAnimationFrame(this.rafId);
-        }
-
-        this.rafId = requestAnimationFrame(() => {
-            this.scrollableElements.forEach(element => {
-                if (element.scrollLeft !== scrollLeft) {
-                    element.scrollLeft = scrollLeft;
-                }
-                if (element.scrollTop !== scrollTop) {
-                    element.scrollTop = scrollTop;
-                }
-            });
-            this.rafId = null;
-        });
-    }
-
-    destroy() {
-        if (this.rafId) {
-            cancelAnimationFrame(this.rafId);
-        }
-
-        this.scrollableElements.forEach((element, id) => {
-            const listener = this.scrollListeners.get(id);
-            if (listener) {
-                element.removeEventListener('scroll', listener);
+        // 同步垂直滚动
+        this.elementsToSync.vertical.forEach(el => {
+            if (el !== this.primaryScrollElement && el.scrollTop !== scrollTop) {
+                el.scrollTop = scrollTop;
             }
         });
 
-        this.scrollableElements.clear();
-        this.scrollListeners.clear();
-        this.lastScrollPosition.clear();
+        // 同步水平滚动
+        this.elementsToSync.horizontal.forEach(el => {
+            if (el !== this.primaryScrollElement && el.scrollLeft !== scrollLeft) {
+                el.scrollLeft = scrollLeft;
+            }
+        });
+        
+        // 使用 microtask (Promise.resolve) 确保同步标志在下一轮事件循环前被重置
+        Promise.resolve().then(() => {
+            this.isSyncing = false;
+        });
+    }
+
+    public unregister() {
+        if (this.primaryScrollElement) {
+            this.primaryScrollElement.removeEventListener('scroll', this.handlePrimaryScroll);
+        }
+        if (this.animationFrameId) {
+            window.cancelAnimationFrame(this.animationFrameId);
+        }
+        this.elementsToSync = { vertical: [], horizontal: [] };
+        this.primaryScrollElement = null;
+    }
+
+    public destroy() {
+        this.unregister();
     }
 } 

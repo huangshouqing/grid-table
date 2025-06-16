@@ -37,15 +37,15 @@ export class GridEventHandlers {
 
     // 不要在每次滚动时刷新视图，这可能会导致滚动位置重置
     // 仅在需要时（例如视口变化显著）才刷新视图
-    const rowHeight = this.options.rowHeight || 40;
-    if (
-      Math.abs(
-        this.state.scrollPosition.top - this.state.scrollPosition.lastTop
-      ) >
-      rowHeight * 5
-    ) {
-      this.refreshView();
-    }
+    // const rowHeight = this.options.rowHeight || 40;
+    // if (
+    //   Math.abs(
+    //     this.state.scrollPosition.top - this.state.scrollPosition.lastTop
+    //   ) >
+    //   rowHeight * 5
+    // ) {
+    //   this.refreshView();
+    // }
   };
 
   handleSelectionChange = () => {
@@ -123,8 +123,15 @@ export class GridEventHandlers {
     column: Column,
     row: any,
     value: any,
-    rowIndex: number
+    rowIndex: number,
+    cellElement: HTMLElement
   ) => {
+    // 如果列是可编辑的，则启动编辑
+    if (column.editable) {
+      this.startEditing(cellElement, column, row, value);
+    }
+
+    // 触发现有的双击事件回调
     if (this.options.onCellDoubleClicked) {
       const node = this.rowNodes.get(row.id || rowIndex);
       if (node) {

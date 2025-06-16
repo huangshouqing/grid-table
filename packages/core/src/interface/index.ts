@@ -28,7 +28,12 @@ export interface GridState {
     draggedElement: HTMLElement | null;
     resizeStartX: number;
     resizeColumn: Column | null;
-    resizeElement: HTMLElement | null;
+    resizeElement?: HTMLElement | null;
+    initialWidth?: number;
+    activeColumnSet?: Column[];
+    activeContainer?: 'left' | 'center' | 'right';
+    sourceContainer?: 'left' | 'center' | 'right';
+    resizeGuideElement?: HTMLElement | null;
   };
   virtualBodyRowIds: Set<string>;
 }

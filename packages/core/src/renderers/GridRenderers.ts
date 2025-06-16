@@ -15,6 +15,7 @@ import {
 } from "./CheckboxCellRenderer";
 import { RowDragRenderer } from "./RowDragRenderer";
 import { TreeCellRenderer } from "./TreeCellRenderer";
+import { GridEditManager } from "../managers/GridEditManager";
 
 // 扩展GridOptions，添加我们需要的回调函数
 interface RendererCallbacks {
@@ -26,7 +27,7 @@ interface RendererCallbacks {
   onRowClick?: (e: MouseEvent, row: any, rowIndex: number) => void;
   onRowDoubleClick?: (e: MouseEvent, row: any, rowIndex: number) => void;
   onCellClick?: (e: MouseEvent, column: Column, row: any, value: any, rowIndex: number) => void;
-  onCellDoubleClick?: (e: MouseEvent, column: Column, row: any, value: any, rowIndex: number) => void;
+  onCellDoubleClick?: (e: MouseEvent, column: Column, row: any, value: any, rowIndex: number, cellElement: HTMLElement) => void;
 }
 
 /**
@@ -44,6 +45,7 @@ export class GridRenderers {
   private instanceId: string;
   private getApiCallback: () => GridApi;
   private rowNodes: Map<string | number, RowNode>;
+  private editManager: GridEditManager;
 
   constructor(
     virtualDOM: VirtualDOMManager,
@@ -53,7 +55,8 @@ export class GridRenderers {
     state: GridState,
     instanceId: string,
     rowNodesMap: Map<string | number, RowNode>,
-    getApiCallback: () => GridApi
+    getApiCallback: () => GridApi,
+    editManager: GridEditManager,
   ) {
     this.virtualDOM = virtualDOM;
     this.scrollSyncManager = scrollSyncManager;
@@ -63,14 +66,103 @@ export class GridRenderers {
     this.instanceId = instanceId;
     this.rowNodes = rowNodesMap;
     this.getApiCallback = getApiCallback;
+    this.editManager = editManager;
+  }
+
+  /**
+   * 创建完整的表格 DOM 结构，包括固定的和可滚动的区域
+   */
+  public renderGridStructure(params: {
+    leftPinnedColumns: Column[];
+    centerColumns: Column[];
+    rightPinnedColumns: Column[];
+    getFilteredAndSortedData: () => any[];
+    onRowClick?: (e: MouseEvent, row: any, rowIndex: number) => void;
+    onRowDoubleClick?: (e: MouseEvent, row: any, rowIndex: number) => void;
+    onCellClick?: (e: MouseEvent, column: Column, row: any, value: any, rowIndex: number) => void;
+    onCellDoubleClick?: (e: MouseEvent, column: Column, row: any, value: any, rowIndex: number, cellElement: HTMLElement) => void;
+  }): HTMLElement {
+    const rootWrapper = document.createElement("div");
+    rootWrapper.className = "grid-root-wrapper";
+    rootWrapper.style.display = "flex";
+    rootWrapper.style.width = "100%";
+
+    const bodyElementsToSync: HTMLElement[] = [];
+    let centerHeaderEl: HTMLElement | null = null;
+    let centerBodyEl: HTMLElement | null = null;
+
+    // 渲染左侧固定区域
+    if (params.leftPinnedColumns.length > 0) {
+      const leftContainer = this.createPinnedContainer("left");
+      const leftHeader = this.renderHeaderContainer(params.leftPinnedColumns, "left");
+      const leftBody = this.renderBodyContainer(params.leftPinnedColumns, "left", params.getFilteredAndSortedData, params);
+      leftContainer.appendChild(leftHeader);
+      leftContainer.appendChild(leftBody);
+      rootWrapper.appendChild(leftContainer);
+      bodyElementsToSync.push(leftBody);
+    }
+
+    // 渲染中间滚动区域
+    const centerContainer = this.createCenterContainer();
+    const centerHeader = this.renderHeaderContainer(params.centerColumns, "center");
+    const centerBody = this.renderBodyContainer(params.centerColumns, "center", params.getFilteredAndSortedData, params);
+    centerContainer.appendChild(centerHeader);
+    centerContainer.appendChild(centerBody);
+    rootWrapper.appendChild(centerContainer);
+    bodyElementsToSync.push(centerBody);
+
+    // 将中间容器的 header 和 body 保存起来用于同步
+    centerHeaderEl = centerContainer.querySelector('.grid-header');
+    centerBodyEl = centerContainer.querySelector('.grid-body');
+
+    // 渲染右侧固定区域
+    if (params.rightPinnedColumns.length > 0) {
+      const rightContainer = this.createPinnedContainer("right");
+      const rightHeader = this.renderHeaderContainer(params.rightPinnedColumns, "right");
+      const rightBody = this.renderBodyContainer(params.rightPinnedColumns, "right", params.getFilteredAndSortedData, params);
+      rightContainer.appendChild(rightHeader);
+      rightContainer.appendChild(rightBody);
+      rootWrapper.appendChild(rightContainer);
+      bodyElementsToSync.push(rightBody);
+    }
+
+    // 使用新的、统一的注册方法
+    if (centerBodyEl && centerHeaderEl) {
+      this.scrollSyncManager.register({
+        bodies: bodyElementsToSync,
+        centerHeader: centerHeaderEl,
+        centerBody: centerBodyEl,
+      });
+    }
+
+    return rootWrapper;
+  }
+
+  private createPinnedContainer(position: "left" | "right"): HTMLElement {
+    const container = document.createElement("div");
+    container.className = `grid-pinned-container grid-pinned-${position}`;
+    container.style.display = "flex";
+    container.style.flexDirection = "column";
+    container.style.flexShrink = "0";
+    return container;
+  }
+
+  private createCenterContainer(): HTMLElement {
+    const container = document.createElement("div");
+    container.className = "grid-center-container";
+    container.style.display = "flex";
+    container.style.flexDirection = "column";
+    container.style.flexGrow = "1";
+    container.style.overflow = "hidden";
+    return container;
   }
 
   /**
    * 渲染表格头部
    * @returns HTMLElement 渲染后的头部元素
    */
-  renderHeader(): HTMLElement | null {
-    const headerWrapperId = `${this.instanceId}-header-wrapper`;
+  private renderHeaderContainer(columns: Column[], type: 'left' | 'center' | 'right'): HTMLElement {
+    const headerWrapperId = `${this.instanceId}-header-wrapper-${type}`;
     this.virtualDOM.createElement(headerWrapperId, "div", "grid-header");
     this.virtualDOM.updateElement(headerWrapperId, {
       styles: {
@@ -79,7 +171,7 @@ export class GridRenderers {
       },
     });
 
-    const headerId = `${this.instanceId}-header`;
+    const headerId = `${this.instanceId}-header-${type}`;
     this.virtualDOM.createElement(headerId, "div");
     this.virtualDOM.updateElement(headerId, {
       styles: {
@@ -91,7 +183,7 @@ export class GridRenderers {
       },
     });
 
-    this.options.columns.forEach((col) => {
+    columns.forEach((col) => {
       const cellId = `${this.instanceId}-header-cell-${col.field}`;
       this.virtualDOM.createElement(cellId, "div", "grid-header-cell");
 
@@ -274,6 +366,8 @@ export class GridRenderers {
         this.virtualDOM.updateElement(resizerId, {
           events: {
             mousedown: (e: MouseEvent) => {
+              e.preventDefault();
+              e.stopPropagation();
               const cellElement = this.virtualDOM.getElement(cellId);
               if (cellElement && this.options.onResizeStart) {
                 this.options.onResizeStart(e, col, cellElement);
@@ -290,359 +384,174 @@ export class GridRenderers {
 
     this.virtualDOM.appendChild(headerWrapperId, headerId);
 
-    const headerWrapperElement = this.virtualDOM.getElement(headerWrapperId);
-    if (headerWrapperElement) {
-      this.scrollSyncManager.addScrollable("header", headerWrapperElement, {
-        syncHorizontal: true,
-        syncVertical: false,
-      });
-    }
-
-    return headerWrapperElement;
+    return this.virtualDOM.getElement(headerWrapperId)!;
   }
 
-  /**
-   * 渲染表格主体内容
-   * @param getFilteredAndSortedData 获取过滤和排序后的数据函数
-   * @param eventHandlers 事件处理回调
-   * @returns HTMLElement 渲染后的主体元素
-   */
-  renderBody(
+  private renderBodyContainer(
+    columns: Column[],
+    type: 'left' | 'center' | 'right',
     getFilteredAndSortedData: () => any[],
     eventHandlers?: {
       onRowClick?: (e: MouseEvent, row: any, rowIndex: number) => void;
       onRowDoubleClick?: (e: MouseEvent, row: any, rowIndex: number) => void;
       onCellClick?: (e: MouseEvent, column: Column, row: any, value: any, rowIndex: number) => void;
-      onCellDoubleClick?: (e: MouseEvent, column: Column, row: any, value: any, rowIndex: number) => void;
+      onCellDoubleClick?: (e: MouseEvent, column: Column, row: any, value: any, rowIndex: number, cellElement: HTMLElement) => void;
     }
-  ): HTMLElement | null {
-    const bodyId = `${this.instanceId}-body`;
-    this.virtualDOM.createElement(bodyId, "div", "grid-body");
+  ): HTMLElement {
+    const data = getFilteredAndSortedData();
+    const bodyWrapperId = `${this.instanceId}-body-wrapper-${type}`;
+    this.virtualDOM.createElement(bodyWrapperId, "div", "grid-body");
+    
+    const viewportStyles: {[key: string]: string} = {
+      position: 'relative',
+      overflowY: 'auto',
+      flex: '1 1 auto'
+    };
+    if (type === 'center') {
+        viewportStyles.overflowX = 'auto';
+    } else {
+        viewportStyles.overflowX = 'hidden';
+    }
+    this.virtualDOM.updateElement(bodyWrapperId, { styles: viewportStyles });
+
+    const bodyId = `${this.instanceId}-body-${type}`;
+    this.virtualDOM.createElement(bodyId, "div");
+
+    // 计算并设置内部容器的总宽度和高度
+    const totalWidth = columns.reduce((acc, col) => acc + (col.width || 0), 0);
     this.virtualDOM.updateElement(bodyId, {
       styles: {
-        overflowX: "auto",
-        overflowY: "auto",
-      },
-      attributes: {
-        style: "overflow-x: auto; overflow-y: auto;",
+        height: `${data.length * this.options.rowHeight!}px`,
+        position: "relative",
+        width: `${totalWidth}px`, // 关键修复：设置总宽度
       },
     });
 
-    const contentId = `${this.instanceId}-content`;
-    this.virtualDOM.createElement(contentId, "div", "grid-content");
-    this.virtualDOM.updateElement(contentId, {
-      styles: {
-        minWidth: "fit-content",
-      },
-    });
+    this.virtualDOM.appendChild(bodyWrapperId, bodyId);
 
-    const displayedData = getFilteredAndSortedData();
-    const currentVRowIds = new Set<string>();
+    const bodyWrapperElement = this.virtualDOM.getElement(bodyWrapperId);
+    if (bodyWrapperElement) {
+        bodyWrapperElement.addEventListener('scroll', (e: Event) => {
+            const target = e.target as HTMLElement;
+            if (this.options.onScroll) {
+                this.options.onScroll(target.scrollLeft, target.scrollTop);
+            }
+            // 滚动时直接重新渲染可见行
+            this.renderVisibleRows(bodyId, columns, getFilteredAndSortedData, eventHandlers);
+        });
+    }
+    
+    // 初始渲染
+    this.renderVisibleRows(bodyId, columns, getFilteredAndSortedData, eventHandlers);
 
-    // 保存行合并信息，用于标记被合并的单元格
-    const mergedCells: Map<
-      string,
-      { mergeType: "row" | "col"; parentCell: string }
-    > = new Map();
+    return this.virtualDOM.getElement(bodyWrapperId)!;
+  }
 
-    displayedData.forEach((row, rowIndex) => {
-      const rowId = row.id?.toString() || rowIndex.toString();
-      const vRowId = `${this.instanceId}-row-${rowId}`;
-      currentVRowIds.add(vRowId);
+  /**
+   * 渲染可见行
+   */
+  renderVisibleRows(
+    containerId: string,
+    columns: Column[],
+    getFilteredAndSortedData: () => any[],
+    eventHandlers?: {
+      onRowClick?: (e: MouseEvent, row: any, rowIndex: number) => void;
+      onRowDoubleClick?: (e: MouseEvent, row: any, rowIndex: number) => void;
+      onCellClick?: (e: MouseEvent, column: Column, row: any, value: any, rowIndex: number) => void;
+      onCellDoubleClick?: (e: MouseEvent, column: Column, row: any, value: any, rowIndex: number, cellElement: HTMLElement) => void;
+    }
+  ): void {
+    const container = this.virtualDOM.getElement(containerId);
+    if (!container) return;
 
-      this.virtualDOM.createElement(vRowId, "div", "grid-row");
-      const rowHeight = this.options.rowHeight || 40;
-      this.virtualDOM.updateElement(vRowId, {
-        attributes: { "data-row-id": rowId },
+    // 关键修复：在重新渲染前，清空容器以移除所有旧的行
+    container.innerHTML = '';
+    
+    const data = getFilteredAndSortedData();
+    const scrollTop = this.state.scrollPosition.top;
+    const containerHeight =
+      this.virtualDOM.getElement(containerId)?.parentElement?.clientHeight ||
+      500;
+    const rowHeight = this.options.rowHeight || 40;
+    const startIndex = Math.max(0, Math.floor(scrollTop / rowHeight) - 5);
+    const endIndex = Math.min(
+      data.length,
+      Math.ceil((scrollTop + containerHeight) / rowHeight) + 5
+    );
+
+    const visibleRows = data.slice(startIndex, endIndex);
+    this.state.virtualBodyRowIds.clear();
+
+    visibleRows.forEach((row, index) => {
+      const rowIndex = startIndex + index;
+      const rowId = `${this.instanceId}-row-${row.id}-${containerId}`;
+      this.state.virtualBodyRowIds.add(rowId);
+      this.virtualDOM.createElement(rowId, "div", "grid-row");
+
+      this.virtualDOM.updateElement(rowId, {
+        attributes: {
+          "data-row-index": rowIndex.toString(),
+          "data-row-id": row.id.toString(),
+        },
         styles: {
+          top: `${rowIndex * rowHeight}px`,
           height: `${rowHeight}px`,
-          position: "relative",
-          display: "flex",
         },
         events: {
           click: (e: MouseEvent) => {
-            // 只有当点击目标是行本身而不是单元格时，才触发行点击事件
-            if (e.target === e.currentTarget && eventHandlers?.onRowClick) {
+            if (eventHandlers?.onRowClick) {
               eventHandlers.onRowClick(e, row, rowIndex);
             }
           },
           dblclick: (e: MouseEvent) => {
-            // 只有当点击目标是行本身而不是单元格时，才触发行双击事件
-            if (e.target === e.currentTarget && eventHandlers?.onRowDoubleClick) {
+            if (eventHandlers?.onRowDoubleClick) {
               eventHandlers.onRowDoubleClick(e, row, rowIndex);
             }
           },
         },
       });
 
-      // 获取当前行的节点
-      const node = this.rowNodes.get(rowId);
+      columns.forEach((col) => {
+        // 使用全局唯一的ID格式，不再依赖容器ID
+        const cellId = `${this.instanceId}_cell_${row.id}_${col.field}`;
+        this.virtualDOM.createElement(cellId, "div", "grid-cell");
 
-      this.options.columns.forEach((col, colIndex) => {
-        // 生成单元格ID
-        const vCellId = `${this.instanceId}-cell-${rowId}-${col.field}`;
-        const cellKey = `${rowIndex}-${colIndex}`;
-
-        // 检查这个单元格是否是被合并的单元格
-        if (mergedCells.has(cellKey)) {
-          // 创建一个占位单元格，但设为隐藏
-          const cellClasses = ["grid-cell", "grid-cell-hidden"];
-          this.virtualDOM.createElement(vCellId, "div", cellClasses.join(" "));
-          this.virtualDOM.updateElement(vCellId, {
-            attributes: {
-              "data-field": col.field,
-              "data-element-id": vCellId,
-              "data-merged": "true",
-              "data-parent-cell": mergedCells.get(cellKey)?.parentCell || "",
-            },
-            styles: {
-              width: `${col.width}px`,
-              height: `${rowHeight}px`,
-            },
-          });
-
-          this.virtualDOM.appendChild(vRowId, vCellId);
-          return;
-        }
-
-        // 正常创建单元格
-        const cellClasses = ["grid-cell"];
-        if (col.editable) {
-          cellClasses.push("editable");
-        }
-
-        // 为树形单元格添加特殊类
-        if (
-          node &&
-          node.level !== undefined &&
-          node.level > 0 &&
-          col === this.options.columns[0]
-        ) {
-          cellClasses.push("grid-tree-cell");
-        }
-
-        this.virtualDOM.createElement(vCellId, "div", cellClasses.join(" "));
-
-        const value = row[col.field];
-
-        // 处理列合并
-        let colSpan = 1;
-        if (col.colSpan && node) {
-          const params = {
-            value,
-            data: row,
-            node,
-            colDef: col,
-            rowIndex,
-            api: this.getApiCallback(),
-            column: col,
-            colId: col.field,
-            refreshCell: () => {},
-          };
-          colSpan = col.colSpan(params) || 1;
-
-          // 如果需要合并列
-          if (colSpan > 1) {
-            // 标记合并单元格
-            cellClasses.push("grid-cell-merged");
-
-            // 标记被合并的单元格
-            for (let i = 1; i < colSpan; i++) {
-              if (colIndex + i < this.options.columns.length) {
-                const mergedCellKey = `${rowIndex}-${colIndex + i}`;
-                mergedCells.set(mergedCellKey, {
-                  mergeType: "col",
-                  parentCell: vCellId,
-                });
-              }
-            }
-          }
-        }
-
-        // 处理行合并
-        let rowSpan = 1;
-        if (this.options.rowSpan && node) {
-          const params = {
-            data: row,
-            node,
-            rowIndex,
-            field: col.field,
-            colId: col.field,
-            api: this.getApiCallback(),
-          };
-          rowSpan = this.options.rowSpan(params) || 1;
-
-          // 如果需要合并行
-          if (rowSpan > 1) {
-            // 标记合并单元格
-            cellClasses.push("grid-cell-merged");
-
-            // 标记被合并的单元格
-            for (let i = 1; i < rowSpan; i++) {
-              if (rowIndex + i < displayedData.length) {
-                const mergedCellKey = `${rowIndex + i}-${colIndex}`;
-                mergedCells.set(mergedCellKey, {
-                  mergeType: "row",
-                  parentCell: vCellId,
-                });
-              }
-            }
-          }
-        }
-
-        // 计算单元格样式
-        const cellStyles: Record<string, string> = {
-          width: `${col.width}px`,
-          height: `${rowHeight}px`,
-        };
-
-        // 如果是合并单元格，调整尺寸
-        if (colSpan > 1) {
-          let totalWidth = col.width;
-          for (let i = 1; i < colSpan; i++) {
-            if (colIndex + i < this.options.columns.length) {
-              totalWidth += this.options.columns[colIndex + i].width;
-            }
-          }
-          cellStyles.width = `${totalWidth}px`;
-        }
-
-        if (rowSpan > 1) {
-          cellStyles.height = `${rowSpan * rowHeight}px`;
-          cellStyles.position = "absolute";
-          cellStyles.zIndex = "5";
-        }
-
-        this.virtualDOM.updateElement(vCellId, {
+        // 将列宽和 data-field 应用到单元格
+        this.virtualDOM.updateElement(cellId, {
           attributes: {
             "data-field": col.field,
-            "data-element-id": vCellId,
-            colspan: colSpan > 1 ? colSpan.toString() : "1",
-            rowspan: rowSpan > 1 ? rowSpan.toString() : "1",
           },
-          styles: cellStyles,
-          classes: cellClasses,
-          events: {
-            click: (e: MouseEvent) => {
-              if (eventHandlers?.onCellClick) {
-                eventHandlers.onCellClick(e, col, row, value, rowIndex);
-              }
-              if (col.editable && this.options.onStartEditing) {
-                const cellElement = this.virtualDOM.getElement(vCellId);
-                if (cellElement) {
-                  this.options.onStartEditing(cellElement as HTMLElement, col, row, value);
-                }
-              }
-            },
-            dblclick: (e: MouseEvent) => {
-              if (eventHandlers?.onCellDoubleClick) {
-                eventHandlers.onCellDoubleClick(e, col, row, value, rowIndex);
-              }
-              if (col.editable && this.options.onStartEditing) {
-                const cellElement = this.virtualDOM.getElement(vCellId);
-                if (cellElement) {
-                  this.options.onStartEditing(cellElement as HTMLElement, col, row, value);
-                }
-              }
-            },
+          styles: {
+            width: `${col.width}px`,
           },
         });
 
-        // 渲染单元格
-        const cellElement = this.virtualDOM.getElement(vCellId) as HTMLElement;
-
-        // 对于第一列且是树形结构的行，使用树形渲染器
-        if (
-          node &&
-          node.level !== undefined &&
-          col === this.options.columns[0] &&
-          !col.checkboxSelection &&
-          !col.rowDrag
-        ) {
-          // 清空单元格内容，避免重复添加树形结构
-          cellElement.innerHTML = "";
-
-          // 创建树形单元格渲染器
-          const treeCellRenderer = new TreeCellRenderer();
-          treeCellRenderer.init({
-            value,
-            data: row,
-            rowIndex,
-            colId: col.field,
-            column: col,
-            api: this.getApiCallback(),
-            node,
-          });
-
-          const treeElement = treeCellRenderer.getGui();
-          cellElement.appendChild(treeElement);
-        } else {
-          // 使用标准渲染
+        const cellElement = this.virtualDOM.getElement(cellId);
+        if (cellElement) {
+          const value = row[col.field];
           this.renderCell(cellElement, col, row, value, rowIndex);
+          this.virtualDOM.updateElement(cellId, {
+            events: {
+              click: (e: MouseEvent) => {
+                e.stopPropagation();
+                if (eventHandlers?.onCellClick) {
+                  eventHandlers.onCellClick(e, col, row, value, rowIndex);
+                }
+              },
+              dblclick: (e: MouseEvent) => {
+                e.stopPropagation();
+                if (eventHandlers?.onCellDoubleClick) {
+                  eventHandlers.onCellDoubleClick(e, col, row, value, rowIndex, cellElement);
+                }
+              },
+            },
+          });
         }
-
-        this.virtualDOM.appendChild(vRowId, vCellId);
+        this.virtualDOM.appendChild(rowId, cellId);
       });
-      this.virtualDOM.appendChild(contentId, vRowId);
+
+      this.virtualDOM.appendChild(containerId, rowId);
     });
-
-    const oldVRowIds = this.state.virtualBodyRowIds;
-    for (const oldId of oldVRowIds) {
-      if (!currentVRowIds.has(oldId)) {
-        this.virtualDOM.removeElement(oldId);
-      }
-    }
-    this.state.virtualBodyRowIds = currentVRowIds;
-
-    this.virtualDOM.appendChild(bodyId, contentId);
-
-    const bodyElement = this.virtualDOM.getElement(bodyId);
-    if (bodyElement) {
-      // 将body元素注册为主滚动元素
-      this.scrollSyncManager.addScrollable("body", bodyElement, {
-        syncHorizontal: true,
-        syncVertical: true,
-        master: true,
-      });
-
-      // 为表头单独添加事件监听
-      const headerElement = document.querySelector(
-        `.grid-header[id^="${this.instanceId}"]`
-      ) as HTMLElement;
-      if (headerElement) {
-        this.scrollSyncManager.addScrollable("header", headerElement, {
-          syncHorizontal: true,
-          syncVertical: false,
-          master: false,
-        });
-      }
-
-      // 保存当前的水平滚动位置，确保垂直滚动时不会丢失
-      let savedScrollLeft = 0;
-
-      // 添加滚动事件监听器
-      bodyElement.addEventListener(
-        "scroll",
-        () => {
-          // 只有当水平滚动位置变化时，才更新savedScrollLeft
-          if (bodyElement.scrollLeft !== savedScrollLeft) {
-            savedScrollLeft = bodyElement.scrollLeft;
-          }
-
-          // 确保表头同步水平滚动位置
-          if (headerElement) {
-            headerElement.scrollLeft = savedScrollLeft;
-          }
-          
-          // 触发滚动回调
-          if (this.options.onScroll) {
-            this.options.onScroll(bodyElement.scrollLeft, bodyElement.scrollTop);
-          }
-        },
-        { passive: true }
-      );
-    }
-    return bodyElement;
   }
 
   /**
@@ -658,7 +567,167 @@ export class GridRenderers {
     const cellId = cell.getAttribute("data-element-id");
     if (!cellId) return;
 
-    // 处理复选框列
+    // 强制清空单元格的真实DOM，确保从一个干净的状态开始
+    cell.innerHTML = '';
+
+    // 处理特殊渲染器，如复选框
+    if (this.handleSpecialRenderers(cell, column, row, value, rowIndex)) {
+      return;
+    }
+
+    // 新增：处理树形列
+    if (column.treeColumn) {
+        this.handleTreeRenderer(cell, column, row, value, rowIndex);
+        return;
+    }
+
+    const node = this.rowNodes.get(row.id || rowIndex);
+    if (!node) return;
+
+    const isEditing =
+      this.state.editingCell?.rowId === node.id &&
+      this.state.editingCell?.field === column.field;
+
+    // 创建唯一的顶级内容容器
+    const contentId = `${cellId}-content`;
+    this.virtualDOM.createElement(contentId, "div", "grid-cell-content");
+    const contentContainer = this.virtualDOM.getElement(contentId);
+
+    if (!contentContainer) return;
+    
+    // 渲染前总是清空内容容器
+    contentContainer.innerHTML = '';
+
+    if (isEditing && column.editable) {
+      // --- 开始渲染编辑器 ---
+      const params: ComponentParams = {
+        value,
+        startValue: value,
+        data: node.data,
+        rowIndex: node.rowIndex,
+        colId: column.field,
+        column,
+        api: this.getApiCallback(),
+        node,
+        onComplete: (newValue: any) => this.editManager.stopEditing(true, newValue),
+        onCancel: () => this.editManager.stopEditing(false),
+        stopEditing: (save: boolean, newValue?: any) => this.editManager.stopEditing(save, newValue)
+      };
+
+      const editComponentId = `${cellId}-edit-comp`;
+      const editElement = this.componentManager.createEditComponent(editComponentId, column, params);
+      contentContainer.appendChild(editElement);
+
+      // 自动聚焦和事件处理
+      setTimeout(() => {
+        const input = contentContainer.querySelector<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>('input, select, textarea');
+        if (input) {
+          input.focus();
+          if (input.tagName === 'INPUT') (input as HTMLInputElement).select();
+
+          let isHandled = false;
+          const stopEditingOnce = (save: boolean) => {
+            if (!isHandled) {
+              isHandled = true;
+              const finalValue = (input.tagName === 'INPUT' || input.tagName === 'SELECT' || input.tagName === 'TEXTAREA') ? input.value : value;
+              this.editManager.stopEditing(save, finalValue);
+            }
+          };
+
+          input.addEventListener('blur', () => stopEditingOnce(true));
+          input.addEventListener('keydown', (e) => {
+            const keyboardEvent = e as KeyboardEvent;
+            if (keyboardEvent.key === 'Enter') {
+              keyboardEvent.preventDefault();
+              stopEditingOnce(true);
+            } else if (keyboardEvent.key === 'Escape') {
+              keyboardEvent.preventDefault();
+              stopEditingOnce(false);
+            }
+          });
+        }
+      }, 0);
+      // --- 结束渲染编辑器 ---
+    } else {
+      // --- 开始渲染视图 ---
+      const params: ComponentParams = {
+        value,
+        data: node.data,
+        rowIndex: node.rowIndex,
+        colId: column.field,
+        column,
+        api: this.getApiCallback(),
+        node,
+      };
+
+      const viewComponentId = `${cellId}-view-comp`;
+      const viewElement = this.componentManager.createViewComponent(viewComponentId, column, params);
+      contentContainer.appendChild(viewElement);
+      // --- 结束渲染视图 ---
+    }
+
+    // 为普通单元格添加拖拽填充句柄
+    if (!isEditing && !column.checkboxSelection && !column.rowDrag) {
+      const dragHandleId = `${contentId}-draghandle`;
+      this.virtualDOM.createElement(dragHandleId, "div", "grid-cell-drag-handle");
+      this.virtualDOM.updateElement(dragHandleId, {
+          styles: {
+              position: "absolute",
+              right: "0px",
+              bottom: "0px",
+              width: "8px",
+              height: "8px",
+              cursor: "cell",
+              zIndex: "10"
+          },
+      });
+      this.virtualDOM.appendChild(contentId, dragHandleId);
+    }
+
+    // 将内容容器附加到单元格的虚拟DOM表示中
+    this.virtualDOM.appendChild(cellId, contentId);
+  }
+
+  /**
+   * 处理树形单元格渲染器
+   */
+  private handleTreeRenderer(cell: HTMLElement, column: Column, row: any, value: any, rowIndex: number): void {
+    const cellId = cell.getAttribute("data-element-id")!;
+    const node = this.rowNodes.get(row.id || rowIndex);
+
+    if (!node) return;
+
+    const treeRenderer = new TreeCellRenderer();
+    treeRenderer.init({
+        value,
+        data: row,
+        rowIndex,
+        colId: column.field,
+        column,
+        api: this.getApiCallback(),
+        node,
+    });
+    
+    const treeElement = treeRenderer.getGui();
+    const containerId = `${cellId}-tree-container`;
+    this.virtualDOM.createElement(containerId, 'div', 'grid-tree-cell-container');
+    const container = this.virtualDOM.getElement(containerId);
+
+    if (container) {
+        container.innerHTML = '';
+        container.appendChild(treeElement);
+    }
+
+    this.virtualDOM.appendChild(cellId, containerId);
+  }
+
+  /**
+   * 处理特殊的单元格渲染器，如复选框和行拖拽
+   * @returns {boolean} 如果处理了特殊渲染器则返回true
+   */
+  private handleSpecialRenderers(cell: HTMLElement, column: Column, row: any, value: any, rowIndex: number): boolean {
+    const cellId = cell.getAttribute("data-element-id")!;
+
     if (column.checkboxSelection) {
       const checkboxContainerId = `${cellId}-checkbox-container`;
       this.virtualDOM.createElement(
@@ -676,12 +745,9 @@ export class GridRenderers {
         },
       });
 
-      // 获取节点
       const node = this.rowNodes.get(row.id || rowIndex);
-      if (!node) return;
+      if (!node) return true;
 
-      // 创建复选框渲染器
-      const checkboxId = `${cellId}-checkbox`;
       const checkboxRenderer = new CheckboxCellRenderer();
       checkboxRenderer.init({
         value: node.selected,
@@ -694,202 +760,48 @@ export class GridRenderers {
       });
 
       const checkboxElement = checkboxRenderer.getGui();
-
-      // 将复选框元素添加到容器
       const checkboxContainer = this.virtualDOM.getElement(checkboxContainerId);
       if (checkboxContainer) {
         checkboxContainer.innerHTML = "";
         checkboxContainer.appendChild(checkboxElement);
       }
-
+      
       this.virtualDOM.appendChild(cellId, checkboxContainerId);
-      return;
+      return true;
     }
 
-    // 处理行拖拽列
     if (column.rowDrag) {
-      const dragContainerId = `${cellId}-drag-container`;
-      this.virtualDOM.createElement(
-        dragContainerId,
-        "div",
-        "grid-cell-drag-container"
-      );
-      this.virtualDOM.updateElement(dragContainerId, {
-        styles: {
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          height: "100%",
-          width: "100%",
-        },
-      });
-
-      // 获取节点
-      const node = this.rowNodes.get(row.id || rowIndex);
-      if (!node) return;
-
-      // 创建拖拽渲染器
-      const dragId = `${cellId}-drag`;
-      const dragRenderer = new RowDragRenderer();
-      dragRenderer.init({
-        value: null,
-        data: row,
-        rowIndex,
-        colId: column.field,
-        column,
-        api: this.getApiCallback(),
-        node,
-      });
-
-      const dragElement = dragRenderer.getGui();
-
-      // 将拖拽元素添加到容器
-      const dragContainer = this.virtualDOM.getElement(dragContainerId);
-      if (dragContainer) {
-        dragContainer.innerHTML = "";
-        dragContainer.appendChild(dragElement);
-      }
-
-      this.virtualDOM.appendChild(cellId, dragContainerId);
-      return;
-    }
-
-    // 获取内容容器ID
-    const contentId = `${cellId}-content`;
-
-    // 检查内容容器是否存在，如果不存在则创建
-    let contentElement = this.virtualDOM.getElement(contentId);
-    if (!contentElement) {
-      // 创建单元格内容容器
-      this.virtualDOM.createElement(contentId, "div", "grid-cell-content");
-      this.virtualDOM.updateElement(contentId, {
-        styles: {
-          position: "relative",
-          width: "100%",
-          height: "100%",
-          boxSizing: "border-box",
-          overflow: "hidden",
-        },
-      });
-
-      // 添加拖拽手柄
-      const dragHandleId = `${contentId}-draghandle`;
-      this.virtualDOM.createElement(
-        dragHandleId,
-        "div",
-        "grid-cell-drag-handle"
-      );
-      this.virtualDOM.updateElement(dragHandleId, {
-        styles: {
-          position: "absolute",
-          right: "0",
-          bottom: "0",
-          width: "6px",
-          height: "6px",
-          zIndex: "2",
-        },
-      });
-      this.virtualDOM.appendChild(contentId, dragHandleId);
-
-      // 获取创建后的元素
-      contentElement = this.virtualDOM.getElement(contentId);
-    }
-
-    // 创建视图容器ID
-    const viewContainerId = `${contentId}-view`;
-
-    // 如果单元格处于编辑状态，隐藏视图组件但不销毁它
-    if (cell.classList.contains("editing")) {
-      const viewContainer = this.virtualDOM.getElement(viewContainerId);
-      if (viewContainer) {
-        viewContainer.style.display = "none";
-      }
-      return;
-    }
-
-    // 创建渲染参数
-    const node = this.rowNodes.get(row.id || rowIndex);
-    if (!node) return;
-
-    const params: ComponentParams = {
-      value,
-      data: row,
-      rowIndex,
-      colId: column.field,
-      column,
-      api: this.getApiCallback(),
-      node,
-    };
-
-    // 创建视图组件
-    const viewComponentId = `${cellId}-view`;
-    const viewElement = this.componentManager.createViewComponent(
-      viewComponentId,
-      column,
-      params
-    );
-
-    // 创建或获取视图容器
-    let viewContainer = this.virtualDOM.getElement(viewContainerId);
-    if (!viewContainer) {
-      // 如果视图容器不存在，创建它
-      this.virtualDOM.createElement(
-        viewContainerId,
-        "div",
-        "grid-cell-view-container"
-      );
-      this.virtualDOM.appendChild(contentId, viewContainerId);
-      viewContainer = this.virtualDOM.getElement(viewContainerId);
-    }
-
-    // 更新视图容器内容
-    if (viewContainer) {
-      // 确保视图容器可见
-      viewContainer.style.display = "flex";
-
-      // 清空并添加视图元素
-      viewContainer.innerHTML = "";
-      viewContainer.appendChild(viewElement);
-
-      // 如果列是可编辑的但没有自定义编辑器，添加点击事件来启动默认编辑
-      if (
-        column.editable &&
-        !(
-          column.cellRenderer &&
-          typeof column.cellRenderer === "object" &&
-          "edit" in column.cellRenderer
-        ) &&
-        this.options.onStartEditing
-      ) {
-        viewContainer.style.cursor = "pointer";
-        viewContainer.onclick = (e: MouseEvent) => {
-          this.options.onStartEditing!(cell, column, row, value);
-        };
-      }
-    }
-
-    // 确保编辑容器隐藏
-    const editContainerId = `${contentId}-edit`;
-    const editContainer = this.virtualDOM.getElement(editContainerId);
-    if (editContainer) {
-      editContainer.style.display = "none";
-    }
-
-    // 附加内容到单元格
-    this.virtualDOM.appendChild(cellId, contentId);
-  }
-
-  /**
-   * 更新列配置
-   * 在列排序或其他列更改操作后调用，确保渲染器使用最新的列定义
-   * @param columns 新的列定义数组
-   */
-  public updateColumns(columns: Column[]): void {
-    if (!columns || !Array.isArray(columns)) {
-      return;
+        const dragContainerId = `${cellId}-drag-container`;
+        this.virtualDOM.createElement(dragContainerId, "div", "grid-cell-drag-container");
+        this.virtualDOM.updateElement(dragContainerId, {
+          styles: {
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            height: "100%",
+            width: "100%",
+          },
+        });
+  
+        const node = this.rowNodes.get(row.id || rowIndex);
+        if (!node) return true;
+  
+        const dragRenderer = new RowDragRenderer();
+        dragRenderer.init({
+          value: null, data: row, rowIndex, colId: column.field, column, api: this.getApiCallback(), node,
+        });
+  
+        const dragElement = dragRenderer.getGui();
+        const dragContainer = this.virtualDOM.getElement(dragContainerId);
+        if (dragContainer) {
+          dragContainer.innerHTML = "";
+          dragContainer.appendChild(dragElement);
+        }
+  
+        this.virtualDOM.appendChild(cellId, dragContainerId);
+        return true;
     }
     
-    // 更新选项中的列定义
-    this.options.columns = [...columns];
+    return false;
   }
 } 

@@ -355,4 +355,18 @@ export class GridFilterSortManager {
     this.state.filterModel.clear();
     this.refreshView();
   }
+
+  /**
+   * 获取当前排序模型
+   */
+  public getSortModel(): SortModel[] {
+    return this.state.sortModel;
+  }
+
+  /**
+   * 检查是否有任何活动的过滤器
+   */
+  public isAnyFilterPresent(): boolean {
+    return this.state.filterModel.size > 0;
+  }
 } 

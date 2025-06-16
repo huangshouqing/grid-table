@@ -57,6 +57,10 @@ export class Grid implements GridApi {
   // 添加事件处理器实例
   private eventHandlers: GridEventHandlers;
 
+  private leftPinnedColumns: Column[] = [];
+  private centerColumns: Column[] = [];
+  private rightPinnedColumns: Column[] = [];
+
   private lastScrollTop: number = 0;
   private lastScrollLeft: number = 0;
   private readonly instanceId: string;
@@ -165,7 +169,8 @@ export class Grid implements GridApi {
       this.state,
       this.instanceId,
       this.rowNodes,
-      this.getApi.bind(this)
+      this.getApi.bind(this),
+      null as any, // 临时传入null，因为editManager还未初始化
     );
     
     // 初始化编辑管理器
@@ -205,7 +210,8 @@ export class Grid implements GridApi {
       this.state,
       this.instanceId,
       this.rowNodes,
-      this.getApi.bind(this)
+      this.getApi.bind(this),
+      this.editManager,
     );
 
     // 初始化拖拽管理器
@@ -217,8 +223,15 @@ export class Grid implements GridApi {
       this.rowNodes,
       this.getApi.bind(this),
       this.dataManager,
-      this.refreshView.bind(this)
+      this.refreshView.bind(this),
+      // 传递列获取器
+      () => this.leftPinnedColumns,
+      () => this.centerColumns,
+      () => this.rightPinnedColumns
     );
+
+    // 初始化列数据
+    this.separateColumns();
 
     // 初始化行节点
     this.dataManager.initRowNodes();
@@ -248,8 +261,11 @@ export class Grid implements GridApi {
       this.state,
       this.instanceId,
       this.rowNodes,
-      this.getApi.bind(this)
+      this.getApi.bind(this),
+      this.editManager,
     );
+
+    this.refreshView();
   }
 
   /**
@@ -294,24 +310,19 @@ export class Grid implements GridApi {
     // 清空容器
     this.element.innerHTML = "";
 
-    // 使用渲染器渲染表格
-    const headerElement = this.renderers.renderHeader();
-    const bodyElement = this.renderers.renderBody(
-      this.dataManager.getFilteredAndSortedData.bind(this.dataManager),
-      {
-        onRowClick: this.eventHandlers.handleRowClick.bind(this.eventHandlers),
-        onRowDoubleClick: this.eventHandlers.handleRowDoubleClick.bind(this.eventHandlers),
-        onCellClick: this.eventHandlers.handleCellClick.bind(this.eventHandlers),
-        onCellDoubleClick: this.eventHandlers.handleCellDoubleClick.bind(this.eventHandlers)
-      }
-    );
+    // 使用渲染器创建完整的表格结构
+    const gridStructure = this.renderers.renderGridStructure({
+      leftPinnedColumns: this.leftPinnedColumns,
+      centerColumns: this.centerColumns,
+      rightPinnedColumns: this.rightPinnedColumns,
+      getFilteredAndSortedData: this.dataManager.getFilteredAndSortedData.bind(this.dataManager),
+      onRowClick: this.eventHandlers.handleRowClick.bind(this.eventHandlers),
+      onRowDoubleClick: this.eventHandlers.handleRowDoubleClick.bind(this.eventHandlers),
+      onCellClick: this.eventHandlers.handleCellClick.bind(this.eventHandlers),
+      onCellDoubleClick: (e, col, row, value, rowIndex, cellElement) => this.eventHandlers.handleCellDoubleClick(e, col, row, value, rowIndex, cellElement),
+    });
 
-    if (headerElement) {
-      this.element.appendChild(headerElement);
-    }
-    if (bodyElement) {
-      this.element.appendChild(bodyElement);
-    }
+    this.element.appendChild(gridStructure);
 
     // 清空并添加到容器
     container.innerHTML = "";
@@ -446,12 +457,29 @@ export class Grid implements GridApi {
     // 使用新的列数组副本，确保引用已更改
     this.options.columns = [...colDefs];
     
-    // 确保渲染器和过滤排序管理器也更新列定义
-    if (this.renderers) {
-      this.renderers.updateColumns(this.options.columns);
-    }
+    // 重新分离列
+    this.separateColumns();
     
     this.refreshView();
+  }
+
+  /**
+   * 根据列定义中的 'pinned' 属性，将列分离到左固定、右固定和中间滚动区域
+   */
+  private separateColumns() {
+    this.leftPinnedColumns = [];
+    this.centerColumns = [];
+    this.rightPinnedColumns = [];
+
+    this.options.columns.forEach(col => {
+      if (col.pinned === 'left') {
+        this.leftPinnedColumns.push(col);
+      } else if (col.pinned === 'right') {
+        this.rightPinnedColumns.push(col);
+      } else {
+        this.centerColumns.push(col);
+      }
+    });
   }
 
   /**
@@ -492,28 +520,19 @@ export class Grid implements GridApi {
       // 清理所有拖拽样式
       this.dragDropManager.clearDragStyles();
 
-      // 确保渲染器使用最新的列配置
-      this.renderers.updateColumns(this.options.columns);
-
-      // 重新渲染整个表格内容，确保 header 和 body 的一致性
+      // 重新渲染整个表格内容
       this.element.innerHTML = "";
-      const headerElement = this.renderers.renderHeader();
-      const bodyElement = this.renderers.renderBody(
-        this.dataManager.getFilteredAndSortedData.bind(this.dataManager),
-        {
-          onRowClick: this.eventHandlers.handleRowClick.bind(this.eventHandlers),
-          onRowDoubleClick: this.eventHandlers.handleRowDoubleClick.bind(this.eventHandlers),
-          onCellClick: this.eventHandlers.handleCellClick.bind(this.eventHandlers),
-          onCellDoubleClick: this.eventHandlers.handleCellDoubleClick.bind(this.eventHandlers)
-        }
-      );
-
-      if (headerElement) {
-        this.element.appendChild(headerElement);
-      }
-      if (bodyElement) {
-        this.element.appendChild(bodyElement);
-      }
+      const gridStructure = this.renderers.renderGridStructure({
+        leftPinnedColumns: this.leftPinnedColumns,
+        centerColumns: this.centerColumns,
+        rightPinnedColumns: this.rightPinnedColumns,
+        getFilteredAndSortedData: this.dataManager.getFilteredAndSortedData.bind(this.dataManager),
+        onRowClick: this.eventHandlers.handleRowClick.bind(this.eventHandlers),
+        onRowDoubleClick: this.eventHandlers.handleRowDoubleClick.bind(this.eventHandlers),
+        onCellClick: this.eventHandlers.handleCellClick.bind(this.eventHandlers),
+        onCellDoubleClick: (e, col, row, value, rowIndex, cellElement) => this.eventHandlers.handleCellDoubleClick(e, col, row, value, rowIndex, cellElement),
+      });
+      this.element.appendChild(gridStructure);
 
       // 恢复滚动位置
       this.restoreScrollPosition();
@@ -530,7 +549,8 @@ export class Grid implements GridApi {
     position: "top" | "middle" | "bottom" = "middle"
   ): void {
     const rowHeight = this.options.rowHeight || 40;
-    const gridBody = this.element.querySelector(".grid-body") as HTMLElement;
+    // 应该以中间可滚动的body为基准
+    const gridBody = this.element.querySelector(".grid-center-container .grid-body") as HTMLElement;
     if (!gridBody) return;
 
     const bodyHeight = gridBody.clientHeight;
@@ -548,10 +568,10 @@ export class Grid implements GridApi {
         scrollTop = index * rowHeight - bodyHeight / 2 + rowHeight / 2;
     }
 
-    this.scrollSyncManager.scrollTo(
-      this.state.scrollPosition.left,
-      Math.max(0, scrollTop)
-    );
+    // 直接操作中心滚动区域的 scrollTop
+    gridBody.scrollTop = Math.max(0, scrollTop);
+
+    // ScrollSyncManager 会自动同步其他区域
   }
 
   /**
@@ -576,7 +596,17 @@ export class Grid implements GridApi {
    */
   setValues(params: ValueSetParams): void {
     this.saveScrollPosition();
-    this.dragDropManager.setValues(params);
+    // 确保传递了正确的参数结构
+    const node = this.dataManager.getRowNode(params.rowId);
+    const column = this.options.columns.find(c => c.field === params.field);
+    if (node && column) {
+      this.dragDropManager.setValues({
+        startNode: node,
+        endNode: node,
+        column: column,
+        value: params.value,
+      });
+    }
     this.restoreScrollPosition();
   }
 
@@ -636,11 +666,11 @@ export class Grid implements GridApi {
    * 在表格刷新前调用
    */
   private saveScrollPosition() {
-    // 保存body的滚动位置
-    const gridBody = this.element.querySelector(".grid-body") as HTMLElement;
-    if (gridBody) {
-      this.lastScrollTop = gridBody.scrollTop;
-      this.lastScrollLeft = gridBody.scrollLeft;
+    // 专门从中间容器获取滚动位置，因为它同时包含水平和垂直滚动
+    const centerBody = this.element.querySelector(".grid-center-container .grid-body") as HTMLElement;
+    if (centerBody) {
+      this.lastScrollTop = centerBody.scrollTop;
+      this.lastScrollLeft = centerBody.scrollLeft;
     }
   }
 
@@ -649,25 +679,25 @@ export class Grid implements GridApi {
    * 在表格刷新后调用
    */
   private restoreScrollPosition() {
-    // 使用更可靠的方法恢复滚动位置
     requestAnimationFrame(() => {
-      const gridBody = this.element.querySelector(".grid-body") as HTMLElement;
+      const allBodies = this.element.querySelectorAll(".grid-body") as NodeListOf<HTMLElement>;
+      const centerBody = this.element.querySelector(".grid-center-container .grid-body") as HTMLElement;
+      const centerHeader = this.element.querySelector(".grid-center-container .grid-header") as HTMLElement;
 
-      if (gridBody) {
-        // 先设置水平滚动位置，避免垂直滚动时重置水平位置
-        if (this.lastScrollLeft > 0) {
-          gridBody.scrollLeft = this.lastScrollLeft;
+      // 恢复所有body的垂直滚动
+      if (this.lastScrollTop > 0) {
+        allBodies.forEach(body => {
+          body.scrollTop = this.lastScrollTop;
+        });
+      }
+
+      // 只恢复中间容器的水平滚动
+      if (this.lastScrollLeft > 0) {
+        if (centerBody) {
+          centerBody.scrollLeft = this.lastScrollLeft;
         }
-
-        // 再设置垂直滚动位置
-        if (this.lastScrollTop > 0) {
-          gridBody.scrollTop = this.lastScrollTop;
-        }
-
-        // 同步header的水平滚动位置
-        const headerElement = this.element.querySelector(".grid-header");
-        if (headerElement && this.lastScrollLeft > 0) {
-          headerElement.scrollLeft = this.lastScrollLeft;
+        if (centerHeader) {
+          centerHeader.scrollLeft = this.lastScrollLeft;
         }
       }
     });
@@ -711,5 +741,20 @@ export class Grid implements GridApi {
    */
   getComponentManager(): ComponentManager {
     return this.componentManager;
+  }
+
+  /**
+   * 刷新单个单元格
+   * @param params 包含要刷新的行节点和列定义
+   */
+  refreshCell(params: { rowNode: RowNode; column: Column; }): void {
+    const { rowNode, column } = params;
+    const cellId = `${this.instanceId}_cell_${rowNode.id}_${column.field}`;
+    const cellElement = this.virtualDOM.getElement(cellId);
+    
+    if (cellElement) {
+      const value = rowNode.data[column.field];
+      this.renderers.renderCell(cellElement, column, rowNode.data, value, rowNode.rowIndex);
+    }
   }
 }
