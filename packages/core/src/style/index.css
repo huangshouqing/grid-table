@@ -911,9 +911,16 @@
 }
 
 .resize-guide.limit-reached {
-    background-color: rgba(255, 77, 79, 0.85); /* A clear red to indicate a limit */
+  background-color: #ff4d4f;
 }
 
 /* End of new styles */
+
+/* 用于拖拽填充的高亮样式 */
+.grid-cell-drag-highlight {
+  outline: 2px solid #1890ff;
+  outline-offset: -2px;
+  z-index: 10;
+}
 
 
