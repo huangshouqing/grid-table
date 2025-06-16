@@ -12,27 +12,30 @@
   --grid-header-text-color: #555;
   --grid-header-height: 40px;
   --grid-row-height: 40px;
-  --grid-stripe-background: #fafafa;
+  --grid-stripe-background: #f7f7f7;
   --scrollbar-size: 12px;
   --scrollbar-thumb-color: rgba(0, 0, 0, 0.2);
   --scrollbar-thumb-hover-color: rgba(0, 0, 0, 0.3);
+  --primary-color: #1890ff;
 }
 
-.grid-container-wrapper {
-  display: flex;
-  flex-direction: column;
+/* The main container for the entire grid, providing the outer border */
+.grid-container {
+  box-sizing: border-box;
+  position: relative;
   width: 100%;
   height: 100%;
-  border: 1px solid var(--grid-border-color);
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
   font-family: var(--grid-font-family);
   font-size: var(--grid-font-size);
   color: var(--grid-text-color);
   background: var(--grid-background-color);
-  position: relative;
+  /* The single, definitive border for the whole component */
+  border: 1px solid var(--grid-border-color);
 }
 
-/* 表格主体部分 */
 .grid-main {
   display: flex;
   flex: 1;
@@ -40,119 +43,38 @@
   position: relative;
 }
 
-/* 底部容器 */
-.grid-bottom-container {
-  display: flex;
-  margin-left: var(--frozen-width, 0);
-}
-
-/* 滚动条容器 */
-.grid-scrollbar {
-  position: relative;
-  background: transparent;
-  overflow: auto;
-}
-
-.grid-scrollbar-horizontal {
-  height: var(--scrollbar-size);
-  flex: 1;
-}
-
-.grid-scrollbar-vertical {
-  width: var(--scrollbar-size);
-  height: 100%;
-  position: absolute;
-  right: 0;
-  top: 0;
-}
-
-/* 自定义滚动条样式 */
-.grid-scrollbar::-webkit-scrollbar {
-  width: var(--scrollbar-size);
-  height: var(--scrollbar-size);
-}
-
-.grid-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.grid-scrollbar::-webkit-scrollbar-thumb {
-  background: var(--scrollbar-thumb-color);
-  border-radius: 6px;
-  border: 3px solid transparent;
-  background-clip: padding-box;
-}
-
-.grid-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: var(--scrollbar-thumb-hover-color);
-  border: 2px solid transparent;
-}
-
-.grid-scrollbar::-webkit-scrollbar-corner {
-  background: transparent;
-}
-
-/* Firefox 滚动条样式 */
-.grid-scrollbar {
-  scrollbar-width: thin;
-  scrollbar-color: var(--scrollbar-thumb-color) transparent;
-}
-
-.grid-scrollbar-spacer {
-  background: transparent;
-}
-
-.grid-pane {
-  display: flex;
-  flex-direction: column;
-  background: var(--grid-background-color);
-  overflow: hidden;
-}
-
-.grid-pane-frozen {
-  flex-shrink: 0;
-  box-shadow: 2px 0 5px -2px rgba(0, 0, 0, 0.1);
-  z-index: 1;
-  border-right: 1px solid var(--grid-border-color);
-}
-
-.grid-pane-scrollable {
-  flex: 1;
-  overflow: hidden;
-}
-
 .grid-header {
+  display: flex;
   height: var(--grid-header-height);
   background-color: var(--grid-header-background-color);
-  border-bottom: 1px solid var(--grid-border-color);
   flex-shrink: 0;
   overflow: hidden;
+  /* This border separates the header from the body */
+  border-bottom: 1px solid var(--grid-border-color);
+  box-sizing: border-box;
 }
 
 .grid-body {
   flex: 1;
   position: relative;
-  overflow-y: scroll;
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* IE and Edge */
+  overflow: hidden; /* Scrolling is handled by custom scrollbars */
 }
 
-/* 隐藏 Webkit 滚动条 */
+/* Hide native scrollbars on the body itself */
 .grid-body::-webkit-scrollbar {
   display: none;
 }
-
-.grid-body-scrollable {
-  overflow: hidden;
+.grid-body {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
 }
 
 .grid-content {
   position: absolute;
+  top: 0;
   left: 0;
   right: 0;
-  top: 0;
-  /* overflow: scroll; */
-  height: 100%;
+  bottom: 0;
 }
 
 .grid-row {
@@ -161,77 +83,81 @@
   right: 0;
   height: var(--grid-row-height, 40px);
   display: flex;
-  border-bottom: 1px solid #f0f0f0;
+  box-sizing: border-box;
+  /* The bottom border for each row */
+  border-bottom: 1px solid var(--grid-border-color);
 }
 
+/* Header rows don't need their own bottom border, the cells will have it. */
 .grid-header .grid-row {
-  position: relative;
-  background: var(--grid-header-background-color);
-  height: 100%;
+  border-bottom: none;
 }
 
-.grid-body .grid-row:nth-child(even) {
-  background: var(--grid-stripe-background);
+.grid-body .grid-row:nth-child(2n) {
+  background-color: var(--grid-stripe-background);
 }
 
 .grid-body .grid-row:hover {
   background-color: var(--grid-row-hover-background-color);
 }
 
-.grid-cell {
-  /* padding: 8px 12px; */
-  border-right: 1px solid #f0f0f0;
+/* Last row in the body should not have a bottom border if it's perfectly at the edge.
+   The container's border will be used. This requires JS to calculate.
+   For now, we accept the small visual artifact of a double border at the bottom.
+   A better fix is to make sure the scroll height is precise. */
+.grid-body .grid-row:last-child {
+   /* border-bottom: none; */ /* This would be ideal but is hard in a virtualized grid */
+}
+
+.grid-cell,
+.grid-header-cell {
+  box-sizing: border-box;
+  padding: 0;
+  overflow: visible;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  position: relative;
+  border-right: 1px solid var(--grid-border-color);
+}
+
+/* Inner content wrapper for cells */
+.grid-cell-content,
+.grid-header-cell-content {
+  padding: var(--grid-cell-padding);
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
+}
+
+.grid-header-cell-content {
+  justify-content: space-between;
 }
 
 .grid-header-cell {
-  position: relative;
-  display: flex;
-  align-items: center;
-  padding: 8px 12px;
-  font-weight: 500;
-  color: #333;
-  background-color: #fafafa;
-  border-right: 1px solid #e8e8e8;
+  font-weight: var(--grid-header-font-weight);
+  color: var(--grid-header-text-color);
+  background-color: var(--grid-header-background-color);
   user-select: none;
-  flex-shrink: 0;
+  border-bottom: 1px solid var(--grid-border-color);
 }
 
-/* 去除最后一列的右边框 */
-.grid-pane-frozen .grid-cell:last-child {
-  border-right: none;
+/* Clean separation for pinned columns */
+.grid-pinned-left-container, .grid-pinned-right-container {
+    box-shadow: 2px 0 5px -2px rgba(0, 0, 0, 0.1);
+    z-index: 2;
+}
+.grid-pinned-right-container {
+    box-shadow: -2px 0 5px -2px rgba(0, 0, 0, 0.1);
 }
 
-.grid-container {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  flex-direction: column;
-  border: 1px solid #e8e8e8;
-}
-
-/* 表头 */
-.grid-header {
-  flex: none;
-  background-color: #fafafa;
-  border-bottom: 1px solid #e8e8e8;
-  overflow: hidden;
-  display: flex;
-}
-
-.grid-header > div {
-  display: flex;
-}
-
-.grid-header-cell:last-child {
-  border-right: none;
-}
+/* Let's remove rules that take away borders, as they are the source of the issue.
+   The container border will be the definitive edge. The cells should not touch it. */
 
 .grid-header-cell.sortable {
   cursor: pointer;
@@ -241,686 +167,391 @@
   background-color: #f0f0f0;
 }
 
+.grid-header-cell[data-sort] .sort-icon {
+    opacity: 1;
+}
+
 .grid-header-cell[data-sort="asc"] .sort-icon::after {
-  content: "↑";
-  margin-left: 4px;
+  content: "▲";
 }
 
 .grid-header-cell[data-sort="desc"] .sort-icon::after {
-  content: "↓";
-  margin-left: 4px;
+  content: "▼";
 }
 
-/* 表格主体 */
-.grid-body {
-  flex: 1;
-  overflow: hidden;
-  position: relative;
-  background: white;
+.grid-header-cell[data-sort="asc"] .sort-icon,
+.grid-header-cell[data-sort="desc"] .sort-icon {
+    color: var(--primary-color);
 }
 
-.grid-body > div {
-  display: flex;
-  flex-direction: column;
-}
-
-/* 行样式 */
-.grid-row:last-child {
-  border-bottom: none;
-}
-
-.grid-row:hover {
-  background-color: #f5f5f5;
-}
-
-/* 单元格样式 */
-.grid-cell:last-child {
-  border-right: none;
-}
-
-.grid-cell.editable {
-  cursor: pointer;
-}
-
-.grid-cell.editable:hover {
-  background-color: #f0f0f0;
-}
-
-/* 列宽调整 */
 .column-resizer {
   position: absolute;
   right: 0;
   top: 0;
   bottom: 0;
-  width: 4px;
-  background-color: transparent;
+  width: 5px;
   cursor: col-resize;
+  z-index: 10;
 }
 
 .column-resizer:hover {
-  background-color: #1890ff;
+  background-color: rgba(0, 0, 0, 0.1);
 }
 
-/* 拖拽样式 */
+/* Other existing styles for features like dragging, editing, etc. can follow */
 .grid-header-cell.dragging {
   opacity: 0.5;
   background-color: #e6f7ff;
 }
 
-/* 编辑器样式 */
 .cell-editor {
   width: 100%;
   height: 100%;
-  border: none;
+  border: 2px solid var(--primary-color);
   outline: none;
-  padding: 0;
-  background: transparent;
-}
-
-/* 滚动条样式 */
-.grid-body::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-.grid-body::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.grid-body::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
-  border-radius: 4px;
-}
-
-.grid-body::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
-}
-
-/* 表头和内容区对齐 */
-.grid-header {
-  padding-right: 8px;
-}
-
-/* 确保表头单元格和内容单元格宽度一致 */
-.grid-header-cell,
-.grid-cell {
   box-sizing: border-box;
+  padding: 0 var(--grid-cell-padding);
 }
 
 .grid-row.selected {
-  background: #e6f7ff;
+  background-color: #e6f7ff !important;
 }
 
-.grid-row.selected:hover {
-  background: #bae7ff;
-}
-
-/* 状态样式 */
 .status-active {
   color: #52c41a;
-  background: #f6ffed;
+  background-color: #f6ffed;
   border: 1px solid #b7eb8f;
+  border-radius: 4px;
   padding: 2px 8px;
-  border-radius: 10px;
 }
 
 .status-inactive {
-  color: #ff4d4f;
-  background: #fff2f0;
-  border: 1px solid #ffccc7;
+  color: #f5222d;
+  background-color: #fff1f0;
+  border: 1px solid #ffa39e;
+  border-radius: 4px;
   padding: 2px 8px;
-  border-radius: 10px;
 }
 
 .status-pending {
   color: #faad14;
-  background: #fffbe6;
+  background-color: #fffbe6;
   border: 1px solid #ffe58f;
+  border-radius: 4px;
   padding: 2px 8px;
-  border-radius: 10px;
 }
 
 .inactive-row {
-  background-color: #fafafa;
   color: #999;
+  font-style: italic;
+  background-color: #fcfcfc;
 }
 
-/* 自定义滚动条容器 */
+/* Custom Scrollbar Styles */
 .scrollbar-container {
   position: absolute;
-  right: 0;
-  bottom: 0;
-  z-index: 1;
-}
-
-/* 垂直滚动条 */
-.vertical-scrollbar {
-  position: absolute;
-  right: 0;
-  top: 0;
-  width: 8px;
-  background: transparent;
-  height: calc(100% - 8px);
-}
-
-.vertical-scrollbar .scrollbar-thumb {
-  position: absolute;
-  width: 100%;
-  background: #c1c1c1;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.vertical-scrollbar .scrollbar-thumb:hover {
-  background: #a8a8a8;
-}
-
-/* 水平滚动条 */
-.horizontal-scrollbar {
-  position: absolute;
-  left: 0;
-  bottom: 0;
-  height: 8px;
-  background: transparent;
-  width: calc(100% - 8px);
-}
-
-.horizontal-scrollbar .scrollbar-thumb {
-  position: absolute;
-  height: 100%;
-  background: #c1c1c1;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.horizontal-scrollbar .scrollbar-thumb:hover {
-  background: #a8a8a8;
-}
-
-.grid-row:hover {
-  background-color: #f5f5f5;
-}
-
-.grid-cell {
-  position: relative;
-  border-right: 1px solid #f0f0f0;
-  overflow: hidden;
-  background: inherit;
-  display: flex;
-}
-
-.grid-cell-content {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  height: 100%;
-  padding: 0px 8px;
-  box-sizing: border-box;
-  position: relative;
-}
-
-/* 纯文本模式的样式 */
-.grid-cell-content p {
-  width: 100%;
-  margin: 0;
-  padding: 0 8px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.grid-cell.editable {
-  cursor: text;
-}
-
-.grid-cell.editable.editing {
-  box-shadow: inset 0 0 0 1px var(--primary-color, #1890ff);
-}
-
-/* 自定义组件容器样式 */
-.grid-cell-custom-component {
-  width: 100%;
-  height: 100%;
-  padding: 0 8px;
-  display: flex;
-  align-items: center;
-  overflow: hidden;
-}
-
-.grid-cell-view-container,
-.grid-cell-edit-container {
-  width: 100%;
-  height: 100%;
-  padding: 0 8px;
-  display: flex;
-  align-items: center;
-  overflow: hidden;
-}
-
-/* 确保下拉菜单和其他编辑组件不超出容器 */
-.grid-cell-edit-container select,
-.grid-cell-edit-container input,
-.grid-cell-edit-container textarea,
-.grid-cell-edit-container div {
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* 下拉框特殊处理 */
-.grid-cell-edit-container select {
-  padding-right: 15px; /* 为下拉箭头留出空间 */
-  background-position: right center;
-  background-repeat: no-repeat;
-}
-
-/* 编辑器样式 */
-.cell-editor {
-  width: 100%;
-  height: 100%;
-  border: none;
-  padding: 0;
-  background: white;
-  outline: none;
-  font: inherit;
-  box-sizing: border-box;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* 滚动条样式 */
-.scrollbar-container {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  z-index: 1;
+  z-index: 3;
 }
 
 .vertical-scrollbar {
-  position: absolute;
   right: 0;
   top: 0;
-  width: 8px;
-  background: transparent;
-  height: calc(100% - 8px);
+  width: var(--scrollbar-size);
+  height: 100%;
 }
 
 .horizontal-scrollbar {
-  position: absolute;
-  left: 0;
   bottom: 0;
-  height: 8px;
-  background: transparent;
-  width: calc(100% - 8px);
+  left: 0;
+  height: var(--scrollbar-size);
+  width: 100%;
 }
 
 .scrollbar-thumb {
-  position: absolute;
-  background: #c1c1c1;
-  border-radius: 4px;
+  background-color: var(--scrollbar-thumb-color);
+  border-radius: 6px;
   cursor: pointer;
-  transition: background-color 0.2s;
+  position: absolute;
 }
-
 .vertical-scrollbar .scrollbar-thumb {
   width: 100%;
 }
-
 .horizontal-scrollbar .scrollbar-thumb {
   height: 100%;
 }
-
 .scrollbar-thumb:hover {
-  background: #a8a8a8;
-}
-
-.grid-header-cell-content {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  height: 100%;
-  padding: 0 8px;
-  text-align: center;
+  background-color: var(--scrollbar-thumb-hover-color);
 }
 
 .grid-header-cell-title {
-  flex: 1;
-  width: 100%;
-  overflow: hidden;
   text-overflow: ellipsis;
+  overflow: hidden;
   white-space: nowrap;
 }
 
+/* Filter & Sort controls */
 .grid-header-cell-actions {
   display: flex;
   align-items: center;
-  gap: 4px;
 }
 
 .grid-sort-button,
 .grid-filter-button {
+  cursor: pointer;
+  margin-left: 4px;
+  border: none;
+  background: transparent;
+  padding: 2px;
+  border-radius: 3px;
   display: flex;
   align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border: none;
-  background: none;
-  cursor: pointer;
-  opacity: 0.6;
-  transition: opacity 0.2s;
 }
 
 .grid-sort-button:hover,
-.grid-filter-button:hover,
-.grid-sort-button[data-sort],
-.grid-filter-button.active {
-  opacity: 1;
+.grid-filter-button:hover {
+  background-color: rgba(0,0,0,0.05);
 }
 
-.grid-sort-button[data-sort="asc"] .sort-down,
-.grid-sort-button[data-sort="desc"] .sort-up {
+.grid-sort-button .sort-up,
+.grid-sort-button .sort-down {
   display: none;
+}
+.grid-sort-button[data-sort="asc"] .sort-up,
+.grid-sort-button[data-sort="desc"] .sort-down {
+  display: inline;
 }
 
 .grid-filter-menu {
   position: absolute;
-  min-width: 200px;
   background: white;
-  border: 1px solid #e5e5e5;
-  border-radius: 4px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  border: 1px solid #ccc;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
   padding: 8px;
-  z-index: 1000;
+  z-index: 100;
+  min-width: 200px;
 }
-
 .grid-filter-type-select {
   width: 100%;
   margin-bottom: 8px;
-  padding: 4px;
 }
-
 .grid-filter-input {
   width: 100%;
   margin-bottom: 8px;
-  padding: 4px;
+  box-sizing: border-box;
 }
-
 .grid-filter-buttons {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
+  text-align: right;
 }
-
 .grid-filter-buttons button {
-  padding: 4px 12px;
-  border: 1px solid #e5e5e5;
-  border-radius: 4px;
-  background: white;
-  cursor: pointer;
+  margin-left: 8px;
 }
-
 .grid-filter-buttons button:hover {
-  background: #f5f5f5;
+  opacity: 0.8;
 }
 
+/* Drag handles */
 .grid-cell-drag-handle {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  width: 6px;
-  height: 6px;
-  cursor: crosshair;
-  opacity: 0;
-  transition: opacity 0.2s;
-  overflow: hidden;
+    position: absolute;
+    bottom: 1px;
+    right: 1px;
+    width: 8px;
+    height: 8px;
+    background: var(--primary-color);
+    border: 1px solid white;
+    cursor: crosshair;
+    z-index: 5;
+    opacity: 0;
+    transition: opacity 0.2s;
+    pointer-events: none;
 }
 
-.grid-cell-content:hover .grid-cell-drag-handle {
-  opacity: 1;
+/* Show on hover of the cell */
+.grid-cell:hover .grid-cell-drag-handle {
+    opacity: 1;
+    pointer-events: all;
 }
 
-.grid-cell-drag-handle::after {
-  content: "";
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  width: 0;
-  height: 0;
-  border-style: solid;
-  border-width: 0 0 6px 6px;
-  border-color: transparent transparent #999 transparent;
-}
-
-/* 新的拖拽选择样式 */
 .grid-cell-drag-selected {
-  outline: 2px solid #1890ff; /* 使用outline避免影响布局 */
-  outline-offset: -2px; /* 让边框在单元格内部 */
-  z-index: 20; /* 确保在其他元素之上 */
+    border: 2px solid var(--primary-color);
 }
 
-.grid-cell-drag-top {
-  border-top: 2px solid rgb(33, 150, 243);
-}
-
-.grid-cell-drag-bottom {
-  border-bottom: 2px solid rgb(33, 150, 243);
-}
-
-.grid-cell-drag-left {
-  border-left: 2px solid rgb(33, 150, 243);
-}
-
-.grid-cell-drag-right {
-  border-right: 2px solid rgb(33, 150, 243);
-}
+.grid-cell-drag-top { border-top: 2px solid var(--primary-color); }
+.grid-cell-drag-bottom { border-bottom: 2px solid var(--primary-color); }
+.grid-cell-drag-left { border-left: 2px solid var(--primary-color); }
+.grid-cell-drag-right { border-right: 2px solid var(--primary-color); }
 
 .grid-header-right-area {
-  width: 14px;
-  position: absolute;
-  right: 0;
-  border-left: 1px solid #e5e5e5;
-  border-bottom: 1px solid #e5e5e5;
-  background-color: var(--grid-header-background-color);
-  flex-shrink: 0;
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    padding-right: 12px;
 }
 
 .cell-editor:focus {
-  background: white;
+    outline: none;
 }
 
-.grid-cell.editable.editing .fill-handle {
-  display: block;
-  pointer-events: none;
+.grid-cell.editable.editing .grid-cell-drag-handle {
+    display: none;
 }
 
-/* 复选框相关样式 */
-.grid-checkbox-cell,
-.grid-checkbox-header {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  width: 100%;
+/* Checkbox selection */
+.grid-checkbox-cell, .grid-header-checkbox-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
-
 .grid-checkbox {
-  width: 16px;
-  height: 16px;
-  cursor: pointer;
+    cursor: pointer;
 }
 
-.grid-cell-checkbox-container,
-.grid-header-checkbox-container {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  width: 100%;
+/* Row dragging */
+.grid-row-drag-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
-
-/* 行拖拽相关样式 */
-.grid-row-drag-cell,
-.grid-header-drag-container {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  width: 100%;
-  cursor: move;
+.grid-row-drag-handle {
+    cursor: grab;
+    padding: 0 8px;
+    color: #999;
 }
-
-.grid-row-drag-handle,
-.grid-header-drag-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #999;
-  width: 16px;
-  height: 16px;
+.grid-row-drag-handle:hover {
+    color: #333;
 }
-
-.grid-row-drag-handle:hover,
-.grid-header-drag-icon:hover {
-  color: #666;
-}
-
 .grid-row-dragging {
-  opacity: 0.5;
-  background-color: #f0f0f0;
+    opacity: 0.5;
+    background: #e6f7ff;
 }
-
 .grid-row-drag-above {
-  border-top: 2px solid var(--primary-color, #1890ff);
+    border-top: 2px solid var(--primary-color);
 }
-
 .grid-row-drag-below {
-  border-bottom: 2px solid var(--primary-color, #1890ff);
+    border-bottom: 2px solid var(--primary-color);
 }
 
-/* 树形结构相关样式 */
+/* Tree Grid Styles */
 .grid-tree-cell {
-  display: flex;
-  align-items: center;
-  height: 100%;
+    display: flex;
+    align-items: center;
 }
-
 .grid-tree-indent {
-  display: inline-block;
-  height: 100%;
+    width: 20px;
+    height: 100%;
+    flex-shrink: 0;
 }
-
 .grid-tree-expand-button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  cursor: pointer;
-  color: #999;
+    cursor: pointer;
+    width: 20px;
+    height: 20px;
+    text-align: center;
+    line-height: 20px;
+    border-radius: 3px;
+    margin-right: 4px;
 }
-
 .grid-tree-expand-button:hover {
-  color: #666;
+    background: #f0f0f0;
 }
-
 .grid-tree-content {
-  margin-left: 4px;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
-/* 行合并和列合并样式 */
-/* 列合并样式 */
+/* Cell Merging */
 .grid-cell-merged {
-  z-index: 5;
-  background-color: #fff;
-  position: relative;
+    background-color: #f7f7f7;
+    font-weight: bold;
 }
-
-/* 被合并的单元格（隐藏内容） */
 .grid-cell-hidden {
-  visibility: hidden;
+    visibility: hidden;
 }
 
-/* New styles for pinned columns */
+/* Layout containers */
 .grid-root-wrapper {
   display: flex;
-  width: 100%;
   height: 100%;
-  overflow: hidden;
-}
-
-.grid-pinned-container {
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 2px 0 5px -2px rgba(0, 0, 0, 0.1);
-  z-index: 2;
   position: relative;
 }
 
-.grid-pinned-container.grid-pinned-right {
-  box-shadow: -2px 0 5px -2px rgba(0,0,0,0.1);
+.grid-pinned-left-container,
+.grid-pinned-right-container,
+.grid-center-container {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.grid-pinned-right-container {
+    border-left: 1px solid var(--grid-border-color);
 }
 
 .grid-center-container {
-  flex-grow: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden; /* Important to contain the horizontal scrollbar */
+    flex: 1;
+    position: relative;
 }
 
-.grid-center-container .grid-header {
-  overflow: hidden; /* The header itself should not scroll */
-}
-
-.grid-center-container .grid-body {
-  overflow-x: auto; /* Allow horizontal scrolling only for the center body */
-}
-
-/* Drop indicators for column dragging */
+/* Column Drag & Drop indicators */
 .grid-header-cell.drop-indicator-left::before,
 .grid-header-cell.drop-indicator-right::after {
-  content: "";
+  content: '';
   position: absolute;
   top: 0;
   bottom: 0;
   width: 2px;
-  background-color: #1890ff; /* A bright color for visibility */
+  background-color: var(--primary-color);
   z-index: 10;
 }
-
 .grid-header-cell.drop-indicator-left::before {
   left: -1px;
 }
-
 .grid-header-cell.drop-indicator-right::after {
   right: -1px;
 }
-
-/* Styles for the column resize guide */
 .resize-guide {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  background-color: rgba(24, 144, 255, 0.75);
-  z-index: 9999;
-  pointer-events: none; /* So it doesn't interfere with other mouse events */
-  transition: background-color 0.2s ease; /* Add a smooth transition */
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background-color: rgba(24, 144, 255, 0.5);
+    z-index: 1000;
+    pointer-events: none;
 }
-
 .resize-guide.limit-reached {
-  background-color: #ff4d4f;
+    background-color: #f5222d;
 }
 
-/* End of new styles */
-
-/* 用于拖拽填充的高亮样式 */
 .grid-cell-drag-highlight {
-  outline: 2px solid #1890ff;
-  outline-offset: -2px;
+  border: 2px solid var(--primary-color);
+  background: rgba(24, 144, 255, 0.1);
   z-index: 10;
+  box-sizing: border-box; /* Ensure border is inside the calculated width/height. */
+}
+
+.sort-icon, .filter-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 4px;
+    cursor: pointer;
+    opacity: 0.6;
+    transition: opacity 0.2s;
+}
+
+.sort-icon:hover, .filter-icon:hover, .grid-header-cell[data-sort] .sort-icon {
+    opacity: 1;
+}
+
+/* Ensure these containers fill the cell and center their content */
+.grid-header-checkbox-container,
+.grid-header-drag-container {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 
