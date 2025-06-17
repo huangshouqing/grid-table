@@ -8,5 +8,11 @@ export default defineConfig({
       name: 'GridTable',
       fileName: 'index',
     },
+    cssCodeSplit: false,
+    rollupOptions: {
+      output: {
+        assetFileNames: 'style.[ext]'
+      }
+    }
   },
 }); 

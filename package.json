@@ -2,7 +2,11 @@
   "name": "grid-table-monorepo",
   "private": true,
   "scripts": {
-    "dev": "pnpm --filter ./packages/core dev"
+    "dev": "pnpm --filter ./packages/core dev",
+    "dev:vue": "pnpm --filter ./apps/vue-demo dev",
+    "dev:react": "pnpm --filter ./apps/react-demo dev",
+    "build:core": "pnpm --filter ./packages/core build",
+    "setup": "pnpm install && pnpm build:core"
   },
   "devDependencies": {
     "sass": "^1.89.2",
