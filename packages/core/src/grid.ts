@@ -34,6 +34,8 @@ import { GridDragDropManager } from "./managers/GridDragDropManager";
 import { GridFilterSortManager } from "./managers/GridFilterSortManager";
 import { GridEventHandlers } from "./managers/GridEventHandlers";
 import { FormulaManager } from "./managers/FormulaManager";
+// 导入 EventBus
+import { EventBus } from "./managers/EventBus";
 // 添加状态管理
 
 export class Grid implements GridApi {
@@ -59,6 +61,8 @@ export class Grid implements GridApi {
   private eventHandlers: GridEventHandlers;
   // 添加公式管理器
   private formulaManager: FormulaManager;
+  // 添加事件总线
+  private eventBus: EventBus;
 
   private leftPinnedColumns: Column[] = [];
   private centerColumns: Column[] = [];
@@ -121,7 +125,14 @@ export class Grid implements GridApi {
     this.virtualDOM = new VirtualDOMManager(this);
     this.scrollSyncManager = new ScrollSyncManager();
     this.eventManager = new EventManager();
-    this.componentManager = new ComponentManager();
+    
+    // 初始化事件总线
+    this.eventBus = new EventBus();
+    
+    // 初始化组件管理器，传入事件总线和配置
+    this.componentManager = new ComponentManager(this.eventBus, {
+      allowMultipleEditors: false // 默认不允许多个编辑组件同时存在
+    });
 
     // 初始化公式管理器
     this.formulaManager = new FormulaManager(this.getApi());
@@ -757,6 +768,7 @@ export class Grid implements GridApi {
       this.virtualDOM.clear();
     }
     this.eventManager.clear();
+    this.eventBus.clear();
   }
 
   /**
@@ -765,6 +777,14 @@ export class Grid implements GridApi {
    */
   getComponentManager(): ComponentManager {
     return this.componentManager;
+  }
+
+  /**
+   * 获取事件总线
+   * @returns 事件总线实例
+   */
+  getEventBus(): EventBus {
+    return this.eventBus;
   }
 
   /**

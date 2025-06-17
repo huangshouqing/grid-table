@@ -588,6 +588,13 @@ export class GridRenderers {
       this.state.editingCell?.rowId === node.id &&
       this.state.editingCell?.field === column.field;
 
+    // 添加或移除editing类
+    if (isEditing) {
+      cell.classList.add('editing');
+    } else {
+      cell.classList.remove('editing');
+    }
+
     // 创建唯一的顶级内容容器
     const contentId = `${cellId}-content`;
     this.virtualDOM.createElement(contentId, "div", "grid-cell-content");
@@ -667,7 +674,7 @@ export class GridRenderers {
     }
 
     // 为普通单元格添加拖拽填充句柄
-    if (!isEditing && !column.checkboxSelection && !column.rowDrag) {
+    if (!isEditing && !column.checkboxSelection && !column.rowDrag && column.fillable === true) {
       const dragHandleId = `${contentId}-draghandle`;
       this.virtualDOM.createElement(dragHandleId, "div", "grid-cell-drag-handle");
       this.virtualDOM.updateElement(dragHandleId, {

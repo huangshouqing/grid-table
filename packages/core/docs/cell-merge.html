@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>单元格合并 - Grid Table</title>
+    <link rel="stylesheet" href="../src/style/index.css" />
+    <style>
+      body {
+        margin: 0;
+        padding: 20px;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, sans-serif;
+      }
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      .grid-container {
+        height: 400px;
+        border: 1px solid #e8e8e8;
+      }
+      .code-block {
+        background: #f5f5f5;
+        padding: 15px;
+        border-radius: 4px;
+        margin: 10px 0 30px;
+        font-family: monospace;
+        white-space: pre-wrap;
+        overflow-x: auto;
+      }
+      .nav-links {
+        margin-bottom: 30px;
+      }
+      .nav-links a {
+        display: inline-block;
+        padding: 8px 16px;
+        margin-right: 10px;
+        background: #f5f5f5;
+        border-radius: 4px;
+        color: #333;
+        text-decoration: none;
+        transition: all 0.3s;
+      }
+      .nav-links a:hover {
+        background: #e0e0e0;
+      }
+      .docs-section {
+        margin-bottom: 40px;
+      }
+      .docs-section h3 {
+        border-bottom: 1px solid #eaeaea;
+        padding-bottom: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>单元格合并</h1>
+
+      <div class="nav-links">
+        <a href="index.html">首页</a>
+        <a href="basic.html">基础功能</a>
+        <a href="advanced.html">高级功能</a>
+        <a href="tree-grid.html">树形结构</a>
+        <a href="cell-merge.html">单元格合并</a>
+        <a href="complex-components.html">复杂组件</a>
+        <a href="custom-components.html">自定义组件</a>
+      </div>
+
+      <div class="docs-section">
+        <h2>基础单元格合并</h2>
+        <p>
+          展示行合并和列合并的基本用法，通过 colSpan 和 rowSpan
+          配置实现单元格的合并布局。
+        </p>
+
+        <div id="mergeGrid" class="grid-container"></div>
+      </div>
+
+      <div class="docs-section">
+        <h2>动态单元格合并</h2>
+        <p>基于数据条件进行动态单元格合并，例如合并相同值的相邻单元格。</p>
+
+        <div id="dynamicMergeGrid" class="grid-container"></div>
+      </div>
+
+      <div class="docs-section">
+        <h2>复杂单元格合并</h2>
+        <p>展示更复杂的单元格合并布局，包括标题行、分组表头等高级用法。</p>
+
+        <div id="complexMergeGrid" class="grid-container"></div>
+      </div>
+    </div>
+
+    <script type="module">
+      import { Grid } from "../src/grid.ts";
+
+      // 单元格合并示例数据
+      const mergeData = [
+        {
+          id: 1,
+          name: "合并单元格示例",
+          age: 25,
+          city: "北京",
+          address: "朝阳区",
+        },
+        { id: 2, name: "张三", age: 28, city: "上海", address: "浦东新区" },
+        { id: 3, name: "张三", age: 28, city: "上海", address: "浦东新区" },
+        { id: 4, name: "李四", age: 32, city: "广州", address: "天河区" },
+        { id: 5, name: "王五", age: 35, city: "深圳", address: "南山区" },
+        { id: 6, name: "赵六", age: 40, city: "杭州", address: "西湖区" },
+      ];
+
+      // 基础单元格合并
+      const mergeGrid = new Grid({
+        columns: [
+          { field: "name", headerName: "姓名", width: 150 },
+          { field: "age", headerName: "年龄", width: 100 },
+          { field: "city", headerName: "城市", width: 120 },
+          { field: "address", headerName: "地址", width: 200 },
+        ],
+        rowData: mergeData,
+        // 列合并
+        colSpan: (params) => {
+          if (params.rowIndex === 0 && params.colDef.field === "name") {
+            return 2; // 第一行的姓名单元格横跨2列
+          }
+          return 1;
+        },
+        // 行合并
+        rowSpan: (params) => {
+          if (params.rowIndex === 1 && params.field === "city") {
+            return 2; // 第二行的城市单元格纵跨2行
+          }
+          return 1;
+        },
+      });
+      mergeGrid.render(document.getElementById("mergeGrid"));
+      // 动态单元格合并
+      const dynamicData = [
+        {
+          id: 1,
+          category: "电子产品",
+          product: "手机",
+          brand: "Apple",
+          model: "iPhone 14",
+        },
+        {
+          id: 2,
+          category: "电子产品",
+          product: "手机",
+          brand: "Apple",
+          model: "iPhone 13",
+        },
+        {
+          id: 3,
+          category: "电子产品",
+          product: "手机",
+          brand: "Samsung",
+          model: "Galaxy S23",
+        },
+        {
+          id: 4,
+          category: "电子产品",
+          product: "平板",
+          brand: "Apple",
+          model: "iPad Pro",
+        },
+        {
+          id: 5,
+          category: "电子产品",
+          product: "平板",
+          brand: "Samsung",
+          model: "Galaxy Tab",
+        },
+        {
+          id: 6,
+          category: "家用电器",
+          product: "电视",
+          brand: "Sony",
+          model: "X90K",
+        },
+        {
+          id: 7,
+          category: "家用电器",
+          product: "电视",
+          brand: "Sony",
+          model: "A80J",
+        },
+      ];
+
+      const dynamicMergeGrid = new Grid({
+        columns: [
+          { field: "category", headerName: "分类", width: 120 },
+          { field: "product", headerName: "产品", width: 120 },
+          { field: "brand", headerName: "品牌", width: 120 },
+          { field: "model", headerName: "型号", width: 150 },
+        ],
+        rowData: dynamicData,
+        // 简化版动态行合并示例
+        rowSpan: (params) => {
+          if (params.field === "category") {
+            // 合并相同分类
+            if (
+              params.rowIndex > 0 &&
+              dynamicData[params.rowIndex - 1].category === params.value
+            ) {
+              return 0; // 隐藏重复值
+            }
+            // 计算相同值的连续行数
+            let count = 1;
+            for (let i = params.rowIndex + 1; i < dynamicData.length; i++) {
+              if (dynamicData[i].category === params.value) {
+                count++;
+              } else {
+                break;
+              }
+            }
+            return count;
+          }
+          if (params.field === "product") {
+            // 合并相同产品（仅当分类相同时）
+            if (
+              params.rowIndex > 0 &&
+              dynamicData[params.rowIndex - 1].product === params.value &&
+              dynamicData[params.rowIndex - 1].category ===
+                dynamicData[params.rowIndex].category
+            ) {
+              return 0;
+            }
+            // 计算相同值的连续行数
+            let count = 1;
+            for (let i = params.rowIndex + 1; i < dynamicData.length; i++) {
+              if (
+                dynamicData[i].product === params.value &&
+                dynamicData[i].category ===
+                  dynamicData[params.rowIndex].category
+              ) {
+                count++;
+              } else {
+                break;
+              }
+            }
+            return count;
+          }
+          return 1;
+        },
+      });
+      dynamicMergeGrid.render(document.getElementById("dynamicMergeGrid"));
+      // 复杂单元格合并
+      const complexData = [
+        { id: 1, header: true, title: "销售业绩统计表", year: "2023年度" },
+        { id: 2, quarter: "Q1", month: "1月", sales: 120000, profit: 45000 },
+        { id: 3, quarter: "Q1", month: "2月", sales: 132000, profit: 48000 },
+        { id: 4, quarter: "Q1", month: "3月", sales: 141000, profit: 52000 },
+        { id: 5, quarter: "Q2", month: "4月", sales: 155000, profit: 58000 },
+        { id: 6, quarter: "Q2", month: "5月", sales: 168000, profit: 62000 },
+        { id: 7, quarter: "Q2", month: "6月", sales: 172000, profit: 63000 },
+      ];
+      const complexMergeGrid = new Grid({
+        columns: [
+          { field: "quarter", headerName: "季度", width: 100 },
+          { field: "month", headerName: "月份", width: 100 },
+          { field: "sales", headerName: "销售额", width: 150 },
+          { field: "profit", headerName: "利润", width: 150 },
+        ],
+        rowData: complexData,
+        // 简化的复杂合并示例
+        rowSpan: (params) => {
+          if (params.field === "quarter") {
+            if (
+              params.rowIndex > 0 &&
+              complexData[params.rowIndex - 1].quarter === params.value
+            ) {
+              return 0; // 隐藏重复值
+            }
+            // 计算相同季度的连续行数
+            let count = 1;
+            for (let i = params.rowIndex + 1; i < complexData.length; i++) {
+              if (complexData[i].quarter === params.value) {
+                count++;
+              } else {
+                break;
+              }
+            }
+            return count;
+          }
+          return 1;
+        },
+
+        colSpan: (params) => {
+          // 处理标题行
+          if (params.data && params.data.header === true) {
+            if (params.columnIndex === 0) {
+              return 4; // 假设有4列
+            }
+            return 0; // 隐藏其他列
+          }
+          return 1;
+        },
+
+        getCellStyle: (params) => {
+          if (params.data && params.data.header === true) {
+            return {
+              backgroundColor: "#f0f0f0",
+              fontWeight: "bold",
+              textAlign: "center",
+              fontSize: "16px",
+            };
+          }
+          return null;
+        },
+      });
+      complexMergeGrid.render(document.getElementById("complexMergeGrid"));
+    </script>
+  </body>
+</html>

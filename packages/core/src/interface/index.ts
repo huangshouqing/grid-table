@@ -1,4 +1,5 @@
 import { Column, FilterModel, SortModel } from "../types";
+export * from './components';
 
 export interface GridState {
   scrollPosition: {

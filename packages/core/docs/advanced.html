@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>高级功能 - Grid Table</title>
+    <link rel="stylesheet" href="../src/style/index.css" />
+    <style>
+      body {
+        margin: 0;
+        padding: 20px;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, sans-serif;
+      }
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      .grid-container {
+        height: 400px;
+        border: 1px solid #e8e8e8;
+      }
+      .code-block {
+        background: #f5f5f5;
+        padding: 15px;
+        border-radius: 4px;
+        margin: 10px 0 30px;
+        font-family: monospace;
+        white-space: pre-wrap;
+        overflow-x: auto;
+      }
+      .nav-links {
+        margin-bottom: 30px;
+      }
+      .nav-links a {
+        display: inline-block;
+        padding: 8px 16px;
+        margin-right: 10px;
+        background: #f5f5f5;
+        border-radius: 4px;
+        color: #333;
+        text-decoration: none;
+        transition: all 0.3s;
+      }
+      .nav-links a:hover {
+        background: #e0e0e0;
+      }
+      .docs-section {
+        margin-bottom: 40px;
+      }
+      .docs-section h3 {
+        border-bottom: 1px solid #eaeaea;
+        padding-bottom: 8px;
+      }
+
+      /* 状态样式 */
+      .status-active {
+        color: #52c41a;
+        background: #f6ffed;
+        border: 1px solid #b7eb8f;
+        padding: 2px 8px;
+        border-radius: 10px;
+      }
+      .status-inactive {
+        color: #ff4d4f;
+        background: #fff2f0;
+        border: 1px solid #ffccc7;
+        padding: 2px 8px;
+        border-radius: 10px;
+      }
+      .status-pending {
+        color: #faad14;
+        background: #fffbe6;
+        border: 1px solid #ffe58f;
+        padding: 2px 8px;
+        border-radius: 10px;
+      }
+      .inactive-row {
+        background-color: #fafafa !important;
+        color: #999;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>高级功能</h1>
+
+      <div class="nav-links">
+        <a href="index.html">首页</a>
+        <a href="basic.html">基础功能</a>
+        <a href="advanced.html">高级功能</a>
+        <a href="tree-grid.html">树形结构</a>
+        <a href="cell-merge.html">单元格合并</a>
+        <a href="complex-components.html">复杂组件</a>
+        <a href="custom-components.html">自定义组件</a>
+      </div>
+
+      <div class="docs-section">
+        <h2>自定义单元格渲染</h2>
+        <p>展示如何使用自定义单元格渲染器来显示不同的数据表现形式和状态。</p>
+
+        <div id="customCellGrid" class="grid-container"></div>
+      </div>
+
+      <div class="docs-section">
+        <h2>动态单元格样式</h2>
+        <p>
+          使用条件逻辑为单元格应用不同的样式，以视觉方式表达数据状态和意义。
+        </p>
+
+        <div id="dynamicStyleGrid" class="grid-container"></div>
+      </div>
+
+      <div class="docs-section">
+        <h2>单元格编辑</h2>
+        <p>Grid Table 支持单元格编辑功能，可以通过点击或双击触发编辑状态。</p>
+
+        <div id="cellEditingGrid" class="grid-container"></div>
+      </div>
+      <div class="docs-section">
+        <h2>公式系统</h2>
+        <p>Grid Table 支持公式系统，可以通过公式计算单元格的值。</p>
+
+        <div id="formulaGrid" class="grid-container"></div>
+      </div>
+    </div>
+
+    <script type="module">
+      import { Grid } from "../src/grid.ts";
+
+      // 高级示例数据
+      function getAdvancedData() {
+        const statuses = ["active", "inactive", "pending"];
+        const products = [
+          "iPhone 14 Pro",
+          "MacBook Air M2",
+          "iPad Pro",
+          "AirPods Pro",
+          "Apple Watch Series 8",
+        ];
+        const categories = [
+          "Smartphones",
+          "Laptops",
+          "Tablets",
+          "Audio",
+          "Wearables",
+        ];
+
+        return Array.from({ length: 100 }, (_, i) => ({
+          id: `ID${i + 1}`,
+          name: products[Math.floor(Math.random() * products.length)],
+          category: categories[Math.floor(Math.random() * categories.length)],
+          status: statuses[Math.floor(Math.random() * statuses.length)],
+          price: Math.floor(Math.random() * 2000) + 299,
+          stock: Math.floor(Math.random() * 100),
+        }));
+      }
+
+      // 自定义单元格渲染
+      const customCellGrid = new Grid({
+        columns: [
+          { field: "id", headerName: "ID", width: 100, draggable: false },
+          {
+            field: "name",
+            headerName: "产品名称",
+            width: 200,
+            draggable: false,
+            fillable: true,
+          },
+          { field: "category", headerName: "分类", width: 150 },
+          {
+            field: "status",
+            headerName: "状态",
+            width: 120,
+            // 支持传入 function 或 object
+            // 传入 function 时，会自动调用该函数，并返回一个 DOM 元素
+            cellRenderer: (params) => {
+              const status = params.value;
+              const div = document.createElement("div");
+              div.className = `status-${status}`;
+              div.textContent =
+                status === "active"
+                  ? "活跃"
+                  : status === "inactive"
+                  ? "未激活"
+                  : "待处理";
+              return div;
+            },
+          },
+          {
+            field: "price",
+            headerName: "价格",
+            width: 120,
+            // 传入 object 时，会自动调用该对象的 view 方法，并返回一个 DOM 元素
+            cellRenderer: {
+              view: (params) => {
+                const el = document.createElement("div");
+                el.textContent = params.value?.toLocaleString() || "";
+                el.style.fontWeight = "bold";
+                el.style.color = "#1890ff";
+                return el;
+              },
+            },
+            valueFormatter: (params) => {
+              return `¥${params.value.toLocaleString()}`;
+            },
+          },
+          {
+            field: "stock",
+            headerName: "库存",
+            width: 100,
+            editable: true,
+            // 当传入 object 时，双击该单元格，会自动调用该对象的 edit 方法，并返回一个 DOM 元素
+            cellRenderer: {
+              view: (params) => {
+                const el = document.createElement("div");
+                el.textContent = params.value;
+                if (params.value < 10) {
+                  el.style.color = "#ff4d4f";
+                  el.style.fontWeight = "bold";
+                } else if (params.value < 30) {
+                  el.style.color = "#faad14";
+                }
+                return el;
+              },
+              edit: (params) => {
+                const input = document.createElement("input");
+                input.type = "number";
+                input.min = "0";
+                input.value = params.value;
+                input.onchange = () => {
+                  params.onComplete(parseInt(input.value, 10));
+                };
+                input.onblur = () => {
+                  params.onComplete(parseInt(input.value, 10));
+                };
+                return input;
+              },
+            },
+          },
+        ],
+        rowData: getAdvancedData(),
+        // 未实现
+        // getRowStyle: (params) => {
+        //   if (params.data.status === "inactive") {
+        //     return { className: "inactive-row" };
+        //   }
+        //   return null;
+        // },
+      });
+      customCellGrid.render(document.getElementById("customCellGrid"));
+      // 动态单元格样式
+      const dynamicStyleGrid = new Grid({
+        columns: [
+          { field: "id", headerName: "ID", width: 100 },
+          { field: "name", headerName: "产品名称", width: 200 },
+          {
+            field: "stock",
+            headerName: "库存",
+            width: 120,
+            editable: true,
+            cellStyle: (params) => {
+              if (params.value < 20) {
+                return { color: "#ff4d4f", fontWeight: "bold" };
+              } else if (params.value > 80) {
+                return { color: "#52c41a", fontWeight: "bold" };
+              }
+              return null;
+            },
+          },
+          {
+            field: "price",
+            headerName: "价格",
+            width: 150,
+            valueFormatter: (params) => {
+              return `¥${params.value.toLocaleString()}`;
+            },
+            // 未实现
+            cellStyle: (params) => {
+              if (params.value > 1500) {
+                return { color: "#1890ff", fontWeight: "bold" };
+              }
+              return null;
+            },
+          },
+        ],
+        rowData: getAdvancedData(),
+      });
+      dynamicStyleGrid.render(document.getElementById("dynamicStyleGrid"));
+      // 单元格编辑
+      const cellEditingGrid = new Grid({
+        columns: [
+          { field: "id", headerName: "ID", width: 100, editable: false },
+          { field: "name", headerName: "产品名称", width: 200, editable: true },
+          {
+            field: "stock",
+            headerName: "库存",
+            width: 120,
+            editable: true,
+          },
+          {
+            field: "price",
+            headerName: "价格",
+            width: 150,
+            editable: true,
+            valueFormatter: (params) => {
+              return `¥${params.value.toLocaleString()}`;
+            },
+            // 未实现
+            valueParser: (params) => {
+              return Number(params.value.replace(/[^0-9.-]+/g, ""));
+            },
+          },
+        ],
+        rowData: getAdvancedData().slice(0, 10),
+        editType: "click",
+      });
+      cellEditingGrid.render(document.getElementById("cellEditingGrid"));
+      //公式系统
+      const formulaGrid = new Grid({
+        columns: [
+          { field: "id", headerName: "ID", width: 100 },
+          { field: "name", headerName: "产品名称", width: 200 },
+          {
+            field: "price",
+            headerName: "价格",
+            width: 120,
+            editable: true,
+          },
+          {
+            field: "quantity",
+            headerName: "数量",
+            width: 120,
+            editable: true,
+          },
+          {
+            field: "total",
+            headerName: "总价",
+            width: 120,
+            editable: true,
+            formula: "[price] * [quantity]",
+          },
+        ],
+        rowData: getAdvancedData(),
+      });
+      formulaGrid.render(document.getElementById("formulaGrid"));
+    </script>
+  </body>
+</html>

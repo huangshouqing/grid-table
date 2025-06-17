@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>复杂组件 - Grid Table</title>
+    <link rel="stylesheet" href="../src/style/index.css" />
+    <style>
+      body {
+        margin: 0;
+        padding: 20px;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, sans-serif;
+      }
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      .grid-container {
+        height: 400px;
+        border: 1px solid #e8e8e8;
+      }
+      .code-block {
+        background: #f5f5f5;
+        padding: 15px;
+        border-radius: 4px;
+        margin: 10px 0 30px;
+        font-family: monospace;
+        white-space: pre-wrap;
+        overflow-x: auto;
+      }
+      .nav-links {
+        margin-bottom: 30px;
+      }
+      .nav-links a {
+        display: inline-block;
+        padding: 8px 16px;
+        margin-right: 10px;
+        background: #f5f5f5;
+        border-radius: 4px;
+        color: #333;
+        text-decoration: none;
+        transition: all 0.3s;
+      }
+      .nav-links a:hover {
+        background: #e0e0e0;
+      }
+      .docs-section {
+        margin-bottom: 40px;
+      }
+      .docs-section h3 {
+        border-bottom: 1px solid #eaeaea;
+        padding-bottom: 8px;
+      }
+
+      /* 标签样式 */
+      .tags-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+      }
+      .tag {
+        background: #f0f0f0;
+        border-radius: 10px;
+        padding: 2px 8px;
+        font-size: 12px;
+        display: inline-block;
+      }
+      .tag-blue {
+        background: #e6f7ff;
+        color: #1890ff;
+        border: 1px solid #91d5ff;
+      }
+      .tag-green {
+        background: #f6ffed;
+        color: #52c41a;
+        border: 1px solid #b7eb8f;
+      }
+      .tag-orange {
+        background: #fff7e6;
+        color: #fa8c16;
+        border: 1px solid #ffd591;
+      }
+      .tag-red {
+        background: #fff1f0;
+        color: #f5222d;
+        border: 1px solid #ffa39e;
+      }
+
+      /* 进度条样式 */
+      .progress-container {
+        width: 100%;
+        background-color: #f5f5f5;
+        border-radius: 4px;
+        height: 8px;
+      }
+      .progress-bar {
+        height: 100%;
+        border-radius: 4px;
+      }
+      .progress-low {
+        background-color: #ff4d4f;
+      }
+      .progress-medium {
+        background-color: #faad14;
+      }
+      .progress-high {
+        background-color: #52c41a;
+      }
+
+      /* 评分组件样式 */
+      .rating {
+        color: #faad14;
+        letter-spacing: 2px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>复杂组件</h1>
+
+      <div class="nav-links">
+        <a href="index.html">首页</a>
+        <a href="basic.html">基础功能</a>
+        <a href="advanced.html">高级功能</a>
+        <a href="tree-grid.html">树形结构</a>
+        <a href="cell-merge.html">单元格合并</a>
+        <a href="complex-components.html">复杂组件</a>
+        <a href="custom-components.html">自定义组件</a>
+      </div>
+
+      <div class="docs-section">
+        <h2>多标签渲染</h2>
+        <p>
+          展示如何在单元格中渲染多个标签组件，以更丰富的方式展示分类或标记信息。
+        </p>
+        <div id="tagsGrid" class="grid-container"></div>
+      </div>
+
+      <div class="docs-section">
+        <h2>进度条组件</h2>
+        <p>在单元格中渲染交互式进度条组件，以可视化方式展示数据进度信息。</p>
+        <div id="progressGrid" class="grid-container"></div>
+      </div>
+
+      <div class="docs-section">
+        <h2>评分组件</h2>
+        <p>在单元格中显示星级评分组件，可用于展示评级或满意度等指标。</p>
+        <div id="ratingGrid" class="grid-container"></div>
+      </div>
+    </div>
+
+    <script type="module">
+      import { Grid } from "../src/grid.ts";
+
+      // 多标签示例
+      const products = [
+        {
+          id: 1,
+          name: "iPhone 14 Pro",
+          price: 7999,
+          tags: ["智能手机", "苹果", "高端", "A16"],
+        },
+        {
+          id: 2,
+          name: "MacBook Air M2",
+          price: 9999,
+          tags: ["笔记本", "苹果", "轻薄", "M2"],
+        },
+        {
+          id: 3,
+          name: "Samsung S23",
+          price: 6999,
+          tags: ["智能手机", "三星", "高端", "骁龙8"],
+        },
+        {
+          id: 4,
+          name: "iPad Pro",
+          price: 6999,
+          tags: ["平板", "苹果", "专业", "M2"],
+        },
+        {
+          id: 5,
+          name: "Surface Pro",
+          price: 8999,
+          tags: ["平板", "微软", "二合一", "专业"],
+        },
+      ];
+
+      const tagsGrid = new Grid({
+        columns: [
+          { field: "id", headerName: "ID", width: 80, sortable: true },
+          { field: "name", headerName: "产品名称", width: 180, sortable: true },
+          {
+            field: "price",
+            headerName: "价格",
+            width: 120,
+            sortable: true,
+            editable: true,
+            // valueFormatter: (params) => {
+            //   return `¥${params.value.toLocaleString()}`;
+            // },
+          },
+          {
+            field: "tags",
+            headerName: "标签",
+            width: 300, 
+            sortable: true,
+            cellRenderer: (params) => {
+              // 创建标签容器
+              const container = document.createElement("div");
+              container.className = "tags-container";
+
+              // 获取标签数组
+              const tags = params.value || [];
+
+              // 标签颜色映射
+              const tagColors = {
+                智能手机: "blue",
+                笔记本: "green",
+                平板: "orange",
+                苹果: "blue",
+                三星: "blue",
+                微软: "blue",
+                高端: "red",
+                专业: "red",
+                轻薄: "green",
+                二合一: "orange",
+                A16: "blue",
+                M2: "blue",
+                骁龙8: "blue",
+              };
+
+              // 为每个标签创建一个标签元素
+              tags.forEach((tag) => {
+                const tagEle = document.createElement("span");
+                tagEle.className = `tag tag-${tagColors[tag] || ""}`;
+                tagEle.textContent = tag;
+                container.appendChild(tagEle);
+              });
+
+              return container;
+            },
+          },
+        ],
+        rowData: products,
+      });
+      tagsGrid.render(document.getElementById("tagsGrid"));
+      // 进度条示例
+      const progressData = [
+        {
+          id: 1,
+          task: "需求分析",
+          progress: 100,
+          assignee: "张三",
+          deadline: "2023-06-15",
+        },
+        {
+          id: 2,
+          task: "概要设计",
+          progress: 85,
+          assignee: "李四",
+          deadline: "2023-06-20",
+        },
+        {
+          id: 3,
+          task: "详细设计",
+          progress: 70,
+          assignee: "王五",
+          deadline: "2023-06-30",
+        },
+        {
+          id: 4,
+          task: "编码实现",
+          progress: 45,
+          assignee: "赵六",
+          deadline: "2023-07-15",
+        },
+        {
+          id: 5,
+          task: "单元测试",
+          progress: 20,
+          assignee: "孙七",
+          deadline: "2023-07-25",
+        },
+        {
+          id: 6,
+          task: "集成测试",
+          progress: 0,
+          assignee: "周八",
+          deadline: "2023-08-05",
+        },
+      ];
+
+      const progressGrid = new Grid({
+        columns: [
+          { field: "id", headerName: "ID", width: 80 },
+          { field: "task", headerName: "任务", width: 150 },
+          {
+            field: "progress",
+            headerName: "进度",
+            width: 200,
+            cellRenderer: (params) => {
+              const progress = params.value || 0;
+
+              // 创建容器
+              const container = document.createElement("div");
+              container.style.display = "flex";
+              container.style.alignItems = "center";
+              container.style.padding = "5px 0";
+
+              // 创建进度条容器
+              const progressContainer = document.createElement("div");
+              progressContainer.className = "progress-container";
+
+              // 创建进度条
+              const progressBar = document.createElement("div");
+              progressBar.className = "progress-bar";
+
+              // 根据进度值设置宽度和颜色
+              progressBar.style.width = `${progress}%`;
+              if (progress < 30) {
+                progressBar.classList.add("progress-low");
+              } else if (progress < 70) {
+                progressBar.classList.add("progress-medium");
+              } else {
+                progressBar.classList.add("progress-high");
+              }
+
+              // 创建进度文本
+              const progressText = document.createElement("span");
+              progressText.textContent = `${progress}%`;
+              progressText.style.marginLeft = "8px";
+
+              // 组装组件
+              progressContainer.appendChild(progressBar);
+              container.appendChild(progressContainer);
+              container.appendChild(progressText);
+
+              return container;
+            },
+          },
+          { field: "assignee", headerName: "负责人", width: 120 },
+          { field: "deadline", headerName: "截止日期", width: 120 },
+        ],
+        rowData: progressData,
+      });
+      progressGrid.render(document.getElementById("progressGrid"));
+      // 评分组件示例
+      const ratingData = [
+        { id: 1, product: "智能手机A", price: 5999, rating: 5, sales: 1280 },
+        { id: 2, product: "笔记本电脑B", price: 8999, rating: 4.5, sales: 860 },
+        { id: 3, product: "平板电脑C", price: 3999, rating: 4, sales: 1050 },
+        { id: 4, product: "智能手表D", price: 1999, rating: 3.5, sales: 920 },
+        { id: 5, product: "无线耳机E", price: 999, rating: 4.8, sales: 2100 },
+      ];
+
+      const ratingGrid = new Grid({
+        columns: [
+          { field: "id", headerName: "ID", width: 80 },
+          { field: "product", headerName: "产品名称", width: 150 },
+          {
+            field: "price",
+            headerName: "价格",
+            width: 120,
+            valueFormatter: (params) => {
+              return `¥${params.value.toLocaleString()}`;
+            },
+          },
+          {
+            field: "rating",
+            headerName: "评分",
+            width: 200,
+            cellRenderer: (params) => {
+              const rating = params.value || 0;
+
+              // 创建容器
+              const container = document.createElement("div");
+              container.className = "rating";
+
+              // 计算完整星星和半星
+              const fullStars = Math.floor(rating);
+              const hasHalfStar = rating % 1 >= 0.5;
+
+              // 创建星星
+              let stars = "";
+              for (let i = 0; i < fullStars; i++) {
+                stars += "★"; // 实心星星
+              }
+
+              if (hasHalfStar) {
+                stars += "☆"; // 半星
+              }
+
+              // 补充空星
+              const emptyStars = 5 - Math.ceil(rating);
+              for (let i = 0; i < emptyStars; i++) {
+                stars += "☆"; // 空心星星
+              }
+
+              // 添加文本评分
+              const ratingText = document.createElement("span");
+              ratingText.textContent = `${rating.toFixed(1)}`;
+              ratingText.style.marginLeft = "8px";
+              ratingText.style.color = "#333";
+
+              container.textContent = stars;
+              container.appendChild(ratingText);
+
+              return container;
+            },
+          },
+          { field: "sales", headerName: "销量", width: 120 },
+        ],
+        rowData: ratingData,
+      });
+      ratingGrid.render(document.getElementById("ratingGrid"));
+    </script>
+  </body>
+</html>

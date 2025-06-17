@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Grid Table - 自定义组件系统</title>
+    <link rel="stylesheet" href="../src/style/index.css" />
+    <style>
+      body {
+        margin: 0;
+        padding: 20px;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, sans-serif;
+      }
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      .grid-container {
+        width: 100%;
+        height: 400px;
+        border: 1px solid #e8e8e8;
+      }
+      .tag-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+      }
+      .nav-links {
+        margin-bottom: 30px;
+      }
+      .nav-links a {
+        display: inline-block;
+        padding: 8px 16px;
+        margin-right: 10px;
+        background: #f5f5f5;
+        border-radius: 4px;
+        color: #333;
+        text-decoration: none;
+        transition: all 0.3s;
+      }
+      .nav-links a:hover {
+        background: #e0e0e0;
+      }
+
+      .tag {
+        background-color: #e1f5fe;
+        color: #0277bd;
+        border-radius: 12px;
+        padding: 2px 8px;
+        font-size: 12px;
+        display: inline-block;
+      }
+
+      .tag-red {
+        background-color: #ffebee;
+        color: #c62828;
+      }
+
+      .tag-green {
+        background-color: #e8f5e9;
+        color: #2e7d32;
+      }
+
+      .tag-blue {
+        background-color: #e3f2fd;
+        color: #1565c0;
+      }
+
+      .tag-orange {
+        background-color: #fff3e0;
+        color: #ef6c00;
+      }
+
+      .inactive-row {
+        background-color: #f5f5f5;
+        color: #999;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Grid Table 功能文档</h1>
+      <div class="nav-links">
+        <a href="index.html">首页</a>
+        <a href="basic.html">基础功能</a>
+        <a href="advanced.html">高级功能</a>
+        <a href="tree-grid.html">树形结构</a>
+        <a href="cell-merge.html">单元格合并</a>
+        <a href="complex-components.html">复杂组件</a>
+        <a href="custom-components.html">自定义组件</a>
+      </div>
+
+      <div class="content">
+        <div class="docs-section">
+          <h2>自定义组件系统</h2>
+          <p>
+            Grid
+            Table提供了一套强大的自定义组件系统，允许开发者定义和注册自己的单元格组件，
+            以实现更复杂的数据展示和编辑功能。
+          </p>
+
+          <div id="customComponentGrid" class="grid-container"></div>
+        </div>
+
+        <div class="docs-section">
+          <h2>组件注册</h2>
+          <p>
+            通过组件管理器可以注册自定义视图和编辑组件，支持函数组件和类组件两种形式。
+          </p>
+
+          <h3>组件接口</h3>
+          <pre><code>interface IComponent {
+  init(params: IComponentParams): void;
+  getGui(): HTMLElement;
+  refresh?(params: IComponentParams): boolean;
+  destroy?(): void;
+}</code></pre>
+        </div>
+
+        <div class="docs-section">
+          <h2>标签组件示例</h2>
+          <p>下面是一个标签组件的示例，可以用于显示和编辑多个标签数据。</p>
+
+          <div id="tagsComponentGrid" class="grid-container"></div>
+        </div>
+
+        <div class="docs-section">
+          <h2>地址组件示例</h2>
+          <p>结构化的地址编辑组件示例，可以编辑多个字段组成的复杂数据。</p>
+
+          <div id="addressComponentGrid" class="grid-container"></div>
+        </div>
+      </div>
+    </div>
+
+    <script type="module">
+      import { Grid } from "../src/grid.ts";
+      import {
+        TagViewComponent,
+        TagEditComponentClass,
+        AddressViewComponent,
+        AddressEditComponentClass,
+      } from "../example-components.ts";
+
+      // 添加自定义组件样式
+      const customComponentStyles = document.createElement("style");
+      customComponentStyles.textContent = `
+        /* 标签组件样式 */
+        .tag-container {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 4px;
+        }
+        
+        .tag {
+          background-color: #e1f5fe;
+          color: #0277bd;
+          border-radius: 12px;
+          padding: 2px 8px;
+          font-size: 12px;
+          display: inline-block;
+        }
+        
+        /* 内联编辑容器样式 */
+        .inline-edit-container {
+          border: 1px solid #ddd;
+          border-radius: 4px;
+          background-color: white;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+          padding: 8px;
+          margin-top: 4px;
+          width: 250px;
+          position: absolute;
+          z-index: 1000;
+        }
+        
+        .address-edit-container {
+          width: 300px;
+        }
+        
+        /* 编辑区域样式 */
+        .edit-title {
+          font-size: 14px;
+          font-weight: bold;
+          margin-bottom: 8px;
+          padding-bottom: 8px;
+          border-bottom: 1px solid #eee;
+        }
+        
+        .edit-content {
+          margin-bottom: 12px;
+          max-height: 300px;
+          overflow-y: auto;
+        }
+        
+        .edit-actions {
+          display: flex;
+          justify-content: flex-end;
+          gap: 8px;
+          margin-top: 8px;
+        }
+        
+        /* 复选框样式 */
+        .checkbox-item {
+          display: flex;
+          align-items: center;
+          margin-bottom: 4px;
+        }
+        
+        .checkbox-item input {
+          margin-right: 6px;
+        }
+        
+        /* 地址组件样式 */
+        .address-view {
+          padding: 4px;
+        }
+        
+        .address-field {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          margin-bottom: 12px;
+        }
+        
+        .address-field label {
+          font-size: 12px;
+          font-weight: bold;
+        }
+        
+        .address-field input {
+          padding: 8px;
+          border: 1px solid #ddd;
+          border-radius: 4px;
+        }
+        
+        /* 按钮样式 */
+        .cancel-button, .save-button {
+          padding: 6px 12px;
+          border: none;
+          border-radius: 4px;
+          cursor: pointer;
+        }
+        
+        .cancel-button {
+          background-color: #f5f5f5;
+          color: #333;
+        }
+        
+        .save-button {
+          background-color: #2196f3;
+          color: white;
+        }
+      `;
+      document.head.appendChild(customComponentStyles);
+
+      // 初始化自定义组件表格
+      const customGrid = new Grid({
+        columns: [
+          { field: "id", headerName: "编号", width: 80 },
+          { field: "name", headerName: "姓名", width: 150, editable: true },
+          {
+            field: "tags",
+            headerName: "标签",
+            width: 200,
+            editable: true,
+            cellComponent: {
+              type: "tags",
+              props: {
+                options: [
+                  "重要",
+                  "紧急",
+                  "新客户",
+                  "老客户",
+                  "潜在客户",
+                  "待跟进",
+                  "已完成",
+                ],
+              },
+            },
+          },
+          {
+            field: "address",
+            headerName: "地址",
+            width: 300,
+            editable: true,
+            cellComponent: {
+              type: "address",
+            },
+          },
+        ],
+        rowData: [
+          {
+            id: 1,
+            name: "张三",
+            tags: ["重要", "新客户"],
+            address: {
+              street: "中关村大街1号",
+              city: "北京",
+              state: "北京市",
+              zip: "100080",
+            },
+          },
+          {
+            id: 2,
+            name: "李四",
+            tags: ["老客户"],
+            address: {
+              street: "南京路123号",
+              city: "上海",
+              state: "上海市",
+              zip: "200001",
+            },
+          },
+          {
+            id: 3,
+            name: "王五",
+            tags: ["潜在客户", "待跟进"],
+            address: {
+              street: "天河路88号",
+              city: "广州",
+              state: "广东省",
+              zip: "510000",
+            },
+          },
+        ],
+        headerHeight: 40,
+        rowHeight: 40,
+        onCellValueChanged: function (params) {
+          console.log("单元格值变更:", params);
+        },
+      });
+
+      // 获取组件管理器
+      const componentManager = customGrid.getComponentManager();
+
+      // 注册标签组件
+      componentManager.registerComponent("tags", {
+        view: TagViewComponent,
+        edit: TagEditComponentClass,
+      });
+
+      // 注册地址组件
+      componentManager.registerComponent("address", {
+        view: AddressViewComponent,
+        edit: AddressEditComponentClass,
+      });
+
+      // 渲染表格
+      customGrid.render(document.getElementById("customComponentGrid"));
+
+      // 标签组件特定示例
+      const tagsComponentGrid = new Grid({
+        columns: [
+          { field: "id", headerName: "ID", width: 80 },
+          { field: "name", headerName: "产品名称", width: 180 },
+          {
+            field: "price",
+            headerName: "价格",
+            width: 120,
+            valueFormatter: (params) => {
+              return `¥${params.value.toLocaleString()}`;
+            },
+          },
+          {
+            field: "tags",
+            headerName: "标签",
+            width: 300,
+            editable: true,
+            cellComponent: {
+              type: "tags",
+              props: {
+                options: [
+                  "高端",
+                  "中端",
+                  "入门",
+                  "苹果",
+                  "安卓",
+                  "Windows",
+                  "热销",
+                  "新品",
+                  "促销",
+                  "缺货",
+                ],
+              },
+            },
+          },
+        ],
+        rowData: [
+          {
+            id: 1,
+            name: "iPhone 14 Pro",
+            price: 7999,
+            tags: ["高端", "苹果", "新品"],
+          },
+          {
+            id: 2,
+            name: "Samsung S23",
+            price: 6999,
+            tags: ["高端", "安卓", "新品"],
+          },
+          {
+            id: 3,
+            name: "小米13",
+            price: 4999,
+            tags: ["中端", "安卓", "热销"],
+          },
+          {
+            id: 4,
+            name: "Surface Pro",
+            price: 9999,
+            tags: ["高端", "Windows", "促销"],
+          },
+          {
+            id: 5,
+            name: "MacBook Air M2",
+            price: 8999,
+            tags: ["高端", "苹果", "热销"],
+          },
+        ],
+      });
+
+      // 注册组件
+      const tagsComponentManager = tagsComponentGrid.getComponentManager();
+      tagsComponentManager.registerComponent("tags", {
+        view: TagViewComponent,
+        edit: TagEditComponentClass,
+      });
+
+      // 渲染标签组件表格
+      tagsComponentGrid.render(document.getElementById("tagsComponentGrid"));
+
+      // 地址组件特定示例
+      const addressComponentGrid = new Grid({
+        columns: [
+          { field: "id", headerName: "ID", width: 80 },
+          { field: "name", headerName: "客户名称", width: 150 },
+          { field: "email", headerName: "电子邮件", width: 220 },
+          {
+            field: "address",
+            headerName: "送货地址",
+            width: 300,
+            editable: true,
+            cellComponent: {
+              type: "address",
+            },
+          },
+        ],
+        rowData: [
+          {
+            id: 101,
+            name: "张企业",
+            email: "zhang@example.com",
+            address: {
+              street: "朝阳区建国路88号",
+              city: "北京",
+              state: "北京市",
+              zip: "100022",
+            },
+          },
+          {
+            id: 102,
+            name: "李商贸",
+            email: "li@example.com",
+            address: {
+              street: "浦东新区张江高科技园区",
+              city: "上海",
+              state: "上海市",
+              zip: "201203",
+            },
+          },
+          {
+            id: 103,
+            name: "王工厂",
+            email: "wang@example.com",
+            address: {
+              street: "南山区科技园",
+              city: "深圳",
+              state: "广东省",
+              zip: "518057",
+            },
+          },
+          {
+            id: 104,
+            name: "赵仓储",
+            email: "zhao@example.com",
+            address: {
+              street: "滨江区西兴街道",
+              city: "杭州",
+              state: "浙江省",
+              zip: "310052",
+            },
+          },
+        ],
+      });
+
+      // 注册地址组件
+      const addressComponentManager =
+        addressComponentGrid.getComponentManager();
+      addressComponentManager.registerComponent("address", {
+        view: AddressViewComponent,
+        edit: AddressEditComponentClass,
+      });
+
+      // 渲染地址组件表格
+      addressComponentGrid.render(
+        document.getElementById("addressComponentGrid")
+      );
+    </script>
+  </body>
+</html>

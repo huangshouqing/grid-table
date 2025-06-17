@@ -375,6 +375,12 @@
     border: 2px solid var(--primary-color);
 }
 
+/* 编辑中的单元格样式 - 蓝色边框 */
+.grid-cell.editing {
+    border: 2px solid var(--primary-color);
+    z-index: 10;
+}
+
 .grid-cell-drag-top { border-top: 2px solid var(--primary-color); }
 .grid-cell-drag-bottom { border-bottom: 2px solid var(--primary-color); }
 .grid-cell-drag-left { border-left: 2px solid var(--primary-color); }

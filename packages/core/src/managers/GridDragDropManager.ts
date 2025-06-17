@@ -17,6 +17,7 @@ export class GridDragDropManager {
   private dataManager: GridDataManager;
   private _dragOverAnimFrame: number | null = null;
   private refreshView: () => void;
+  private addDragHandlesToCells: () => void = () => {}; // 初始为空函数，稍后赋值
 
   // 新增，用于获取分离后的列
   private getLeftPinnedColumns: () => Column[];
@@ -44,7 +45,15 @@ export class GridDragDropManager {
     this.rowNodes = rowNodes;
     this.getApi = getApi;
     this.dataManager = dataManager;
-    this.refreshView = refreshView;
+    
+    // 包装 refreshView 函数，在视图刷新后添加拖动句柄
+    const originalRefreshView = refreshView;
+    this.refreshView = () => {
+      originalRefreshView();
+      // 视图刷新后重新添加拖动句柄
+      setTimeout(() => this.addDragHandlesToCells(), 0);
+    };
+    
     this._dragOverAnimFrame = null;
     // 初始化新增属性
     this.getLeftPinnedColumns = getLeftPinnedColumns;
@@ -562,6 +571,12 @@ export class GridDragDropManager {
     
     const dragHandleSelector = ".grid-cell-drag-handle";
 
+    // 不再需要这个方法，因为在 GridRenderers 中已经根据 fillable 属性添加句柄
+    this.addDragHandlesToCells = () => {
+      // 不再执行额外的句柄创建
+      // 保留空实现以兼容已有代码
+    };
+
     const onMouseDown = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       if (!target.matches(dragHandleSelector)) return;
@@ -569,18 +584,22 @@ export class GridDragDropManager {
       const cell = target.closest(".grid-cell") as HTMLElement;
       if (!cell) return;
 
-      e.preventDefault();
-      e.stopPropagation();
-
       const rowId = cell.closest('.grid-row')?.getAttribute('data-row-id');
       const field = cell.dataset.field;
       if (!rowId || !field) return;
 
-      const node = this.rowNodes.get(rowId);
+      // 使用 convertRowId 方法转换 ID
+      const node = this.rowNodes.get(this.convertRowId(rowId));
       const allColumns = [...this.getLeftPinnedColumns(), ...this.getCenterColumns(), ...this.getRightPinnedColumns()];
       const column = allColumns.find(c => c.field === field);
 
       if (!node || !column) return;
+      
+      // 检查列是否允许批量填充
+      if (!column.fillable) return;
+
+      e.preventDefault();
+      e.stopPropagation();
 
       isDragging = true;
       startCell = cell;
@@ -610,7 +629,8 @@ export class GridDragDropManager {
           const endRow = endCell.closest(".grid-row");
           const endRowId = endRow?.getAttribute("data-row-id");
           if(endRowId){
-            const endNode = this.rowNodes.get(endRowId);
+            // 使用 convertRowId 方法转换 ID
+            const endNode = this.rowNodes.get(this.convertRowId(endRowId));
             if(endNode){
               this.setValues({
                   startNode: startNode,
@@ -654,6 +674,9 @@ export class GridDragDropManager {
     value: any
   }): void {
     const { startNode, endNode, column, value } = params;
+    
+    // 再次检查列是否允许批量填充
+    if (!column.fillable) return;
 
     const minRowIndex = Math.min(startNode.rowIndex, endNode.rowIndex);
     const maxRowIndex = Math.max(startNode.rowIndex, endNode.rowIndex);
@@ -788,5 +811,17 @@ export class GridDragDropManager {
       case "right":
         return this.getRightPinnedColumns();
     }
+  }
+
+  /**
+   * 转换行ID以匹配原始类型（字符串或数字）
+   * 在从 Map 中查找行节点时使用
+   */
+  private convertRowId(rowId: string | number): string | number {
+    if (typeof rowId === 'string' && !isNaN(Number(rowId))) {
+      // 如果是可以转换为数字的字符串，尝试以数字形式查找
+      return Number(rowId);
+    }
+    return rowId;
   }
 } 

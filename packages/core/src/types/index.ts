@@ -68,6 +68,7 @@ export interface Column {
     frozen?: boolean;
     fixed?: boolean;
     draggable?: boolean;          // 是否允许列拖拽
+    fillable?: boolean;           // 是否允许批量填充
     // 特殊列类型
     checkboxSelection?: boolean;  // 是否显示复选框
     rowDrag?: boolean;            // 是否允许行拖拽
