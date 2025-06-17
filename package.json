@@ -6,7 +6,9 @@
     "dev:vue": "pnpm --filter ./apps/vue-demo dev",
     "dev:react": "pnpm --filter ./apps/react-demo dev",
     "build:core": "pnpm --filter ./packages/core build",
-    "setup": "pnpm install && pnpm build:core"
+    "build:adapters": "pnpm --filter ./packages/adapters build",
+    "build": "pnpm build:core && pnpm build:adapters",
+    "setup": "pnpm install && pnpm build"
   },
   "devDependencies": {
     "sass": "^1.89.2",
