@@ -35,7 +35,7 @@ import { GridFilterSortManager } from "./managers/GridFilterSortManager";
 import { GridEventHandlers } from "./managers/GridEventHandlers";
 import { FormulaManager } from "./managers/FormulaManager";
 // 导入事件总线
-import { EventBus } from "./managers/EventBus";
+import { EventBus } from "./eventbus/EventBus";
 // 添加状态管理
 
 export class Grid implements GridApi {

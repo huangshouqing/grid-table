@@ -1,7 +1,7 @@
 import { GridState } from "../interface";
 import { Column, GridOptions, RowNode, GridApi } from "../types";
 import { GridEditManager } from "./GridEditManager";
-import { EventBus } from "./EventBus";
+import { EventBus } from "../eventbus/EventBus";
 
 /**
  * 表格事件处理器类

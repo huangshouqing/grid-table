@@ -9,5 +9,5 @@ export * from './types';
 
 // 导出管理器类
 export * from './managers/ComponentManager';
-export * from './managers/EventBus';
+export * from './eventbus/EventBus';
 export * from './managers/VirtualDOMManager';

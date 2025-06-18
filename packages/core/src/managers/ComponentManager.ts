@@ -1,6 +1,6 @@
 import { Column } from '../types/index';
 import { IComponent, IComponentParams, ComponentDefinition } from '../interface/components';
-import { EventBus } from './EventBus';
+import { EventBus } from '../eventbus/EventBus';
 
 // 组件构造函数类型
 type ComponentConstructor = new () => IComponent;
