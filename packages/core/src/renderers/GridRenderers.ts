@@ -521,7 +521,7 @@ export class GridRenderers {
       Math.ceil((scrollTop + containerHeight * (1 + bufferScreens)) / rowHeight) + 10
     );
     
-    console.log(`[renderVisibleRows] container: ${containerId}, total rows: ${data.length}, visible range: ${startIndex}-${endIndex}, container height: ${containerHeight}px, total height: ${data.length * rowHeight}px`);
+    // console.log(`[renderVisibleRows] container: ${containerId}, total rows: ${data.length}, visible range: ${startIndex}-${endIndex}, container height: ${containerHeight}px, total height: ${data.length * rowHeight}px`);
 
     const visibleRows = data.slice(startIndex, endIndex);
     this.state.virtualBodyRowIds.clear();

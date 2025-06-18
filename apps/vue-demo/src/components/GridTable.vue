@@ -32,19 +32,24 @@ import { vueAdapter, ratingComponentDefinition, buttonComponentDefinition, delet
 
 export default {
   name: 'GridTable',
-  setup() {
+  // 定义组件可以向父组件发送的事件
+  emits: ['data-changed', 'selection-changed', 'grid-ready'],
+  setup(props, { emit }) {
     const gridContainer = ref(null)
     let gridInstance = null
     let lastId = 17 // 初始数据最后一个ID是17
     const autoScrollToNewRow = ref(true) // 是否自动滚动到新增行
     const heightMode = ref('auto') // 高度模式：auto, min, max, fixed
+
+    // 使用响应式数据存储表格数据，便于双向同步
+    const gridData = ref([]);
     let originalData = null // 保存原始数据用于恢复
-    
+
     // 创建自定义无数据提示
     const createNoDataContent = () => {
       const container = document.createElement('div');
       container.className = 'custom-no-data';
-      
+
       const icon = document.createElement('div');
       icon.className = 'no-data-icon';
       icon.innerHTML = `
@@ -52,15 +57,80 @@ export default {
           <path d="M24 4C12.95 4 4 12.95 4 24C4 35.05 12.95 44 24 44C35.05 44 44 35.05 44 24C44 12.95 35.05 4 24 4ZM26 34H22V30H26V34ZM26 26H22V14H26V26Z" fill="#CCCCCC"/>
         </svg>
       `;
-      
+
       const text = document.createElement('div');
       text.className = 'no-data-text';
       text.textContent = '暂无数据，请添加行数据';
-      
+
       container.appendChild(icon);
       container.appendChild(text);
-      
+
       return container;
+    };
+
+    // 设置事件总线，提供给外部组件使用
+    const setupEventBusListeners = (gridInstance) => {
+      const eventBus = gridInstance.getEventBus();
+
+      // 监听所有数据变更事件，便于调试和扩展
+      eventBus.subscribe('gridDataChanged', (event) => {
+        console.log('【事件总线】数据变更:', event);
+
+        // 根据事件类型执行不同操作
+        switch (event.type) {
+          case 'cellValueChanged':
+            // 单元格值变更 - 更新响应式数据
+            const rowIndex = gridData.value.findIndex(row => row.id === event.nodeId);
+            if (rowIndex >= 0) {
+              gridData.value[rowIndex] = { ...gridData.value[rowIndex] };
+            }
+            break;
+
+          case 'rowAdded':
+            // 行添加 - 这里可以执行特定操作，如显示通知
+            console.log('【事件总线】新行已添加:', event.data);
+            break;
+
+          case 'rowRemoved':
+            // 行删除 - 可以执行清理操作
+            console.log('【事件总线】行已删除:', event.data);
+            break;
+
+          case 'rowMoved':
+            // 行移动 - 可以更新依赖于行顺序的数据
+            console.log('【事件总线】行已移动:', event.fromIndex, '->', event.toIndex);
+            break;
+
+          case 'dataLoaded':
+            // 数据加载 - 可以执行初始化操作
+            console.log('【事件总线】数据已加载:', event.data.length, '行');
+            break;
+        }
+
+        // 通知父组件数据已变更（跨组件通信示例）
+        emitGridEvent('data-changed', event);
+      });
+
+      // 监听选择变更事件
+      eventBus.subscribe('gridSelectionChanged', (event) => {
+        console.log('【事件总线】选择变更:', event);
+
+        // 通知父组件选择已变更（跨组件通信示例）
+        emitGridEvent('selection-changed', {
+          type: event.type,
+          count: event.selectedNodes.length,
+          selectedIds: event.selectedNodes.map(node => node.id)
+        });
+      });
+
+      return eventBus;
+    };
+
+    // 向父组件发送事件（跨组件通信）
+    const emitGridEvent = (eventName, data) => {
+      console.log(`【跨组件通信】发送事件: ${eventName}`, data);
+      // 使用Vue的emit方法向父组件发送事件
+      emit(eventName, data);
     };
 
     // 生成新行数据
@@ -80,13 +150,11 @@ export default {
     const addNewRow = (position = 'bottom') => {
       if (gridInstance) {
         const newRow = generateNewRowData()
-        console.log(`添加新行: ${JSON.stringify(newRow)}, 位置: ${position}, 自动滚动: ${autoScrollToNewRow.value}`);
-        
         // 使用Grid API的autoScroll参数
         gridInstance.addRow(newRow, position, autoScrollToNewRow.value);
       }
     }
-    
+
     // 清空数据
     const clearData = () => {
       if (gridInstance) {
@@ -98,7 +166,7 @@ export default {
         gridInstance.setRowData([]);
       }
     }
-    
+
     // 恢复数据
     const restoreData = () => {
       if (gridInstance && originalData) {
@@ -108,11 +176,10 @@ export default {
         createGrid();
       }
     }
-    
+
     // 更新高度模式
     const updateHeightMode = () => {
       if (!gridInstance) return;
-      
       switch (heightMode.value) {
         case 'auto':
           gridInstance.setMinHeight('auto');
@@ -153,13 +220,13 @@ export default {
         { id: 16, name: '产品 P', price: 350, status: 'active', quantity: 15, rating: 3 },
         { id: 17, name: '产品 Q', price: 350, status: 'active', quantity: 15, rating: 4 },
       ]
-      
+      // 设置响应式数据引用
+      gridData.value = [...data];
       // 保存原始数据以便恢复
       originalData = [...data];
-
       const options = {
         container: gridContainer.value,
-        rowData: data,
+        rowData: gridData.value, // 使用响应式数据
         columns: [
           {
             field: "checkbox",
@@ -167,11 +234,12 @@ export default {
             width: 50,
             checkboxSelection: true,
             frozen: true,
+            pinned: 'left'
           },
           {
             field: 'id',
             headerName: 'ID',
-            width: 100,
+            width: 50,
             rowDrag: true
           },
           {
@@ -235,6 +303,7 @@ export default {
             field: 'delete',
             headerName: '操作',
             width: 100,
+            pinned: 'right',
             cellComponent: {
               type: 'delete-button',
               props: {}
@@ -246,14 +315,51 @@ export default {
         minHeight: '200px', // 默认自动高度
         maxHeight: '300px', // 默认不限制最大高度
         noDataContent: createNoDataContent(), // 自定义无数据内容
+        // 单元格值变更事件
         onCellValueChanged: (event) => {
-          console.log('单元格值更新:', event);
+          // 手动更新 Vue 响应式数据
+          const rowIndex = gridData.value.findIndex(row => row.id === event.node.id);
+          if (rowIndex !== -1) {
+            // 创建新的引用触发响应式更新
+            gridData.value[rowIndex] = { ...gridData.value[rowIndex], [event.colId]: event.newValue };
+          }
+        },
+        // 行点击事件
+        onRowClicked: (event) => {
+          console.log('点击行:', event.data);
+        },
+        // 单元格点击事件
+        onCellClicked: (event) => {
+          console.log('点击单元格:', event.value);
+        },
+        // 选择变更事件
+        onSelectionChanged: (event) => {
+          console.log('已选择:', event.selectedNodes.length, '行');
+        },
+        // 排序变更事件
+        onSortChanged: (event) => {
+          console.log('排序变更:', event.sortModel);
+        },
+        // 行拖拽结束事件
+        onRowDragEnd: (event) => {
+          console.log('行拖拽结束:', event);
+        },
+        // 数据加载完成 - 处理初始加载和重新加载
+        onGridReady: (params) => {
+          console.log('数据加载完成:', params);
         }
       }
-
       gridInstance = new Grid(options)
-
       const componentManager = gridInstance.getComponentManager()
+
+      // 设置事件总线监听器
+      const eventBus = setupEventBusListeners(gridInstance);
+
+      // 发送grid-ready事件给父组件
+      emit('grid-ready', {
+        gridApi: gridInstance,
+        eventBus: eventBus
+      });
 
       vueAdapter.setDefaultPropsHandler((params) => {
         return {
@@ -266,25 +372,14 @@ export default {
         view: StatusCellComponent,
         edit: StatusCellComponent
       })
-
       componentManager.registerComponent('rating', ratingComponentDefinition)
-
       componentManager.registerComponent('button-cell', buttonComponentDefinition)
-
       // 注册删除按钮组件
       componentManager.registerComponent('delete-button', deleteButtonComponentDefinition)
-
       gridInstance.render(gridContainer.value)
-
       // 应用初始的高度模式
       updateHeightMode();
 
-      console.log('表格实例已创建并渲染', {
-        gridInstance,
-        hasUpdateRowData: typeof gridInstance.updateRowData === 'function',
-        hasRefreshRow: typeof gridInstance.refreshRow === 'function',
-        hasRefreshCell: typeof gridInstance.refreshCell === 'function'
-      });
     }
 
     onMounted(() => {

@@ -1,4 +1,4 @@
-import { createApp, Component, App } from 'vue';
+import { createApp, Component, App, reactive } from 'vue';
 import { ComponentDefinition, IComponentParams } from '@grid-table/core';
 import { BaseAdapter } from '../BaseAdapter';
 import { AdapterComponentOptions } from '../types';
@@ -93,5 +93,31 @@ export class VueAdapter extends BaseAdapter {
       app.unmount();
       delete (element as any).__vueApp;
     }
+  }
+  
+  /**
+   * 设置Vue响应式数据同步
+   * 将表格数据与Vue响应式系统同步
+   * @param gridApi 表格API
+   * @param dataRef Vue响应式数据引用
+   */
+  setupDataSync(gridApi: any, dataRef: any): void {
+    // 获取事件总线
+    const eventBus = gridApi.getEventBus?.();
+    if (!eventBus) return;
+    
+    // 监听数据变更事件
+    eventBus.subscribe('gridDataChanged', (event: any) => {
+      if (event.type === 'cellValueChanged') {
+        // 找到对应行并强制更新
+        if (Array.isArray(dataRef.value)) {
+          const rowIndex = dataRef.value.findIndex((row: any) => row.id === event.nodeId);
+          if (rowIndex >= 0) {
+            // 创建完整行的新引用以触发Vue的响应式更新
+            dataRef.value[rowIndex] = { ...dataRef.value[rowIndex] };
+          }
+        }
+      }
+    });
   }
 } 

@@ -183,7 +183,7 @@ export class GridDragDropManager {
       }
       
       const { rowId } = dragData;
-      console.log(`[handleRowDrop] 开始处理行拖拽，rowId=${rowId}`);
+      // console.log(`[handleRowDrop] 开始处理行拖拽，rowId=${rowId}`);
 
       // 获取目标行
       const targetRow = (e.target as HTMLElement).closest(
@@ -200,10 +200,19 @@ export class GridDragDropManager {
         return;
       }
 
-      // 获取未经过滤和排序的原始数据，这样我们才能正确移动行
-      const originalData = this.options.rowData || [];
-      const fromIndex = originalData.findIndex(r => String(r.id) === String(rowId));
-      let toIndex = originalData.findIndex(r => String(r.id) === String(toRowId));
+      // 获取当前的行节点，确保使用最新数据
+      const fromNode = this.rowNodes.get(rowId);
+      const toNode = this.rowNodes.get(this.convertRowId(toRowId));
+      
+      if (!fromNode || !toNode) {
+        console.warn(`[handleRowDrop] 找不到行节点, fromNode=${fromNode}, toNode=${toNode}`);
+        this.clearDragStyles();
+        return;
+      }
+      
+      // 使用行节点的rowIndex而不是原始数据来确定位置
+      const fromIndex = fromNode.rowIndex;
+      const toIndex = toNode.rowIndex;
       
       if (fromIndex === -1 || toIndex === -1) {
         console.warn(`[handleRowDrop] 找不到行索引, fromIndex=${fromIndex}, toIndex=${toIndex}`);
@@ -211,7 +220,7 @@ export class GridDragDropManager {
         return;
       }
       
-      console.log(`[handleRowDrop] 找到行索引, fromIndex=${fromIndex}, toIndex=${toIndex}, 原始数据总行数=${originalData.length}`);
+      // console.log(`[handleRowDrop] 找到行索引, fromIndex=${fromIndex}, toIndex=${toIndex}`);
 
       // 确定拖拽位置（上方或下方）
       const rect = targetRow.getBoundingClientRect();
@@ -221,25 +230,25 @@ export class GridDragDropManager {
       let targetIndex = toIndex;
       if (isBelow) {
           targetIndex++;
-          console.log(`[handleRowDrop] 拖拽到目标行下方，调整targetIndex=${targetIndex}`);
+          // console.log(`[handleRowDrop] 拖拽到目标行下方，调整targetIndex=${targetIndex}`);
       } else {
-          console.log(`[handleRowDrop] 拖拽到目标行上方，targetIndex=${targetIndex}`);
+          // console.log(`[handleRowDrop] 拖拽到目标行上方，targetIndex=${targetIndex}`);
       }
       
       // 如果拖拽的行在目标之前，调整目标索引
       if (fromIndex < targetIndex) {
           targetIndex--;
-          console.log(`[handleRowDrop] 拖拽行在目标前面，调整targetIndex=${targetIndex}`);
+          // console.log(`[handleRowDrop] 拖拽行在目标前面，调整targetIndex=${targetIndex}`);
       }
 
-      console.log(`[handleRowDrop] 最终移动：从${fromIndex}到${targetIndex}`);
+      // console.log(`[handleRowDrop] 最终移动：从${fromIndex}到${targetIndex}`);
       
       // 移动行
       const movedNode = this.dataManager.moveRow(fromIndex, targetIndex);
       if (!movedNode) {
         console.warn(`[handleRowDrop] 移动行失败`);
       } else {
-        console.log(`[handleRowDrop] 移动成功，行ID=${movedNode.id}, 新索引=${movedNode.rowIndex}`);
+        // console.log(`[handleRowDrop] 移动成功，行ID=${movedNode.id}, 新索引=${movedNode.rowIndex}`);
       }
 
       // 移除所有拖拽指示器

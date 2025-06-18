@@ -1,6 +1,6 @@
 import { ComponentManager } from "./ComponentManager";
 import { VirtualDOMManager } from "./VirtualDOMManager";
-import { Column, ComponentParams, GridApi, GridOptions, RowNode } from "../types";
+import { Column, GridApi, GridOptions, RowNode } from "../types";
 import { GridState } from "../interface";
 
 /**
@@ -87,60 +87,41 @@ export class GridEditManager {
     if (!column) return;
 
     if (save && newValue !== undefined) {
+      // 保存旧值用于事件触发
+      const oldValue = node.data[editingCell.field];
+      
       // 更新数据模型中的值
       node.data[editingCell.field] = newValue;
 
       // 调用回调，通知Grid数据已变更
       this.onCellValueChangedCallback(node, editingCell.field);
 
-      // 可选：触发值变化事件
+      // 触发值变化事件
       if (this.options.onCellValueChanged) {
         this.options.onCellValueChanged({
             node: node,
             data: node.data,
             column: column,
             colId: editingCell.field,
-            oldValue: editingCell.value,
+            oldValue: oldValue,
             newValue: newValue,
             value: newValue
         });
+      }
+      
+      // 确保直接更新源数据数组中的相应项
+      if (this.options.rowData && Array.isArray(this.options.rowData)) {
+        const rowIndex = this.options.rowData.findIndex(r => r.id === node.id);
+        if (rowIndex >= 0) {
+          // 更新源数据数组中的值
+          this.options.rowData[rowIndex][editingCell.field] = newValue;
+        }
       }
     }
     
     // 触发单元格刷新以将单元格切换回视图模式
     this.getApi().refreshCell({ rowNode: node, column });
   }
-
-  /**
-   * 约束编辑组件，确保它不会溢出容器
-   */
-  private constrainEditComponent(component: HTMLElement, column: Column): void {
-    // 对下拉菜单进行特殊处理
-    const select = component.querySelector("select") as HTMLSelectElement;
-    if (select) {
-      select.style.width = "100%";
-      select.style.maxWidth = "100%";
-      select.style.overflow = "hidden";
-      select.style.textOverflow = "ellipsis";
-    }
-
-    // 对输入框进行处理
-    const input = component.querySelector("input") as HTMLInputElement;
-    if (input) {
-      input.style.width = "100%";
-      input.style.maxWidth = "100%";
-      input.style.boxSizing = "border-box";
-    }
-
-    // 对其他自定义组件进行处理
-    const customElements = component.querySelectorAll("div");
-    customElements.forEach((el) => {
-      el.style.maxWidth = "100%";
-      el.style.overflow = "hidden";
-      el.style.textOverflow = "ellipsis";
-    });
-  }
-
   /**
    * 完成编辑并保存值
    */
@@ -156,6 +137,14 @@ export class GridEditManager {
     // 更新数据
     const oldValue = row[column.field];
     row[column.field] = newValue;
+    
+    // 同时更新源数据数组中的相应项
+    if (this.options.rowData && Array.isArray(this.options.rowData)) {
+      const rowIndex = this.options.rowData.findIndex(r => r.id === row.id);
+      if (rowIndex >= 0) {
+        this.options.rowData[rowIndex][column.field] = newValue;
+      }
+    }
 
     // 移除编辑状态
     cell.classList.remove("editing");
@@ -204,6 +193,9 @@ export class GridEditManager {
           newValue: newValue,
           event: new MouseEvent("click"),
         });
+        
+        // 调用回调通知表格进行必要的更新（如公式重算等）
+        this.onCellValueChangedCallback(node, column.field);
       }
     }
   }
@@ -267,7 +259,20 @@ export class GridEditManager {
         const { rowId, field, value } = this.state.editingCell;
         const node = this.rowNodes.get(rowId);
         if (node) {
+          // 保存旧值用于事件
+          const oldValue = node.data[field];
+          
+          // 更新节点数据
           node.data[field] = value;
+          
+          // 同时更新源数据数组
+          if (this.options.rowData && Array.isArray(this.options.rowData)) {
+            const rowIndex = this.options.rowData.findIndex(r => r.id === node.id);
+            if (rowIndex >= 0) {
+              this.options.rowData[rowIndex][field] = value;
+            }
+          }
+          
           const column = this.options.columns.find((c) => c.field === field);
           if (this.options.onCellValueChanged && column) {
             this.options.onCellValueChanged({
@@ -276,11 +281,14 @@ export class GridEditManager {
               column: column,
               colId: column.field,
               value: value,
-              oldValue: undefined, // Old value is not tracked in this context
+              oldValue: oldValue,
               newValue: value,
               event: null,
             });
           }
+          
+          // 调用回调通知表格进行必要的更新（如公式重算等）
+          this.onCellValueChangedCallback(node, field);
         }
       }
       this.state.editingCell = null;

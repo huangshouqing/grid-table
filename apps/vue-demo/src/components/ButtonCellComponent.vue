@@ -56,6 +56,24 @@ export default {
     },
     methods: {
         onClick() {
+            // 在显示详情对话框前，确保获取最新的行数据
+            try {
+                const rowId = this.data.id;
+                if (this.api && typeof this.api.getRowNode === 'function') {
+                    // 通过API获取最新的行节点
+                    const node = this.api.getRowNode(rowId);
+                    if (node && node.data) {
+                        // 更新本地数据
+                        this.rowData = JSON.parse(JSON.stringify(node.data));
+                        console.log('详情按钮点击，已获取最新行数据:', this.rowData);
+                    }
+                }
+            } catch (error) {
+                console.error('获取最新行数据出错:', error);
+                // 回退到使用当前的props数据
+                this.rowData = JSON.parse(JSON.stringify(this.data || {}));
+            }
+            
             // 显示详情对话框
             this.showDialog = true;
         },
