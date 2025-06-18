@@ -7,7 +7,8 @@
 <script>
 import { onMounted, onUnmounted, ref } from 'vue'
 import { Grid } from '@grid-table/core'
-import { StatusCellComponent, ButtonCellComponent } from './CustomComponents.js'
+import { StatusCellComponent } from './CustomComponents.js'
+import { ratingComponentDefinition, buttonComponentDefinition } from './AdapterConfig.js'
 
 export default {
   name: 'GridTable',
@@ -17,27 +18,26 @@ export default {
 
     const createGrid = () => {
       const data = [
-        { id: 1, name: '产品 A', price: 100, status: 'active', quantity: 50 },
-        { id: 2, name: '产品 B', price: 150, status: 'inactive', quantity: 30 },
-        { id: 3, name: '产品 C', price: 200, status: 'active', quantity: 20 },
-        { id: 4, name: '产品 D', price: 80, status: 'pending', quantity: 65 },
-        { id: 5, name: '产品 E', price: 300, status: 'active', quantity: 10 },
-        { id: 6, name: '产品 F', price: 250, status: 'inactive', quantity: 5 },
-        { id: 7, name: '产品 G', price: 120, status: 'pending', quantity: 25 },
-        { id: 8, name: '产品 H', price: 180, status: 'active', quantity: 40 },
-        { id: 9, name: '产品 I', price: 90, status: 'inactive', quantity: 60 },
-        { id: 10, name: '产品 J', price: 350, status: 'active', quantity: 15 },
-        { id: 11, name: '产品 K', price: 350, status: 'active', quantity: 15 },
-        { id: 12, name: '产品 L', price: 350, status: 'active', quantity: 15 },
-        { id: 13, name: '产品 M', price: 350, status: 'active', quantity: 15 },
-        { id: 14, name: '产品 N', price: 350, status: 'active', quantity: 15 },
-        { id: 15, name: '产品 O', price: 350, status: 'active', quantity: 15 },
-        { id: 16, name: '产品 P', price: 350, status: 'active', quantity: 15 },
-        { id: 17, name: '产品 Q', price: 350, status: 'active', quantity: 15 },
+        { id: 1, name: '产品 A', price: 100, status: 'active', quantity: 50, rating: 4 },
+        { id: 2, name: '产品 B', price: 150, status: 'inactive', quantity: 30, rating: 2 },
+        { id: 3, name: '产品 C', price: 200, status: 'active', quantity: 20, rating: 5 },
+        { id: 4, name: '产品 D', price: 80, status: 'pending', quantity: 65, rating: 3 },
+        { id: 5, name: '产品 E', price: 300, status: 'active', quantity: 10, rating: 4 },
+        { id: 6, name: '产品 F', price: 250, status: 'inactive', quantity: 5, rating: 1 },
+        { id: 7, name: '产品 G', price: 120, status: 'pending', quantity: 25, rating: 3 },
+        { id: 8, name: '产品 H', price: 180, status: 'active', quantity: 40, rating: 5 },
+        { id: 9, name: '产品 I', price: 90, status: 'inactive', quantity: 60, rating: 2 },
+        { id: 10, name: '产品 J', price: 350, status: 'active', quantity: 15, rating: 4 },
+        { id: 11, name: '产品 K', price: 350, status: 'active', quantity: 15, rating: 5 },
+        { id: 12, name: '产品 L', price: 350, status: 'active', quantity: 15, rating: 3 },
+        { id: 13, name: '产品 M', price: 350, status: 'active', quantity: 15, rating: 4 },
+        { id: 14, name: '产品 N', price: 350, status: 'active', quantity: 15, rating: 2 },
+        { id: 15, name: '产品 O', price: 350, status: 'active', quantity: 15, rating: 5 },
+        { id: 16, name: '产品 P', price: 350, status: 'active', quantity: 15, rating: 3 },
+        { id: 17, name: '产品 Q', price: 350, status: 'active', quantity: 15, rating: 4 },
       ]
 
       const options = {
-        // 待实现功能，这里的 container 没有实际用途
         container: gridContainer.value,
         rowData: data,
         columns: [
@@ -59,7 +59,7 @@ export default {
             width: 150,
             sortable: true,
             editable: true,
-            fillable: true, // 启用批量填充
+            fillable: true,
             valueFormatter: (params) => `¥${params.value}`
           },
           {
@@ -68,7 +68,7 @@ export default {
             width: 150,
             sortable: true,
             editable: true,
-            fillable: true // 启用批量填充
+            fillable: true
           },
           {
             field: 'status',
@@ -78,6 +78,19 @@ export default {
             cellComponent: {
               type: 'status-cell',
               props: {}
+            }
+          },
+          {
+            field: 'rating',
+            headerName: '评分',
+            width: 150,
+            sortable: true,
+            editable: true,
+            cellComponent: {
+              type: 'rating',
+              props: {
+
+              }
             }
           },
           {
@@ -92,30 +105,49 @@ export default {
             }
           }
         ],
-        // 待实现功能
         minHeight: 500,
         maxHeight: 500,
         rowStyle: {
           height: 50
+        },
+        api: {
+          updateRowData: (rowIndex, newData) => {
+            if (rowIndex >= 0 && rowIndex < data.length) {
+              const id = data[rowIndex].id;
+
+              data[rowIndex] = {
+                ...newData,
+                id
+              };
+
+              if (gridInstance && gridInstance.refreshRow) {
+                gridInstance.refreshRow(rowIndex);
+              }
+
+              return true;
+            }
+            return false;
+          }
         }
       }
+
       gridInstance = new Grid(options)
       const componentManager = gridInstance.getComponentManager()
-      // 这边组件注册，我不想显式的说明 view edit，帮我重新设计组件注册机制，但是在类组件中需要给定 view 和 edit 俩种
+
       componentManager.registerComponent('status-cell', {
         view: StatusCellComponent,
         edit: StatusCellComponent
       })
-      componentManager.registerComponent('button-cell', {
-        view: ButtonCellComponent,
-        edit: ButtonCellComponent
-      })
-      // 渲染表格不需要手动再 render，但是需要保留这个 render兼容老的写法
+
+      componentManager.registerComponent('rating', ratingComponentDefinition)
+
+      componentManager.registerComponent('button-cell', buttonComponentDefinition)
+
       gridInstance.render(gridContainer.value)
     }
 
     onMounted(() => {
-      setTimeout(createGrid, 0) // 确保DOM已渲染
+      setTimeout(createGrid, 0)
     })
 
     onUnmounted(() => {
