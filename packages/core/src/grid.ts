@@ -303,28 +303,6 @@ export class Grid implements GridApi {
     this.eventManager.on("editStart", this.eventHandlers.handleEditStart);
     this.eventManager.on("editEnd", this.eventHandlers.handleEditEnd);
   }
-
-  /**
-   * 启动单元格编辑 - 保留此方法用于向后兼容
-   * @param cell 要编辑的单元格DOM元素
-   * @param column 列定义
-   * @param row 行数据对象
-   * @param value 单元格当前值
-   */
-  private startEditing(
-    cell: HTMLElement,
-    column: Column,
-    row: any,
-    value: any
-  ) {
-    // 委托给事件处理器(如果可用)，否则直接使用编辑管理器
-    if (this.eventHandlers) {
-      this.eventHandlers.startEditing(cell, column, row, value);
-    } else if (this.editManager) {
-      this.editManager.startEditing(cell, column, row, value);
-    }
-  }
-
   /**
    * 将表格渲染到指定容器
    * @param container 要渲染表格的DOM容器
@@ -562,11 +540,89 @@ export class Grid implements GridApi {
 
   /**
    * 自动调整列宽以适应内容
-   * 尚未实现
+   * @param columnIds 要调整的列ID数组（可选，默认调整所有列）
    */
-  autoSizeColumns(): void {
-    // 这里可以实现自动调整列宽的逻辑
-    // 可以根据内容计算最大宽度
+  autoSizeColumns(columnIds?: string[]): void {
+    if (!this.element) return;
+    
+    // 定义默认的最小和最大列宽
+    const minWidth = 60;
+    const maxWidth = 300;
+    
+    // 创建临时画布用于测量文本宽度
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    if (!context) return;
+    
+    // 获取当前表格字体样式以准确测量
+    const gridStyle = window.getComputedStyle(this.element);
+    context.font = `${gridStyle.fontWeight} ${gridStyle.fontSize} ${gridStyle.fontFamily}`;
+    
+    // 确定要调整的列
+    let columnsToAdjust: Column[] = [];
+    if (columnIds && columnIds.length > 0) {
+      // 如果提供了列ID数组，只调整这些列
+      columnsToAdjust = this.options.columns.filter(col => 
+        columnIds.includes(col.field)
+      );
+    } else {
+      // 否则调整所有列
+      columnsToAdjust = this.options.columns;
+    }
+    
+    // 存储每列的最大内容宽度
+    const maxColumnWidths = new Map<string, number>();
+    
+    // 初始化每列宽度为列标题宽度
+    columnsToAdjust.forEach(column => {
+      // 测量列标题宽度，添加额外空间用于排序图标和过滤图标
+      const headerWidth = context.measureText(column.headerName || column.field).width + 40;
+      maxColumnWidths.set(column.field, headerWidth);
+    });
+    
+    // 获取可见数据
+    const visibleData = this.dataManager.getFilteredAndSortedData();
+    
+    // 分析所有可见行的单元格内容
+    visibleData.forEach(row => {
+      columnsToAdjust.forEach(column => {
+        const cellValue = row.data[column.field];
+        if (cellValue === undefined || cellValue === null) return;
+        
+        let contentWidth = 0;
+        
+        // 根据单元格值类型计算宽度
+        if (typeof cellValue === 'string' || typeof cellValue === 'number') {
+          // 测量文本宽度，添加一些内边距
+          contentWidth = context.measureText(String(cellValue)).width + 20;
+        } else if (typeof cellValue === 'boolean') {
+          // 布尔值通常比较短
+          contentWidth = 80;
+        } else if (cellValue instanceof Date) {
+          // 日期格式化宽度
+          contentWidth = context.measureText(cellValue.toLocaleDateString()).width + 20;
+        } else {
+          // 对象或数组转字符串
+          contentWidth = context.measureText(JSON.stringify(cellValue)).width + 20;
+        }
+        
+        // 如果当前内容比已记录的更宽，则更新
+        const currentMax = maxColumnWidths.get(column.field) || 0;
+        if (contentWidth > currentMax) {
+          maxColumnWidths.set(column.field, contentWidth);
+        }
+      });
+    });
+    
+    // 应用计算出的列宽，考虑最小宽度和最大宽度
+    columnsToAdjust.forEach(column => {
+      const calculatedWidth = maxColumnWidths.get(column.field) || minWidth;
+      // 应用最小/最大宽度限制
+      column.width = Math.min(Math.max(calculatedWidth, minWidth), maxWidth);
+    });
+    
+    // 刷新视图以应用新的列宽
+    this.refreshView();
   }
 
   /**
@@ -577,7 +633,8 @@ export class Grid implements GridApi {
     if (this.element && this.element.parentElement) {
       // 保存当前滚动位置
       this.saveScrollPosition();
-
+      // 清理事件处理器
+      this.clearEventHandlers();
       // 清理所有拖拽样式
       this.dragDropManager.clearDragStyles();
       
@@ -603,6 +660,30 @@ export class Grid implements GridApi {
 
       // 恢复滚动位置
       this.restoreScrollPosition();
+
+      // 重新初始化事件监听器
+      this.initializeEventListeners();
+      
+      // 如果有事件总线，发布视图刷新事件
+      if (this.eventBus) {
+        this.eventBus.publish('gridViewRefreshed', {
+          type: 'viewRefreshed',
+          timestamp: new Date().getTime()
+        });
+      }
+    }
+  }
+
+  /**
+   * 清理事件处理器
+   * 在刷新视图前调用，以避免事件监听器累积
+   */
+  private clearEventHandlers(): void {
+    // 清理表格级别的事件
+    if (this.eventManager) {
+      const count = (this.eventManager as any).getHandlerCount?.() || 'unknown';
+      console.log(`[Grid ${this.instanceId}] 清理事件处理器，数量: ${count}`);
+      this.eventManager.clear();
     }
   }
 

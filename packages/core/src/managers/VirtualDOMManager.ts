@@ -24,6 +24,8 @@ export class VirtualDOMManager {
     private virtualElements: Map<string, HTMLElement> = new Map();
     private domUpdateQueue: Set<string> = new Set();
     private rafId: number | null = null;
+    // 存储每个元素绑定的事件处理函数，用于清理
+    private elementEventHandlers: Map<string, Map<string, EventListener>> = new Map();
 
     constructor(private grid: Grid) {}
 
@@ -36,6 +38,8 @@ export class VirtualDOMManager {
             }
             element.setAttribute('data-element-id', id);
             this.virtualElements.set(id, element);
+            // 初始化该元素的事件处理器映射
+            this.elementEventHandlers.set(id, new Map());
         }
         return element;
     }
@@ -89,9 +93,26 @@ export class VirtualDOMManager {
         }
 
         if (updates.events) {
-            Object.entries(updates.events).forEach(([event, listener]) => {
+            // 获取该元素已有的事件处理器映射
+            let eventHandlers = this.elementEventHandlers.get(id);
+            if (!eventHandlers) {
+                eventHandlers = new Map();
+                this.elementEventHandlers.set(id, eventHandlers);
+            }
+            
+            // 清除并重新绑定事件
+            Object.entries(updates.events).forEach(([eventName, listener]) => {
                 if (listener) {
-                    element.addEventListener(event, listener as EventListener);
+                    // 先移除旧的监听器
+                    const oldListener = eventHandlers!.get(eventName);
+                    if (oldListener) {
+                        element.removeEventListener(eventName, oldListener);
+                    }
+                    
+                    // 添加新的监听器
+                    element.addEventListener(eventName, listener as EventListener);
+                    // 保存新的监听器
+                    eventHandlers!.set(eventName, listener as EventListener);
                 }
             });
         }
@@ -144,8 +165,27 @@ export class VirtualDOMManager {
     removeElement(id: string) {
         const element = this.virtualElements.get(id);
         if (element) {
+            // 清除所有事件监听器
+            this.clearElementEventListeners(id);
+            
             element.remove();
             this.virtualElements.delete(id);
+            this.elementEventHandlers.delete(id);
+        }
+    }
+
+    /**
+     * 清除元素的所有事件监听器
+     */
+    private clearElementEventListeners(id: string) {
+        const element = this.virtualElements.get(id);
+        const handlers = this.elementEventHandlers.get(id);
+        
+        if (element && handlers) {
+            handlers.forEach((listener, eventName) => {
+                element.removeEventListener(eventName, listener);
+            });
+            handlers.clear();
         }
     }
 
@@ -153,7 +193,14 @@ export class VirtualDOMManager {
         if (this.rafId) {
             cancelAnimationFrame(this.rafId);
         }
+        
+        // 清除所有元素的事件监听器
+        this.elementEventHandlers.forEach((handlers, id) => {
+            this.clearElementEventListeners(id);
+        });
+        
         this.virtualElements.clear();
+        this.elementEventHandlers.clear();
         this.domUpdateQueue.clear();
     }
 
