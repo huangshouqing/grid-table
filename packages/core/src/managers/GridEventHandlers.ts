@@ -113,7 +113,6 @@ export class GridEventHandlers {
 
   handleScroll = (scrollLeft: number, scrollTop: number) => {
     this.logEvent('scroll', { scrollLeft, scrollTop });
-    
     // 保存当前的滚动位置
     this.state.scrollPosition = {
       top: scrollTop,
@@ -121,18 +120,6 @@ export class GridEventHandlers {
       lastLeft: this.state.scrollPosition.left,
       lastTop: this.state.scrollPosition.top,
     };
-
-    // 不要在每次滚动时刷新视图，这可能会导致滚动位置重置
-    // 仅在需要时（例如视口变化显著）才刷新视图
-    // const rowHeight = this.options.rowHeight || 40;
-    // if (
-    //   Math.abs(
-    //     this.state.scrollPosition.top - this.state.scrollPosition.lastTop
-    //   ) >
-    //   rowHeight * 5
-    // ) {
-    //   this.refreshView();
-    // }
   };
 
   handleSelectionChange = () => {
