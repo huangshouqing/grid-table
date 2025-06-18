@@ -202,6 +202,9 @@ export interface GridOptions {
     rowData?: any[];
     rowHeight?: number;
     headerHeight?: number;
+    minHeight?: number | string;  // 最小高度，可以是数字（像素）或字符串（如"100px"、"50%"）
+    maxHeight?: number | string;  // 最大高度，可以是数字（像素）或字符串（如"500px"、"80vh"）
+    noDataContent?: string | HTMLElement;  // 无数据时显示的内容，可以是字符串或HTML元素
     frozenColumns?: number;
     treeData?: boolean;
     

@@ -991,4 +991,31 @@ export class Grid implements GridApi {
       }
     });
   }
+
+  /**
+   * 设置无数据时显示的内容
+   * @param content 要显示的内容，可以是字符串或HTML元素
+   */
+  setNoDataContent(content: string | HTMLElement): void {
+    this.options.noDataContent = content;
+    this.refreshView();
+  }
+  
+  /**
+   * 设置表格最小高度
+   * @param height 最小高度，可以是数字（像素）或字符串（如"100px"、"50%"）
+   */
+  setMinHeight(height: number | string): void {
+    this.options.minHeight = height;
+    this.refreshView();
+  }
+  
+  /**
+   * 设置表格最大高度
+   * @param height 最大高度，可以是数字（像素）或字符串（如"500px"、"80vh"）
+   */
+  setMaxHeight(height: number | string): void {
+    this.options.maxHeight = height;
+    this.refreshView();
+  }
 }

@@ -4,12 +4,20 @@
       <div class="control-group">
         <button class="add-button" @click="addNewRow('top')">顶部新增行</button>
         <button class="add-button" @click="addNewRow('bottom')">底部新增行</button>
+        <button class="add-button" @click="clearData">清空数据</button>
+        <button class="add-button" @click="restoreData">恢复数据</button>
       </div>
       <div class="control-group">
         <label>
           <input type="checkbox" v-model="autoScrollToNewRow" />
           自动滚动到新增行
         </label>
+        <select v-model="heightMode" @change="updateHeightMode">
+          <option value="auto">自动高度</option>
+          <option value="min">最小高度</option>
+          <option value="max">最大高度</option>
+          <option value="fixed">固定高度</option>
+        </select>
       </div>
     </div>
     <div ref="gridContainer" class="grid-table-container"></div>
@@ -29,6 +37,31 @@ export default {
     let gridInstance = null
     let lastId = 17 // 初始数据最后一个ID是17
     const autoScrollToNewRow = ref(true) // 是否自动滚动到新增行
+    const heightMode = ref('auto') // 高度模式：auto, min, max, fixed
+    let originalData = null // 保存原始数据用于恢复
+    
+    // 创建自定义无数据提示
+    const createNoDataContent = () => {
+      const container = document.createElement('div');
+      container.className = 'custom-no-data';
+      
+      const icon = document.createElement('div');
+      icon.className = 'no-data-icon';
+      icon.innerHTML = `
+        <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M24 4C12.95 4 4 12.95 4 24C4 35.05 12.95 44 24 44C35.05 44 44 35.05 44 24C44 12.95 35.05 4 24 4ZM26 34H22V30H26V34ZM26 26H22V14H26V26Z" fill="#CCCCCC"/>
+        </svg>
+      `;
+      
+      const text = document.createElement('div');
+      text.className = 'no-data-text';
+      text.textContent = '暂无数据，请添加行数据';
+      
+      container.appendChild(icon);
+      container.appendChild(text);
+      
+      return container;
+    };
 
     // 生成新行数据
     const generateNewRowData = () => {
@@ -48,9 +81,55 @@ export default {
       if (gridInstance) {
         const newRow = generateNewRowData()
         console.log(`添加新行: ${JSON.stringify(newRow)}, 位置: ${position}, 自动滚动: ${autoScrollToNewRow.value}`);
-
+        
         // 使用Grid API的autoScroll参数
         gridInstance.addRow(newRow, position, autoScrollToNewRow.value);
+      }
+    }
+    
+    // 清空数据
+    const clearData = () => {
+      if (gridInstance) {
+        // 保存当前数据以便恢复
+        if (!originalData && gridInstance.getDisplayedRowCount() > 0) {
+          originalData = gridInstance.getSelectedRows();
+        }
+        // 设置空数据
+        gridInstance.setRowData([]);
+      }
+    }
+    
+    // 恢复数据
+    const restoreData = () => {
+      if (gridInstance && originalData) {
+        gridInstance.setRowData(originalData);
+      } else {
+        // 如果没有保存的数据，创建一些示例数据
+        createGrid();
+      }
+    }
+    
+    // 更新高度模式
+    const updateHeightMode = () => {
+      if (!gridInstance) return;
+      
+      switch (heightMode.value) {
+        case 'auto':
+          gridInstance.setMinHeight('auto');
+          gridInstance.setMaxHeight(null); // 不限制最大高度
+          break;
+        case 'min':
+          gridInstance.setMinHeight(300);
+          gridInstance.setMaxHeight(null);
+          break;
+        case 'max':
+          gridInstance.setMinHeight('auto');
+          gridInstance.setMaxHeight(400);
+          break;
+        case 'fixed':
+          gridInstance.setMinHeight(400);
+          gridInstance.setMaxHeight(400);
+          break;
       }
     }
 
@@ -74,6 +153,9 @@ export default {
         { id: 16, name: '产品 P', price: 350, status: 'active', quantity: 15, rating: 3 },
         { id: 17, name: '产品 Q', price: 350, status: 'active', quantity: 15, rating: 4 },
       ]
+      
+      // 保存原始数据以便恢复
+      originalData = [...data];
 
       const options = {
         container: gridContainer.value,
@@ -161,11 +243,9 @@ export default {
         ],
         rowSelection: "multiple",
         enableRowDrag: true, // 启用行拖拽
-        minHeight: 500,
-        maxHeight: 500,
-        rowStyle: {
-          height: 50
-        },
+        minHeight: '200px', // 默认自动高度
+        maxHeight: '300px', // 默认不限制最大高度
+        noDataContent: createNoDataContent(), // 自定义无数据内容
         onCellValueChanged: (event) => {
           console.log('单元格值更新:', event);
         }
@@ -196,6 +276,9 @@ export default {
 
       gridInstance.render(gridContainer.value)
 
+      // 应用初始的高度模式
+      updateHeightMode();
+
       console.log('表格实例已创建并渲染', {
         gridInstance,
         hasUpdateRowData: typeof gridInstance.updateRowData === 'function',
@@ -217,7 +300,11 @@ export default {
     return {
       gridContainer,
       addNewRow,
-      autoScrollToNewRow
+      clearData,
+      restoreData,
+      autoScrollToNewRow,
+      heightMode,
+      updateHeightMode
     }
   }
 }
@@ -282,7 +369,36 @@ input[type="checkbox"] {
   cursor: pointer;
   accent-color: #4CAF50;
 }
+
+select {
+  padding: 6px 10px;
+  border-radius: 4px;
+  border: 1px solid #ddd;
+  font-size: 14px;
+  cursor: pointer;
+}
+
 .grid-table-container {
-  height: 400px !important;
+  width: 100%;
+  flex: 1;
+}
+
+/* 自定义无数据样式 */
+:deep(.custom-no-data) {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 40px;
+}
+
+:deep(.no-data-icon) {
+  opacity: 0.6;
+}
+
+:deep(.no-data-text) {
+  font-size: 16px;
+  color: #999;
 }
 </style>

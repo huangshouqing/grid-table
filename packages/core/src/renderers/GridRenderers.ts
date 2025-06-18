@@ -90,6 +90,17 @@ export class GridRenderers {
     rootWrapper.style.display = "flex";
     rootWrapper.style.width = "100%";
 
+    // 检查是否有数据
+    const data = params.getFilteredAndSortedData();
+    const hasData = data && data.length > 0;
+    
+    if (!hasData && this.options.noDataContent) {
+      // 无数据时显示noDataContent
+      const noDataContainer = this.renderNoDataContent();
+      rootWrapper.appendChild(noDataContainer);
+      return rootWrapper;
+    }
+
     const bodyElementsToSync: HTMLElement[] = [];
     let centerHeaderEl: HTMLElement | null = null;
     let centerBodyEl: HTMLElement | null = null;
@@ -405,16 +416,39 @@ export class GridRenderers {
     const bodyWrapperId = `${this.instanceId}-body-wrapper-${type}`;
     this.virtualDOM.createElement(bodyWrapperId, "div", "grid-body");
     
+    // 设置body容器的样式
     const viewportStyles: {[key: string]: string} = {
       position: 'relative',
-      overflowY: 'auto',
       flex: '1 1 auto'
     };
+    
+    // 设置水平滚动行为
     if (type === 'center') {
-        viewportStyles.overflowX = 'auto';
+      viewportStyles.overflowX = 'auto';
     } else {
-        viewportStyles.overflowX = 'hidden';
+      viewportStyles.overflowX = 'hidden';
     }
+    
+    // 设置垂直滚动行为
+    // 始终允许垂直滚动，高度限制将由容器设置控制
+    viewportStyles.overflowY = 'auto';
+    
+    // 应用最小高度（在grid-body上而非外层grid-container）
+    if (this.options.minHeight !== undefined) {
+      const minHeight = typeof this.options.minHeight === 'number' 
+        ? `${this.options.minHeight}px` 
+        : this.options.minHeight;
+      viewportStyles.minHeight = minHeight;
+    }
+    
+    // 应用最大高度（在grid-body上而非外层grid-container）
+    if (this.options.maxHeight !== undefined) {
+      const maxHeight = typeof this.options.maxHeight === 'number' 
+        ? `${this.options.maxHeight}px` 
+        : this.options.maxHeight;
+      viewportStyles.maxHeight = maxHeight;
+    }
+    
     this.virtualDOM.updateElement(bodyWrapperId, { styles: viewportStyles });
 
     const bodyId = `${this.instanceId}-body-${type}`;
@@ -422,11 +456,13 @@ export class GridRenderers {
 
     // 计算并设置内部容器的总宽度和高度
     const totalWidth = columns.reduce((acc, col) => acc + (col.width || 0), 0);
+    const totalHeight = data.length * this.options.rowHeight!;
+    
     this.virtualDOM.updateElement(bodyId, {
       styles: {
-        height: `${data.length * this.options.rowHeight!}px`,
+        height: `${totalHeight}px`,
         position: "relative",
-        width: `${totalWidth}px`, // 关键修复：设置总宽度
+        width: `${totalWidth}px`,
       },
     });
 
@@ -842,5 +878,52 @@ export class GridRenderers {
     }
     
     return false;
+  }
+
+  /**
+   * 渲染无数据内容
+   */
+  private renderNoDataContent(): HTMLElement {
+    const noDataContainer = document.createElement('div');
+    noDataContainer.className = 'grid-no-data-container';
+    
+    // 设置样式使其居中显示
+    Object.assign(noDataContainer.style, {
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      width: '100%',
+      height: '100%',
+      padding: '20px',
+      boxSizing: 'border-box',
+      color: '#666',
+      fontSize: '14px'
+    });
+    
+    // 应用与grid-body相同的高度限制
+    if (this.options.minHeight !== undefined) {
+      const minHeight = typeof this.options.minHeight === 'number' 
+        ? `${this.options.minHeight}px` 
+        : this.options.minHeight;
+      noDataContainer.style.minHeight = minHeight;
+    }
+    
+    if (this.options.maxHeight !== undefined) {
+      const maxHeight = typeof this.options.maxHeight === 'number' 
+        ? `${this.options.maxHeight}px` 
+        : this.options.maxHeight;
+      noDataContainer.style.maxHeight = maxHeight;
+    }
+    
+    // 添加内容
+    if (typeof this.options.noDataContent === 'string') {
+      noDataContainer.textContent = this.options.noDataContent;
+    } else if (this.options.noDataContent instanceof HTMLElement) {
+      noDataContainer.appendChild(this.options.noDataContent);
+    } else {
+      noDataContainer.textContent = '暂无数据';
+    }
+    
+    return noDataContainer;
   }
 } 

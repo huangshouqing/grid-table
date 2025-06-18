@@ -6,9 +6,8 @@ export { Grid } from './grid';
 
 // 导出类型定义
 export * from './types';
-export * from './interface';
 
 // 导出管理器类
 export * from './managers/ComponentManager';
 export * from './managers/EventBus';
-export * from './managers/VirtualDOMManager'; 
+export * from './managers/VirtualDOMManager';
