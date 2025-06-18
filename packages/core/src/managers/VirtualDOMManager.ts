@@ -139,7 +139,7 @@ export class VirtualDOMManager {
             const element = this.virtualElements.get(id);
             if (element) {
                 // 检查元素是否已经在 DOM 中
-                const existingElement = document.querySelector(`[data-element-id="${id}"]`);
+                const existingElement = element.querySelector(`[data-element-id="${id}"]`);
                 if (existingElement) {
                     // 如果元素已存在，替换它
                     existingElement.parentElement?.replaceChild(element, existingElement);
@@ -149,7 +149,7 @@ export class VirtualDOMManager {
                         .find(([_, el]) => el.contains(element))?.[0];
                     
                     if (parentId) {
-                        const parent = document.querySelector(`[data-element-id="${parentId}"]`);
+                        const parent = element.querySelector(`[data-element-id="${parentId}"]`);
                         if (parent) {
                             parent.appendChild(element);
                         }
