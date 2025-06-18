@@ -192,4 +192,44 @@ export class VirtualDOMManager {
         // 触发更新
         this.flushUpdates();
     }
+
+    /**
+     * 获取元素列表，可用于调试
+     * @param idPattern 可选的ID正则模式
+     * @returns 匹配的元素ID列表
+     */
+    getElementIds(idPattern?: RegExp): string[] {
+        if (!idPattern) {
+            return Array.from(this.virtualElements.keys());
+        }
+        
+        return Array.from(this.virtualElements.keys()).filter(id => idPattern.test(id));
+    }
+
+    /**
+     * 获取特定前缀的所有元素ID
+     * @param prefix ID前缀
+     * @returns 匹配前缀的元素ID列表
+     */
+    getElementsByPrefix(prefix: string): string[] {
+        return Array.from(this.virtualElements.keys()).filter(id => id.startsWith(prefix));
+    }
+
+    /**
+     * 获取特定后缀的所有元素ID
+     * @param suffix ID后缀
+     * @returns 匹配后缀的元素ID列表
+     */
+    getElementsBySuffix(suffix: string): string[] {
+        return Array.from(this.virtualElements.keys()).filter(id => id.endsWith(suffix));
+    }
+
+    /**
+     * 获取包含特定文本的所有元素ID
+     * @param substring 子字符串
+     * @returns 包含子字符串的元素ID列表
+     */
+    getElementsBySubstring(substring: string): string[] {
+        return Array.from(this.virtualElements.keys()).filter(id => id.includes(substring));
+    }
 } 

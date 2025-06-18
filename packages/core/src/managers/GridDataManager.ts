@@ -117,7 +117,23 @@ export class GridDataManager {
       visibleNodes = Array.from(this.rowNodes.values());
     }
 
-    // 更新可见节点的行索引
+    // 更新可见节点的行索引，确保与原始数据顺序一致
+    if (this.options.rowData && Array.isArray(this.options.rowData)) {
+      // 创建ID到索引的映射
+      const idToIndex = new Map();
+      this.options.rowData.forEach((row, index) => {
+        idToIndex.set(row.id, index);
+      });
+      
+      // 按照原始数据顺序排序节点
+      visibleNodes.sort((a, b) => {
+        const indexA = idToIndex.get(a.id) ?? 0;
+        const indexB = idToIndex.get(b.id) ?? 0;
+        return indexA - indexB;
+      });
+    }
+    
+    // 更新行索引
     visibleNodes.forEach((node, index) => {
       node.rowIndex = index;
     });
@@ -265,28 +281,88 @@ export class GridDataManager {
    * @returns a new row node
    */
   public addRow(data: any, position: "top" | "bottom" = "bottom"): RowNode {
-    const id = data.id || `new-${Math.random().toString(36).substr(2, 9)}`;
+    // 确保数据有ID
+    if (data.id === undefined) {
+      data.id = `row-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    }
+    
+    const id = data.id;
+    console.log(`[GridDataManager.addRow] 添加行 id=${id}, position=${position}`);
+    
+    // 创建新的行节点
     const newNode: RowNode = {
       id: id,
       data: data,
-      rowIndex: -1, // 会在刷新时更新
+      rowIndex: position === 'top' ? 0 : (this.options.rowData?.length || 0),
       selected: false,
       children: [],
       level: 0,
     };
 
+    // 更新rowNodes映射
     this.rowNodes.set(id, newNode);
 
     // 更新原始数据数组
     if (this.options.rowData) {
-        if (position === 'top') {
-            this.options.rowData.unshift(data);
-        } else {
-            this.options.rowData.push(data);
-        }
+      if (position === 'top') {
+        console.log(`[GridDataManager.addRow] 添加行到顶部，更新前行数=${this.options.rowData.length}`);
+        this.options.rowData.unshift(data);
+        console.log(`[GridDataManager.addRow] 添加后行数=${this.options.rowData.length}`);
+        
+        // 更新所有其他节点的行索引，确保与原始数据顺序一致
+        this.updateAllRowIndices();
+      } else {
+        console.log(`[GridDataManager.addRow] 添加行到底部，更新前行数=${this.options.rowData.length}`);
+        this.options.rowData.push(data);
+        console.log(`[GridDataManager.addRow] 添加后行数=${this.options.rowData.length}`);
+        
+        // 底部添加也更新一下所有行索引，保持一致性
+        this.updateAllRowIndices();
+      }
+    } else {
+      // 如果rowData不存在，则创建新的数组
+      this.options.rowData = [data];
+    }
+    
+    // 如果有排序，我们需要确保行位置正确
+    if (this.filterSortManager && this.filterSortManager.getSortModel().length > 0) {
+      console.log(`[GridDataManager.addRow] 存在排序，重新初始化所有行节点`);
+      this.initRowNodes();
+      return this.rowNodes.get(id) || newNode;
+    }
+    
+    // 如果有树形结构，需要重新初始化
+    if (this.options.treeData) {
+      console.log(`[GridDataManager.addRow] 树形数据，重新初始化所有行节点`);
+      this.initRowNodes();
+      return this.rowNodes.get(id) || newNode;
     }
     
     return newNode;
+  }
+
+  /**
+   * 更新所有行索引，确保与原始数据顺序一致
+   */
+  private updateAllRowIndices(): void {
+    if (!Array.isArray(this.options.rowData)) return;
+    
+    console.log(`[updateAllRowIndices] 更新所有行索引，当前行数=${this.options.rowData.length}`);
+    
+    // 创建ID到索引的映射
+    const idToIndex = new Map();
+    this.options.rowData.forEach((row, index) => {
+      idToIndex.set(row.id, index);
+    });
+    
+    // 更新所有节点的行索引
+    this.rowNodes.forEach((node) => {
+      const index = idToIndex.get(node.id);
+      if (index !== undefined) {
+        node.rowIndex = index;
+        console.log(`[updateAllRowIndices] 更新行 id=${node.id}, 新索引=${index}`);
+      }
+    });
   }
 
   /**
@@ -337,18 +413,29 @@ export class GridDataManager {
       toIndex < 0 ||
       toIndex > rowData.length
     ) {
+      console.warn(`[moveRow] 索引无效: fromIndex=${fromIndex}, toIndex=${toIndex}, rowData.length=${rowData?.length}`);
       return null;
     }
 
+    console.log(`[moveRow] 开始移动行: fromIndex=${fromIndex}, toIndex=${toIndex}, rowData.length=${rowData.length}`);
+    
     // 移动数据行
     const [movedRow] = rowData.splice(fromIndex, 1);
     rowData.splice(toIndex, 0, movedRow);
+    
+    console.log(`[moveRow] 已移动行 id=${movedRow.id}, 从${fromIndex}到${toIndex}`);
 
-    // 重新计算所有节点的元数据
-    this.initRowNodes();
+    // 更新所有行索引，确保与原始数据顺序一致
+    this.updateAllRowIndices();
     
     // 返回移动后的行节点
-    return this.rowNodes.get(movedRow.id) || null;
+    const movedNode = this.rowNodes.get(movedRow.id);
+    if (movedNode) {
+      console.log(`[moveRow] 返回移动后的节点: id=${movedNode.id}, rowIndex=${movedNode.rowIndex}`);
+    } else {
+      console.warn(`[moveRow] 无法找到移动后的节点: id=${movedRow.id}`);
+    }
+    return movedNode || null;
   }
 
   /**

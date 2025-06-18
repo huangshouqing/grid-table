@@ -183,6 +183,7 @@ export class GridDragDropManager {
       }
       
       const { rowId } = dragData;
+      console.log(`[handleRowDrop] 开始处理行拖拽，rowId=${rowId}`);
 
       // 获取目标行
       const targetRow = (e.target as HTMLElement).closest(
@@ -199,14 +200,18 @@ export class GridDragDropManager {
         return;
       }
 
-      const allData = this.dataManager.getFilteredAndSortedData();
-      const fromIndex = allData.findIndex(r => String(r.id) === String(rowId));
-      let toIndex = allData.findIndex(r => String(r.id) === String(toRowId));
+      // 获取未经过滤和排序的原始数据，这样我们才能正确移动行
+      const originalData = this.options.rowData || [];
+      const fromIndex = originalData.findIndex(r => String(r.id) === String(rowId));
+      let toIndex = originalData.findIndex(r => String(r.id) === String(toRowId));
       
       if (fromIndex === -1 || toIndex === -1) {
+        console.warn(`[handleRowDrop] 找不到行索引, fromIndex=${fromIndex}, toIndex=${toIndex}`);
         this.clearDragStyles();
         return;
       }
+      
+      console.log(`[handleRowDrop] 找到行索引, fromIndex=${fromIndex}, toIndex=${toIndex}, 原始数据总行数=${originalData.length}`);
 
       // 确定拖拽位置（上方或下方）
       const rect = targetRow.getBoundingClientRect();
@@ -216,13 +221,26 @@ export class GridDragDropManager {
       let targetIndex = toIndex;
       if (isBelow) {
           targetIndex++;
+          console.log(`[handleRowDrop] 拖拽到目标行下方，调整targetIndex=${targetIndex}`);
+      } else {
+          console.log(`[handleRowDrop] 拖拽到目标行上方，targetIndex=${targetIndex}`);
       }
+      
+      // 如果拖拽的行在目标之前，调整目标索引
       if (fromIndex < targetIndex) {
           targetIndex--;
+          console.log(`[handleRowDrop] 拖拽行在目标前面，调整targetIndex=${targetIndex}`);
       }
 
+      console.log(`[handleRowDrop] 最终移动：从${fromIndex}到${targetIndex}`);
+      
       // 移动行
       const movedNode = this.dataManager.moveRow(fromIndex, targetIndex);
+      if (!movedNode) {
+        console.warn(`[handleRowDrop] 移动行失败`);
+      } else {
+        console.log(`[handleRowDrop] 移动成功，行ID=${movedNode.id}, 新索引=${movedNode.rowIndex}`);
+      }
 
       // 移除所有拖拽指示器
       this.clearDragStyles();
@@ -238,6 +256,7 @@ export class GridDragDropManager {
         });
       }
 
+      // 刷新视图
       this.refreshView();
     } catch (error) {
       console.error("Error handling row drop:", error);

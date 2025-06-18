@@ -2,6 +2,7 @@
 import { createVueAdapter } from '@grid-table/adapters/vue';
 import RatingComponent from './RatingComponent.vue';
 import ButtonCellComponent from './ButtonCellComponent.vue';
+import DeleteButtonComponent from './DeleteButtonComponent.vue';
 
 // 创建Vue适配器实例
 const vueAdapter = createVueAdapter();
@@ -21,10 +22,22 @@ const ratingValueGetter = (component) => {
 
 // 定义Button组件的props处理函数
 const buttonPropsHandler = (params) => {
-  debugger
+  // 确保将所有必要的参数传递给组件
   return {
-    data: params.data,
+    data: params.data || {},
     text: params.props?.text || '查看详情',
+    api: params.api, // 确保传递完整的API对象
+    rowIndex: params.rowIndex,
+    colId: params.colId,
+    column: params.column,
+    node: params.node
+  };
+};
+
+// 定义删除按钮组件的props处理函数
+const deleteButtonPropsHandler = (params) => {
+  return {
+    data: params.data || {},
     api: params.api,
     rowIndex: params.rowIndex
   };
@@ -48,5 +61,17 @@ const buttonComponentDefinition = vueAdapter.adaptComponent(ButtonCellComponent,
   }
 });
 
+// 适配删除按钮组件
+const deleteButtonComponentDefinition = vueAdapter.adaptComponent(DeleteButtonComponent, {
+  view: {
+    propsHandler: deleteButtonPropsHandler
+  }
+});
+
 // 导出组件定义
-export { vueAdapter, ratingComponentDefinition, buttonComponentDefinition }; 
+export { 
+  vueAdapter, 
+  ratingComponentDefinition, 
+  buttonComponentDefinition, 
+  deleteButtonComponentDefinition 
+}; 

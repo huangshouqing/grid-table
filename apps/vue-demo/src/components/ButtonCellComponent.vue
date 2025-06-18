@@ -60,17 +60,27 @@ export default {
             this.showDialog = true;
         },
         onSaveData(updatedData) {
-            debugger
-            if (this.api && this.api.onComplete && this.rowIndex >= 0) {
-                // 使用grid-table API更新数据
-                this.api.onComplete(updatedData);
-
-                // 更新本地数据
-                this.rowData = { ...updatedData };
-
-                console.log('数据已更新:', updatedData);
-            } else {
-                console.warn('无法更新数据，API不可用或行索引无效');
+            try {
+                const rowId = this.data.id;
+                
+                // 使用Grid API更新数据
+                if (this.api && typeof this.api.updateRowData === 'function') {
+                    // 更新数据
+                    this.api.updateRowData(rowId, updatedData);
+                    
+                    // 刷新本行
+                    if (typeof this.api.refreshRow === 'function' && this.rowIndex >= 0) {
+                        this.api.refreshRow(this.rowIndex);
+                    }
+                    
+                    // 更新本地数据
+                    this.rowData = JSON.parse(JSON.stringify(updatedData));
+                    console.log('数据已更新，行已刷新');
+                } else {
+                    console.warn('Grid API不可用或缺少updateRowData方法');
+                }
+            } catch (error) {
+                console.error('更新数据时出错:', error);
             }
         }
     }

@@ -46,6 +46,7 @@ export class GridRenderers {
   private getApiCallback: () => GridApi;
   private rowNodes: Map<string | number, RowNode>;
   private editManager: GridEditManager;
+  private eventBus: any;
 
   constructor(
     virtualDOM: VirtualDOMManager,
@@ -57,6 +58,7 @@ export class GridRenderers {
     rowNodesMap: Map<string | number, RowNode>,
     getApiCallback: () => GridApi,
     editManager: GridEditManager,
+    eventBus?: any,
   ) {
     this.virtualDOM = virtualDOM;
     this.scrollSyncManager = scrollSyncManager;
@@ -67,6 +69,7 @@ export class GridRenderers {
     this.rowNodes = rowNodesMap;
     this.getApiCallback = getApiCallback;
     this.editManager = editManager;
+    this.eventBus = eventBus || {};
   }
 
   /**
@@ -473,11 +476,16 @@ export class GridRenderers {
       this.virtualDOM.getElement(containerId)?.parentElement?.clientHeight ||
       500;
     const rowHeight = this.options.rowHeight || 40;
-    const startIndex = Math.max(0, Math.floor(scrollTop / rowHeight) - 5);
+    
+    // 修改：获取可见区域更大的范围，确保能够渲染所有行
+    const bufferScreens = 2; // 额外缓冲屏幕数量
+    const startIndex = Math.max(0, Math.floor(scrollTop / rowHeight) - 10);
     const endIndex = Math.min(
       data.length,
-      Math.ceil((scrollTop + containerHeight) / rowHeight) + 5
+      Math.ceil((scrollTop + containerHeight * (1 + bufferScreens)) / rowHeight) + 10
     );
+    
+    console.log(`[renderVisibleRows] container: ${containerId}, total rows: ${data.length}, visible range: ${startIndex}-${endIndex}, container height: ${containerHeight}px, total height: ${data.length * rowHeight}px`);
 
     const visibleRows = data.slice(startIndex, endIndex);
     this.state.virtualBodyRowIds.clear();
@@ -486,6 +494,13 @@ export class GridRenderers {
       const rowIndex = startIndex + index;
       const rowId = `${this.instanceId}-row-${row.id}-${containerId}`;
       this.state.virtualBodyRowIds.add(rowId);
+      
+      // 确保删除旧的行元素，避免ID冲突
+      const existingRow = this.virtualDOM.getElement(rowId);
+      if (existingRow) {
+        existingRow.remove();
+      }
+      
       this.virtualDOM.createElement(rowId, "div", "grid-row");
 
       this.virtualDOM.updateElement(rowId, {
@@ -514,6 +529,13 @@ export class GridRenderers {
       columns.forEach((col) => {
         // 使用全局唯一的ID格式，不再依赖容器ID
         const cellId = `${this.instanceId}_cell_${row.id}_${col.field}`;
+        
+        // 确保删除旧的单元格元素
+        const existingCell = this.virtualDOM.getElement(cellId);
+        if (existingCell) {
+          existingCell.remove();
+        }
+        
         this.virtualDOM.createElement(cellId, "div", "grid-cell");
 
         // 将列宽和 data-field 应用到单元格
@@ -552,6 +574,14 @@ export class GridRenderers {
 
       this.virtualDOM.appendChild(containerId, rowId);
     });
+    
+    // 确保容器总高度正确，这样滚动条才能正确显示
+    const totalHeight = data.length * rowHeight;
+    container.style.height = `${totalHeight}px`;
+    
+    // 添加容器总宽度设置，防止水平方向出现类似问题
+    const totalWidth = columns.reduce((acc, col) => acc + (col.width || 0), 0);
+    container.style.width = `${totalWidth}px`;
   }
 
   /**
@@ -614,6 +644,8 @@ export class GridRenderers {
         rowIndex: node.rowIndex,
         colId: column.field,
         column,
+        colDef: column,
+        eventBus: this.eventBus,
         api: this.getApiCallback(),
         node,
         onComplete: (newValue: any) => this.editManager.stopEditing(true, newValue),

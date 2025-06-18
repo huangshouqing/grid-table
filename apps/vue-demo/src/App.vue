@@ -1,9 +1,7 @@
 <template>
   <div class="app">
     <h1>Grid Table Vue Demo</h1>
-    <div class="grid-container">
-      <GridTable />
-    </div>
+    <GridTable />
   </div>
 </template>
 
@@ -32,10 +30,4 @@ h1 {
   margin-bottom: 30px;
 }
 
-.grid-container {
-  height: 600px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  overflow: hidden;
-}
-</style> 
+</style>

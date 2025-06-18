@@ -27,6 +27,8 @@ export interface ComponentParams {
     rowIndex: number;
     colId: string;
     column: Column;
+    colDef?: any;      // 添加colDef属性，兼容IComponentParams
+    eventBus?: any;    // 添加eventBus属性，兼容IComponentParams
     api: GridApi;
     node: RowNode;
     // 编辑器特有参数
@@ -143,10 +145,14 @@ export interface GridApi {
     setFilterModel(model: { [key: string]: FilterModel }): void;
     clearFilters(): void;
     // 新增行操作API
-    addRow(data: any, position?: 'top' | 'bottom'): void;
+    addRow(data: any, position?: 'top' | 'bottom', autoScroll?: boolean): void;
     removeRow(id: string | number): void;
     moveRow(fromIndex: number, toIndex: number): void;
     refreshCell(params: RefreshCellParams): void;
+    // 添加更新行数据的API
+    updateRowData(rowId: string | number, data: any): boolean;
+    // 添加刷新特定行的API
+    refreshRow(rowIndex: number): void;
 }
 
 export interface SortModel {

@@ -34,7 +34,7 @@ import { GridDragDropManager } from "./managers/GridDragDropManager";
 import { GridFilterSortManager } from "./managers/GridFilterSortManager";
 import { GridEventHandlers } from "./managers/GridEventHandlers";
 import { FormulaManager } from "./managers/FormulaManager";
-// 导入 EventBus
+// 导入事件总线
 import { EventBus } from "./managers/EventBus";
 // 添加状态管理
 
@@ -168,7 +168,7 @@ export class Grid implements GridApi {
     const tempStartEditing = (cell: HTMLElement, column: Column, row: any, value: any) => {
       // 暂时什么都不做
     };
-    
+
     // 初始化渲染器
     this.renderers = new GridRenderers(
       this.virtualDOM,
@@ -230,6 +230,7 @@ export class Grid implements GridApi {
       this.rowNodes,
       this.getApi.bind(this),
       this.editManager,
+      this.eventBus
     );
 
     // 初始化拖拽管理器
@@ -546,6 +547,12 @@ export class Grid implements GridApi {
 
       // 清理所有拖拽样式
       this.dragDropManager.clearDragStyles();
+      
+      // 清理虚拟DOM中的行ID缓存，确保刷新时能正确渲染新增行
+      this.state.virtualBodyRowIds.clear();
+      
+      // 完全清除虚拟DOM，解决行超出初始数量时渲染问题
+      this.virtualDOM.clear();
 
       // 重新渲染整个表格内容
       this.element.innerHTML = "";
@@ -641,18 +648,54 @@ export class Grid implements GridApi {
    * 添加新行数据
    * @param data 要添加的行数据
    * @param position 添加位置("top" 或 "bottom")
+   * @param autoScroll 是否自动滚动到新行位置
    */
-  addRow(data: any, position: "top" | "bottom" = "bottom"): void {
+  addRow(data: any, position: "top" | "bottom" = "bottom", autoScroll: boolean = true): void {
+    console.log(`[Grid.addRow] 正在添加行, position=${position}, autoScroll=${autoScroll}`);
+    
+    // 添加新行并获取节点
     const newNode = this.dataManager.addRow(data, position);
-    if (newNode && newNode.parent) {
-      // New node added, its parent might have aggregation formula.
-      // We trigger an update on the parent, pretending one of its fields changed.
-      // A dummy field '' is used, as the processUpdate will re-calculate all formulas on the parent
-      // that depend on children.
-      const updatedNodes = this.formulaManager.processUpdate(newNode.parent, '');
-      this.refreshAffectedCells(updatedNodes);
+    
+    if (newNode) {
+      console.log(`[Grid.addRow] 已添加新行，行ID=${newNode.id}, 行索引=${newNode.rowIndex}`);
+      
+      // 如果是树形数据且有父节点，可能需要重新计算聚合公式
+      if (newNode.parent) {
+        // 添加了新节点，其父节点可能有聚合公式。
+        // 我们触发父节点的更新，假装其中一个字段发生了变化。
+        // 使用空字符串''作为虚拟字段，因为processUpdate将重新计算父节点中依赖于子节点的所有公式。
+        const updatedNodes = this.formulaManager.processUpdate(newNode.parent, '');
+        this.refreshAffectedCells(updatedNodes);
+      }
+
+      try {
+        // 如果启用了自动滚动，尝试让新行可见
+        if (autoScroll) {
+          if (position === 'top') {
+            console.log(`[Grid.addRow] 添加到顶部，确保索引0可见`);
+            this.ensureIndexVisible(0, 'top');
+          } else {
+            const lastIndex = this.dataManager.getDisplayedRowCount() - 1;
+            console.log(`[Grid.addRow] 添加到底部，确保最后一行索引${lastIndex}可见`);
+            if (lastIndex >= 0) {
+              this.ensureIndexVisible(lastIndex, 'bottom');
+            }
+          }
+        } else {
+          console.log(`[Grid.addRow] 自动滚动已禁用，不滚动到新行`);
+        }
+      } catch (e) {
+        console.warn("[Grid.addRow] 无法滚动到新添加的行:", e);
+      }
+      
+      // 完全重新渲染以确保虚拟DOM和实际数据保持同步
+      console.log(`[Grid.addRow] 清除虚拟DOM缓存并刷新视图`);
+      this.virtualDOM.clear();
+      this.state.virtualBodyRowIds.clear();
+      this.refreshView();
+    } else {
+      console.warn(`[Grid.addRow] 添加行失败，未获得行节点`);
     }
-    this.refreshView(); // Still need a general refresh for now to update rows display
   }
 
   /**
@@ -660,6 +703,7 @@ export class Grid implements GridApi {
    * @param id 要删除的行ID
    */
   removeRow(id: string | number): void {
+    console.log(`[Grid.removeRow] 删除行 id=${id}`);
     this.dataManager.removeRow(id);
     this.refreshView();
   }
@@ -670,7 +714,19 @@ export class Grid implements GridApi {
    * @param toIndex 目标索引
    */
   moveRow(fromIndex: number, toIndex: number): void {
-    this.dragDropManager.moveRow(fromIndex, toIndex);
+    console.log(`[Grid.moveRow] 移动行 fromIndex=${fromIndex}, toIndex=${toIndex}`);
+    // 调用数据管理器的移动行功能
+    const movedNode = this.dataManager.moveRow(fromIndex, toIndex);
+    if (movedNode) {
+      console.log(`[Grid.moveRow] 移动成功，行ID=${movedNode.id}, 新索引=${movedNode.rowIndex}`);
+      
+      // 确保虚拟DOM被清除和重建，解决拖拽后行位置问题
+      this.virtualDOM.clear();
+      this.state.virtualBodyRowIds.clear();
+      this.refreshView();
+    } else {
+      console.warn(`[Grid.moveRow] 移动行失败，无法获取移动后的节点`);
+    }
   }
 
   /**
@@ -791,7 +847,7 @@ export class Grid implements GridApi {
    * 刷新单个单元格
    * @param params 包含要刷新的行节点和列定义
    */
-  refreshCell(params: { rowNode: RowNode; column: Column; }): void {
+  refreshCell(params: { rowNode: RowNode; column: Column }): void {
     const { rowNode, column } = params;
     const cellId = `${this.instanceId}_cell_${rowNode.id}_${column.field}`;
     const cellElement = this.virtualDOM.getElement(cellId);
@@ -814,14 +870,125 @@ export class Grid implements GridApi {
     this.refreshAffectedCells(updatedNodes);
   }
 
+  /**
+   * 在更新单元格值后触发刷新相关单元格的逻辑
+   */
   private refreshAffectedCells(updatedNodes: Map<RowNode, Set<string>>): void {
     updatedNodes.forEach((fields, node) => {
       fields.forEach(field => {
         const column = this.options.columns.find(c => c.field === field);
         if (column) {
-          this.refreshCell({ rowNode: node, column: column });
+          this.refreshCell({ rowNode: node, column });
         }
       });
+    });
+  }
+
+  /**
+   * 更新行数据
+   * 允许更新指定行ID的数据
+   * @param rowId 要更新的行ID
+   * @param data 新的数据对象
+   * @returns 是否成功更新
+   */
+  updateRowData(rowId: string | number, data: any): boolean {
+    // 获取行节点
+    const node = this.getRowNode(rowId);
+    if (!node) {
+      console.warn(`尝试更新不存在的行: ${rowId}`);
+      return false;
+    }
+
+    // 保存ID，确保不被覆盖
+    const id = node.id;
+
+    // 保存当前数据的副本用于事件
+    const oldData = { ...node.data };
+
+    // 更新数据，保持ID不变
+    node.data = {
+      ...data,
+      id
+    };
+
+    // 收集已更改的字段
+    const changedFields = new Set<string>();
+    Object.keys(data).forEach(key => {
+      if (oldData[key] !== data[key]) {
+        changedFields.add(key);
+      }
+    });
+
+    // 触发值变更事件
+    changedFields.forEach(field => {
+      const column = this.options.columns.find(c => c.field === field);
+      if (column) {
+        // 调用公式管理器进行更新
+        const updatedNodes = this.formulaManager.processUpdate(node, field);
+        this.refreshAffectedCells(updatedNodes);
+
+        // 触发可选的onCellValueChanged回调
+        if (this.options.onCellValueChanged) {
+          this.options.onCellValueChanged({
+            node,
+            data: node.data,
+            column,
+            colId: field,
+            value: node.data[field],
+            oldValue: oldData[field],
+            newValue: node.data[field]
+          });
+        }
+      }
+    });
+
+    return true;
+  }
+
+  /**
+   * 刷新指定行索引的行
+   * @param rowIndex 要刷新的行索引
+   */
+  refreshRow(rowIndex: number): void {
+    console.log(`[grid.refreshRow] 尝试刷新行索引: ${rowIndex}`);
+    
+    // 获取对应索引的行节点
+    const node = this.getDisplayedRowAtIndex(rowIndex);
+    if (!node) {
+      console.warn(`[grid.refreshRow] 尝试刷新不存在的行索引: ${rowIndex}`);
+      return;
+    }
+    
+    console.log(`[grid.refreshRow] 获取到行节点:`, {id: node.id, rowIndex: node.rowIndex});
+    
+    // 查找与此行相关的所有单元格ID
+    const cellIds = this.virtualDOM.getElementsBySubstring(`cell_${node.id}_`);
+    console.log(`[grid.refreshRow] 与行ID ${node.id} 相关的单元格:`, cellIds);
+    
+    if (cellIds.length === 0) {
+      // 如果找不到单元格，可能需要刷新整个视图
+      console.warn(`[grid.refreshRow] 找不到行ID为 ${node.id} 的单元格，将尝试刷新视图`);
+      this.refreshView();
+      return;
+    }
+    
+    // 查找所有可能的行元素ID
+    const rowPattern = `-row-${node.id}-`;
+    const rowIds = this.virtualDOM.getElementsBySubstring(rowPattern);
+    console.log(`[grid.refreshRow] 行ID ${node.id} 相关的行元素:`, rowIds);
+    
+    // 刷新所有单元格
+    this.options.columns.forEach(column => {
+      const cellId = `${this.instanceId}_cell_${node.id}_${column.field}`;
+      const cellElement = this.virtualDOM.getElement(cellId);
+      
+      if (cellElement) {
+        console.log(`[grid.refreshRow] 刷新单元格:`, {cellId, field: column.field});
+        const value = node.data[column.field];
+        this.renderers.renderCell(cellElement, column, node.data, value, node.rowIndex);
+      } else {
+        console.log(`[grid.refreshRow] 单元格未找到:`, {cellId, field: column.field});
+      }
     });
   }
 }

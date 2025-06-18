@@ -122,7 +122,7 @@ export default {
   background-color: white;
   border-radius: 8px;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
-  width: 500px;
+  width: 600px;
   max-width: 90%;
   max-height: 80vh;
   display: flex;
@@ -152,7 +152,7 @@ export default {
 }
 
 .dialog-content {
-  padding: 20px;
+  padding: 40px;
   overflow-y: auto;
   flex: 1;
 }
@@ -169,7 +169,7 @@ export default {
 }
 
 .form-group input {
-  width: 100%;
+  width: 95%;
   padding: 8px 12px;
   border: 1px solid #ddd;
   border-radius: 4px;
@@ -192,12 +192,14 @@ export default {
 }
 
 .cancel-btn {
-  background-color: #f5f5f5;
+  height: 35px;
+  background-color: #fff;
   border: 1px solid #ddd;
   color: #666;
 }
 
 .save-btn {
+    height: 35px;
   background-color: #1890ff;
   border: 1px solid #1890ff;
   color: white;
