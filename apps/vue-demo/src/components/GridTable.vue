@@ -131,8 +131,6 @@ export default {
 
       // 监听所有数据变更事件，便于调试和扩展
       eventBus.subscribe('gridDataChanged', (event) => {
-        console.log('【事件总线】数据变更:', event);
-
         // 根据事件类型执行不同操作
         switch (event.type) {
           case 'cellValueChanged':
@@ -142,7 +140,6 @@ export default {
               gridData.value[rowIndex] = { ...gridData.value[rowIndex] };
             }
             break;
-
           case 'rowAdded':
             // 行添加 - 这里可以执行特定操作，如显示通知
             console.log('【事件总线】新行已添加:', event.data);

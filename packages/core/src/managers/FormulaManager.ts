@@ -279,16 +279,12 @@ export class FormulaManager {
         
         // 检测是否为叶子节点
         const isLeafNode = !node.children || node.children.length === 0;
-        
-        console.log(`Finding formula for node ${node.id}, level: ${level}, isLeaf: ${isLeafNode}`);
-        
         // 查找叶子节点专用公式
         let formulaInfo = null;
         if (isLeafNode) {
             // 查找isLeaf=true的公式
             for (const [_, info] of levelMap) {
                 if (info.isLeaf) {
-                    console.log(`Found leaf formula for node ${node.id}: ${info.formula}`);
                     formulaInfo = info;
                     break;
                 }
@@ -298,12 +294,10 @@ export class FormulaManager {
         // 如果没有找到叶子节点专用公式，则按层级查找
         if (!formulaInfo) {
             formulaInfo = levelMap.get(level);
-            console.log(`Level ${level} formula for node ${node.id}: ${formulaInfo ? formulaInfo.formula : 'not found'}`);
             
             // 如果没有当前层级的公式，尝试默认公式
             if (!formulaInfo) {
                 formulaInfo = levelMap.get(-1); // 尝试默认公式
-                console.log(`Default formula for node ${node.id}: ${formulaInfo ? formulaInfo.formula : 'not found'}`);
                 
                 // 如果没有默认公式，尝试最近层级的公式
                 if (!formulaInfo) {
@@ -322,7 +316,6 @@ export class FormulaManager {
                     
                     if (nearestLevel >= 0) {
                         formulaInfo = levelMap.get(nearestLevel);
-                        console.log(`Nearest level ${nearestLevel} formula for node ${node.id}: ${formulaInfo ? formulaInfo.formula : 'not found'}`);
                     }
                 }
             }
@@ -335,18 +328,14 @@ export class FormulaManager {
      * 对所有行进行完整的初始计算，使用拓扑排序
      */
     public processAllRows(): void {
-        console.time('processAllRows');
         
         if (this.formulaMap.size === 0 && this.levelFormulaMap.size === 0) {
-            console.timeEnd('processAllRows');
             return;
         }
         
         // 检查公式和层级公式
         const formulaFields = Array.from(this.formulaMap.keys());
         const levelFormulaFields = Array.from(this.levelFormulaMap.keys());
-        console.log(`Standard formulas: ${formulaFields.join(', ')}`);
-        console.log(`Level formulas: ${levelFormulaFields.join(', ')}`);
         
         // 收集所有节点和字段
         const calculationItems: CalculationItem[] = [];
@@ -384,7 +373,6 @@ export class FormulaManager {
         
         // 计算字段拓扑顺序
         const fieldOrder = this.topologicalSortFields(fieldDependencyGraph);
-        console.log(`Field calculation order: ${fieldOrder.join(' -> ')}`);
         
         // 为所有节点和相关字段创建计算项
         this.gridApi.forEachNode(node => {
@@ -418,8 +406,6 @@ export class FormulaManager {
         // 按顺序计算
         let updatedCount = 0;
         
-        console.log(`Starting calculations for ${calculationItems.length} items`);
-        
         for (const { node, field } of calculationItems) {
             // 处理标准公式
             if (this.formulaMap.has(field)) {
@@ -435,9 +421,6 @@ export class FormulaManager {
                 }
             }
         }
-        
-        console.log(`Updated ${updatedCount} values`);
-        console.timeEnd('processAllRows');
     }
     
     /**
@@ -632,7 +615,6 @@ export class FormulaManager {
         
         // 如果找不到任何适合的公式，返回false
         if (!formulaInfo) {
-            console.log(`No applicable formula for node ${node.id}, field ${fieldToCompute}`);
             return false;
         }
         
@@ -647,20 +629,8 @@ export class FormulaManager {
         
         const context = this.createContext(node);
         
-        // For debugging
-        if (fieldToCompute === 'stock') {
-            console.log(`Evaluating ${fieldToCompute} for node ${node.id} with formula: ${formulaInfo.formula}`);
-            if (context.children && context.children.length > 0) {
-                console.log(`Children for node ${node.id}:`, context.children.map((c: any) => ({ stock: c.stock })));
-                    }
-        }
-        
         const newValue = this.evaluate(formulaInfo.parsed, context);
         const oldValue = node.data[fieldToCompute];
-        
-        if (fieldToCompute === 'stock') {
-            console.log(`Result for ${node.id}: ${oldValue} -> ${newValue}`);
-        }
         
         if (newValue !== oldValue) {
             node.data[fieldToCompute] = newValue;

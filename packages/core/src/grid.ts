@@ -757,13 +757,13 @@ export class Grid implements GridApi {
    * 批量设置单元格值
    * @param params 批量赋值参数
    */
-  setValues(params: ValueSetParams): void {
+  setCellValues(params: ValueSetParams): void {
     this.saveScrollPosition();
     // 确保传递了正确的参数结构
     const node = this.dataManager.getRowNode(params.rowId);
     const column = this.options.columns.find(c => c.field === params.field);
     if (node && column) {
-      this.dragDropManager.setValues({
+      this.dragDropManager.batchPatchCellValue({
         startNode: node,
         endNode: node,
         column: column,

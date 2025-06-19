@@ -144,7 +144,7 @@ export class GridEventBusHandler {
         }
         // 如果只提供了基本信息用于设置值
         else if (rowId !== undefined && field) {
-          this.api.setValues({ rowId, field, value });
+          this.api.setCellValues({ rowId, field, value });
           
           // 发布值变更事件
           this.eventBus.publish('gridDataChanged', {
@@ -228,8 +228,14 @@ export class GridEventBusHandler {
         const { colId, width } = event;
         if (colId && width) {
           console.log(`处理列宽调整请求: 列=${colId}, 宽度=${width}, 来源=${event.source}`);
-          // 假设API有设置列宽的方法
-          this.api.sizeColumnsToFit();
+          // 处理列宽调整
+          const columnDefs = this.api.getColumnDefs();
+          const column = columnDefs.find(col => col.field === colId);
+          if (column) {
+            column.width = width;
+            this.api.setColumnDefs(columnDefs);
+            this.api.refreshView();
+          }
         }
       }
       // 处理行可见性请求

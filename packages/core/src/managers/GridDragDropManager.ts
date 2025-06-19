@@ -562,7 +562,6 @@ export class GridDragDropManager {
       resizeStartX,
       resizeColumn,
       initialWidth,
-      activeColumnSet,
       resizeGuideElement,
     } = this.state.dragState;
 
@@ -586,14 +585,18 @@ export class GridDragDropManager {
 
       const newWidth = finalX - startX;
 
-      const columnsToUpdate = activeColumnSet || this.options.columns;
-      const colToUpdate = columnsToUpdate.find(
-        (c: Column) => c.field === resizeColumn!.field
-      );
+      // 获取事件总线
+      const api = this.getApi();
+      const eventBus = api.getEventBus();
 
-      if (colToUpdate) {
-        colToUpdate.width = Math.max(50, newWidth);
-        this.refreshView();
+      // 通过事件总线发布列宽调整请求
+      if (eventBus) {
+        eventBus.publish('gridUIAction', {
+          type: 'columnResizeRequest',
+          colId: resizeColumn.field,
+          width: Math.max(50, newWidth),
+          source: 'columnResizer'
+        });
       }
     }
 
@@ -681,7 +684,7 @@ export class GridDragDropManager {
           // 使用 convertRowId 方法转换 ID
           const endNode = this.rowNodes.get(this.convertRowId(endRowId));
           if (endNode) {
-            this.setValues({
+            this.batchPatchCellValue({
               startNode: startNode,
               endNode: endNode,
               column: startColumn,
@@ -716,7 +719,7 @@ export class GridDragDropManager {
   /**
    * 设置单元格值（用于拖拽填充）
    */
-  public setValues(params: {
+  public batchPatchCellValue(params: {
     startNode: RowNode;
     endNode: RowNode;
     column: Column;
@@ -742,11 +745,9 @@ export class GridDragDropManager {
       if (column.editable !== false) {
         // 保存旧值
         const oldValue = node.data[column.field];
-        
         // 直接更新数据
         node.data[column.field] = value;
-        this.getApi().refreshCell({ rowNode: node, column });
-
+        api.refreshCell({ rowNode: node, column });
         // 使用公开的API方法处理值变更
         api.processCellValueChange(node, column.field);
       }

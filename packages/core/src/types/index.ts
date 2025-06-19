@@ -140,7 +140,7 @@ export interface GridApi {
     refreshView(): void;
     ensureIndexVisible(index: number, position?: 'top' | 'middle' | 'bottom'): void;
     ensureNodeVisible(node: RowNode, position?: 'top' | 'middle' | 'bottom'): void;
-    setValues(params: ValueSetParams): void;
+    setCellValues(params: ValueSetParams): void;
     getFilterModel(): { [key: string]: FilterModel };
     setFilterModel(model: { [key: string]: FilterModel }): void;
     clearFilters(): void;
