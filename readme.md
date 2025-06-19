@@ -1,360 +1,578 @@
-# Grid Table
+# Grid Table 公式系统
 
-一个高性能、功能丰富的表格组件，支持虚拟滚动、单元格合并、自定义组件、树形结构等特性。
+一个强大、灵活的表格公式系统，支持层级数据结构、多层级公式配置、智能依赖跟踪和高效计算。
 
-## 功能特点
+## 特性
 
-### 基础功能
-- **虚拟滚动**：高效处理大数据集，只渲染可视区域的行和列
-- **列配置**：自定义列宽、冻结列、列排序
-- **排序**：单列和多列排序
-- **过滤**：自定义过滤条件和过滤器
-- **选择**：行选择、单选和多选模式
+- ✅ **多层级公式配置** - 为不同层级、不同类型的节点配置不同的计算公式
+- ✅ **智能依赖跟踪** - 自动识别字段间依赖关系，确保正确的计算顺序
+- ✅ **高效更新策略** - 只重新计算受影响的值，最小化性能开销
+- ✅ **丰富的函数支持** - 包括聚合函数、递归函数、条件判断等
+- ✅ **层级数据支持** - 完美支持树形结构数据的计算需求
 
-### 单元格功能
-- **单元格编辑**：内置和自定义编辑器
-- **单元格合并**：支持行合并和列合并
-- **单元格样式**：条件样式、自定义渲染
-- **自定义组件**：完全可定制的单元格内容
+## 安装
 
-### 高级功能
-- **树形结构**：支持父子层级数据展示
-- **行拖拽**：调整行顺序
-- **列拖拽**：调整列顺序
-- **行分组**：按字段分组显示数据
-- **导出数据**：导出为CSV、Excel等格式
-
-## 架构设计
-
-Grid Table 采用模块化设计，主要包括以下核心模块：
-
-### 核心类
-- **Grid**：表格的主类，负责协调各个模块和提供API
-- **VirtualDOMManager**：虚拟DOM管理，高效更新表格内容
-- **ComponentManager**：组件管理，处理自定义组件的注册和渲染
-- **EventManager**：事件管理，处理表格内的各种事件
-- **ScrollSyncManager**：滚动同步，处理表头和表体的滚动同步
-
-### 数据流
-1. 用户提供数据和列定义
-2. Grid 初始化各个管理器
-3. VirtualDOMManager 创建虚拟DOM结构
-4. 根据滚动位置计算可见行和列
-5. 渲染可见单元格，应用样式和事件
-6. 用户交互触发事件，更新数据和视图
-
-## 使用指南
-
-### 基础使用
-
-```javascript
-import { Grid } from 'grid-table';
-
-// 创建表格实例
-const grid = new Grid({
-  columns: [
-    { field: 'id', headerName: 'ID', width: 100 },
-    { field: 'name', headerName: '名称', width: 200, editable: true },
-    { field: 'age', headerName: '年龄', width: 100, editable: true }
-  ],
-  rowData: [
-    { id: 1, name: '张三', age: 25 },
-    { id: 2, name: '李四', age: 30 },
-    { id: 3, name: '王五', age: 35 }
-  ]
-});
-
-// 渲染到DOM
-grid.render(document.getElementById('grid-container'));
+```bash
+npm install @grid-table/core
 ```
 
-### 列配置
+## 基础用法
 
-```javascript
-const columns = [
-  // 基础列
+```typescript
+import { FormulaManager } from '@grid-table/core';
+
+// 创建公式管理器实例
+const formulaManager = new FormulaManager(gridApi);
+
+// 配置列定义
+formulaManager.setColumnDefs([
   { 
-    field: 'id', 
-    headerName: 'ID', 
-    width: 100,
-    sortable: true,    // 启用排序
-    filterable: true,  // 启用过滤
-    frozen: true       // 冻结列
+    field: 'total', 
+    formula: 'price * quantity' 
   },
-  
-  // 可编辑列
-  { 
-    field: 'name', 
-    headerName: '名称', 
-    width: 200,
-    editable: true     // 启用编辑
-  },
-  
-  // 自定义渲染列
   {
-    field: 'status',
-    headerName: '状态',
-    width: 120,
-    cellRenderer: {
-      view: (params) => {
-        const el = document.createElement('div');
-        el.textContent = params.value;
-        el.className = `status-${params.value}`;
-        return el;
-      },
-      edit: (params) => {
-        const select = document.createElement('select');
-        select.innerHTML = `
-          <option value="active">激活</option>
-          <option value="inactive">未激活</option>
-        `;
-        select.value = params.value;
-        
-        select.onchange = () => {
-          params.onComplete(select.value);
-        };
-        
-        return select;
+    field: 'tax',
+    formula: 'total * 0.1'
+  }
+]);
+
+// 计算所有行的公式
+formulaManager.processAllRows();
+
+// 处理单元格更新
+const updates = formulaManager.processUpdate(updatedNode, 'price');
+```
+
+## 公式配置
+
+### 基础公式
+
+最简单的配置方式，为字段定义一个适用于所有节点的公式：
+
+```typescript
+{
+  field: 'total',
+  formula: 'price * quantity' // 简单的乘法公式
+}
+```
+
+### 多层级公式
+
+针对不同级别的节点配置不同的计算逻辑：
+
+```typescript
+{
+  field: 'stock',
+  levelFormulas: [
+    { level: 0, formula: 'SUM(children, "stock")' },  // 根节点：汇总直接子节点库存
+    { level: 1, formula: 'SUMALL(children, "stock")' },  // 一级节点：递归汇总所有后代节点库存
+    { isLeaf: true, formula: 'quantity' }  // 叶子节点：使用quantity字段值作为库存
+  ]
+}
+```
+
+## 支持的函数
+
+### 聚合函数
+
+| 函数      | 描述                      | 示例                       |
+|----------|--------------------------|----------------------------|
+| SUM      | 计算直接子节点字段总和        | `SUM(children, "price")`   |
+| SUMALL   | 递归计算所有后代节点字段总和   | `SUMALL(children, "price")` |
+| AVG      | 计算直接子节点字段平均值      | `AVG(children, "price")`    |
+| AVGALL   | 递归计算所有后代节点字段平均值  | `AVGALL(children, "price")` |
+| COUNT    | 计算直接子节点数量           | `COUNT(children)`          |
+| COUNTALL | 递归计算所有后代节点数量      | `COUNTALL(children)`       |
+
+### 条件函数
+
+| 函数 | 描述            | 示例                              |
+|-----|----------------|-----------------------------------|
+| IF  | 条件判断三元运算符 | `IF(price > 100, price * 0.9, price)` |
+
+### 节点类型函数
+
+| 函数    | 描述            | 示例                         |
+|--------|----------------|------------------------------|
+| ISLEAF | 判断是否为叶子节点 | `IF(ISLEAF(), quantity, SUM(children, "total"))` |
+| ISROOT | 判断是否为根节点   | `IF(ISROOT(), 0, parent.tax + tax)` |
+| LEVEL  | 返回节点层级      | `IF(LEVEL() > 2, price * 0.8, price)` |
+
+## 核心概念解析
+
+### 依赖跟踪
+
+公式系统通过分析公式字符串，自动提取并构建字段间的依赖关系图。系统支持三种类型的依赖：
+
+1. **同行内字段依赖** - 如 `total = price * quantity`
+2. **父节点字段依赖** - 如 `discount = parent.discount_rate * price`
+3. **子节点字段依赖** - 如 `total_stock = SUM(children, "stock")`
+
+依赖图结构示例：
+
+```mermaid
+graph LR
+    A[price] -->|依赖| C[total]
+    B[quantity] -->|依赖| C
+    C -->|依赖| E[grand_total]
+    D[tax] -->|依赖| E
+    
+    style A fill:#f9d5e5,stroke:#333,stroke-width:1px
+    style B fill:#f9d5e5,stroke:#333,stroke-width:1px
+    style C fill:#d3f0ff,stroke:#333,stroke-width:1px
+    style D fill:#f9d5e5,stroke:#333,stroke-width:1px
+    style E fill:#c1e1c1,stroke:#333,stroke-width:1px
+```
+
+代码实现：
+```typescript
+// 维护一个映射，记录每个字段被哪些字段依赖
+private dependencyGraph: Map<string, Set<string>> = new Map();
+
+private updateDependencyGraph(field: string, dependencies: string[]): void {
+  dependencies.forEach(dep => {
+    if (!this.dependencyGraph.has(dep)) {
+      this.dependencyGraph.set(dep, new Set());
+    }
+    this.dependencyGraph.get(dep)!.add(field);
+  });
+}
+
+// 提取公式中的依赖字段
+private extractDependencies(parsed: Expression, formula: string): string[] {
+  // 基础依赖 (直接变量引用)
+  const simpleDependencies = parsed.variables();
+
+  // 复杂依赖 (parent. & children.)
+  const complexDependencies = [];
+  const parentRegex = /parent\.(\w+)/g;
+  const childrenRegex = /children\.(\w+)/g;
+  let match;
+  while(match = parentRegex.exec(formula)) {
+    complexDependencies.push(match[0]);
+  }
+  while(match = childrenRegex.exec(formula)) {
+    complexDependencies.push(match[0]);
+  }
+  return [...simpleDependencies, ...complexDependencies];
+}
+```
+
+### 拓扑排序
+
+拓扑排序确保字段按照依赖关系的顺序计算，即先计算那些其他字段依赖的基础字段，然后再计算依赖于它们的字段。
+
+```mermaid
+graph TD
+    A["开始拓扑排序"]
+    B["计算字段入度（被依赖数）"]
+    C["将入度为0的字段加入队列"]
+    D{"队列是否为空?"}
+    E["出队一个字段，加入结果"]
+    F["更新其依赖项的入度"]
+    G["将入度变为0的字段入队"]
+    H["返回排序结果"]
+    
+    A --> B
+    B --> C
+    C --> D
+    D -->|否| E
+    D -->|是| H
+    E --> F
+    F --> G
+    G --> D
+    
+    style A fill:#f9d5e5,stroke:#333,stroke-width:2px
+    style H fill:#c1e1c1,stroke:#333,stroke-width:2px
+```
+
+代码实现：
+```typescript
+private topologicalSortFields(graph: Map<string, Set<string>>): string[] {
+  // 计算每个字段的入度（被依赖数）
+  const inDegree = new Map<string, number>();
+  
+  // 初始化所有字段的入度为0
+  for (const field of graph.keys()) {
+    inDegree.set(field, 0);
+  }
+  
+  // 计算每个字段的入度
+  for (const dependents of graph.values()) {
+    for (const dependent of dependents) {
+      inDegree.set(dependent, (inDegree.get(dependent) || 0) + 1);
+    }
+  }
+  
+  // 找出所有入度为0的字段（无依赖的字段）
+  const queue: string[] = [];
+  for (const [field, degree] of inDegree) {
+    if (degree === 0) {
+      queue.push(field);
+    }
+  }
+  
+  const result: string[] = [];
+  
+  // 拓扑排序主循环
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    result.push(current);
+    
+    // 更新依赖于当前字段的所有字段的入度
+    const dependents = graph.get(current) || new Set();
+    for (const dependent of dependents) {
+      const newDegree = inDegree.get(dependent)! - 1;
+      inDegree.set(dependent, newDegree);
+      
+      if (newDegree === 0) {
+        queue.push(dependent);
       }
     }
   }
-];
+  
+  return result;
+}
 ```
 
-### 自定义组件系统
+### 多层级公式处理
 
-```javascript
-// 1. 创建组件
-function TagViewComponent(params) {
-  const container = document.createElement('div');
-  container.className = 'tag-container';
-  
-  if (Array.isArray(params.value)) {
-    params.value.forEach(tag => {
-      const tagEl = document.createElement('span');
-      tagEl.className = 'tag';
-      tagEl.textContent = tag;
-      container.appendChild(tagEl);
-    });
+系统通过分析节点的层级、是否为叶子节点等信息，选择最合适的公式进行计算。
+
+```mermaid
+graph TD
+    A["节点需要计算公式"]
+    B{"是否是叶子节点?"}
+    C{"有叶子节点专用公式?"}
+    D["使用叶子节点公式"]
+    E{"有当前层级专用公式?"}
+    F["使用当前层级公式"]
+    G{"有默认公式?"}
+    H["使用默认公式"]
+    I["寻找最近层级公式"]
+    J["使用最近层级公式"]
+    K["无法计算"]
+    
+    A --> B
+    B -->|是| C
+    B -->|否| E
+    C -->|是| D
+    C -->|否| E
+    E -->|是| F
+    E -->|否| G
+    G -->|是| H
+    G -->|否| I
+    I -->|找到| J
+    I -->|未找到| K
+    
+    style A fill:#f9d5e5,stroke:#333,stroke-width:2px
+    style D fill:#c1e1c1,stroke:#333,stroke-width:2px
+    style F fill:#c1e1c1,stroke:#333,stroke-width:2px
+    style H fill:#c1e1c1,stroke:#333,stroke-width:2px
+    style J fill:#c1e1c1,stroke:#333,stroke-width:2px
+    style K fill:#ffcccc,stroke:#333,stroke-width:2px
+```
+
+代码实现：
+```typescript
+private getApplicableFormulaForNode(node: RowNode, levelMap: Map<number, any>): any {
+  // 计算当前节点级别
+  let level = 0;
+  let parent = node.parent;
+  while (parent) {
+    level++;
+    parent = parent.parent;
   }
   
-  return container;
-}
-
-function TagEditComponent(params) {
-  // 编辑组件实现...
-}
-
-// 2. 注册组件
-const grid = new Grid({
-  columns: [
-    // ...其他列
-    { 
-      field: 'tags', 
-      headerName: '标签', 
-      width: 200,
-      editable: true,
-      cellComponent: {
-        type: 'tags',
-        props: {
-          options: ['重要', '紧急', '新客户', '老客户']
+  // 检测是否为叶子节点
+  const isLeafNode = !node.children || node.children.length === 0;
+  
+  // 查找叶子节点专用公式
+  let formulaInfo = null;
+  if (isLeafNode) {
+    // 查找isLeaf=true的公式
+    for (const [_, info] of levelMap) {
+      if (info.isLeaf) {
+        formulaInfo = info;
+        break;
+      }
+    }
+  }
+  
+  // 如果没有找到叶子节点专用公式，则按层级查找
+  if (!formulaInfo) {
+    formulaInfo = levelMap.get(level);
+    
+    // 如果没有当前层级的公式，尝试默认公式
+    if (!formulaInfo) {
+      formulaInfo = levelMap.get(-1); // 尝试默认公式
+      
+      // 如果没有默认公式，尝试最近层级的公式
+      if (!formulaInfo) {
+        let nearestLevel = -1;
+        let minDistance = Infinity;
+        
+        levelMap.forEach((info, lvl) => {
+          if (lvl >= 0 && !info.isLeaf) {
+            const distance = Math.abs(lvl - level);
+            if (distance < minDistance) {
+              minDistance = distance;
+              nearestLevel = lvl;
+            }
+          }
+        });
+        
+        if (nearestLevel >= 0) {
+          formulaInfo = levelMap.get(nearestLevel);
         }
       }
     }
-  ],
-  rowData: [/* ... */]
-});
-
-// 3. 获取组件管理器并注册组件
-const componentManager = grid.getComponentManager();
-componentManager.registerComponent('tags', {
-  view: TagViewComponent,
-  edit: TagEditComponent
-});
-```
-
-### 单元格合并
-
-```javascript
-const grid = new Grid({
-  columns: [/* ... */],
-  rowData: [/* ... */],
-  
-  // 列合并
-  colSpan: (params) => {
-    if (params.rowIndex === 0 && params.colDef.field === 'name') {
-      return 2; // 第一行的姓名单元格横跨2列
-    }
-    return 1;
-  },
-  
-  // 行合并
-  rowSpan: (params) => {
-    if (params.rowIndex === 1 && params.field === 'city') {
-      return 2; // 第二行的城市单元格纵跨2行
-    }
-    return 1;
   }
-});
+  
+  return formulaInfo;
+}
 ```
 
-### 树形结构
+### 高效的更新策略
 
-```javascript
-const treeData = [
-  {
-    id: '1',
-    name: '电子产品',
-    expanded: true,
-    children: [
-      {
-        id: '1-1',
-        name: '手机',
-        expanded: true,
-        children: [
-          { id: '1-1-1', name: 'iPhone 14', price: 5999 },
-          { id: '1-1-2', name: 'Samsung S23', price: 6299 }
-        ]
-      },
-      {
-        id: '1-2',
-        name: '电脑',
-        expanded: false,
-        children: [
-          { id: '1-2-1', name: 'MacBook Pro', price: 13999 }
-        ]
-      }
-    ]
+当单元格值发生变化时，系统会分析依赖关系，只更新受影响的字段，而非全量重新计算。
+
+```mermaid
+graph TD
+    A["单元格值更新"]
+    B["分析依赖关系"]
+    C["构建更新队列"]
+    D["同行内依赖更新"]
+    E["父行聚合公式更新"]
+    F["子行父引用公式更新"]
+    G["完成更新"]
+    
+    A --> B
+    B --> C
+    C --> D
+    D --> E
+    E --> F
+    F --> G
+    
+    style A fill:#f9d5e5,stroke:#333,stroke-width:2px
+    style B fill:#eeeeee,stroke:#333,stroke-width:1px
+    style C fill:#eeeeee,stroke:#333,stroke-width:1px
+    style D fill:#d3f0ff,stroke:#333,stroke-width:1px
+    style E fill:#d3f0ff,stroke:#333,stroke-width:1px
+    style F fill:#d3f0ff,stroke:#333,stroke-width:1px
+    style G fill:#c1e1c1,stroke:#333,stroke-width:2px
+```
+
+代码实现：
+```typescript
+public processUpdate(rowNode: RowNode, updatedField: string): Map<RowNode, Set<string>> {
+  const updates = new Map<RowNode, Set<string>>();
+  const queue: {node: RowNode, field: string}[] = [{ node: rowNode, field: updatedField }];
+  const visited = new Set<string>(); // key: `${node.id}-${field}`
+
+  while(queue.length > 0) {
+    const { node, field } = queue.shift()!;
+    const visitKey = `${node.id}-${field}`;
+
+    if (visited.has(visitKey)) continue;
+    visited.add(visitKey);
+
+    // 1. 同行内的依赖更新 (向下)
+    const dependents = this.dependencyGraph.get(field);
+    if (dependents) {
+      dependents.forEach(dependentField => {
+        // 更新当前节点的依赖字段
+        if (this.updateField(node, dependentField)) {
+          if (!updates.has(node)) updates.set(node, new Set());
+          updates.get(node)!.add(dependentField);
+          queue.push({ node: node, field: dependentField });
+        }
+      });
+    }
+
+    // 2. 对父行的聚合公式更新 (向上)
+    if (node.parent) {
+      // 找到并更新受影响的父节点字段
+      this.updateParentFields(node, field, queue, updates);
+    }
+
+    // 3. 对子行的父引用公式更新 (向下)
+    if (node.children && node.children.length > 0) {
+      // 找到并更新受影响的子节点字段
+      this.updateChildrenFields(node, field, queue, updates);
+    }
+  }
+  
+  return updates;
+}
+```
+
+## 实战示例
+
+### 基本产品定价表
+
+```typescript
+const columnDefs = [
+  { field: 'name' },
+  { field: 'quantity' },  // 可编辑
+  { field: 'price' },     // 可编辑
+  { 
+    field: 'total',
+    formula: 'price * quantity'
+  },
+  { 
+    field: 'tax',
+    formula: 'total * 0.1'  // 10%税率
+  },
+  { 
+    field: 'totalWithTax',
+    formula: 'total + tax'
   }
 ];
-
-const grid = new Grid({
-  columns: [
-    {
-      field: 'name',
-      headerName: '名称',
-      width: 300
-    },
-    {
-      field: 'price',
-      headerName: '价格',
-      width: 150
-    }
-  ],
-  rowData: treeData
-});
 ```
 
-### 事件处理
+### 复杂库存管理系统
 
-```javascript
-const grid = new Grid({
-  columns: [/* ... */],
-  rowData: [/* ... */],
-  
-  // 行点击事件
-  onRowClicked: (event) => {
-    console.log('点击行:', event.data);
+```typescript
+const columnDefs = [
+  { field: 'name' },
+  { field: 'quantity' },  // 只在叶子节点可编辑
+  { 
+    field: 'stockValue',
+    formula: 'quantity * unitPrice'  // 基础公式
   },
-  
-  // 单元格点击事件
-  onCellClicked: (event) => {
-    console.log('点击单元格:', event.value);
+  { 
+    field: 'stock',
+    // 多层级公式配置
+    levelFormulas: [
+      { level: 0, formula: 'SUM(children, "stock")' },  // 根节点：总库存=所有直接子类别库存之和
+      { level: 1, formula: 'SUMALL(children, "stock")' },  // 一级类别：总库存=递归所有子产品库存之和
+      { isLeaf: true, formula: 'quantity' }  // 叶子节点：实际商品的库存就是quantity
+    ]
   },
-  
-  // 单元格值变更事件
-  onCellValueChanged: (event) => {
-    console.log('单元格值变更:', event.oldValue, '->', event.value);
-  },
-  
-  // 选择变更事件
-  onSelectionChanged: (event) => {
-    console.log('已选择:', event.selectedNodes.length, '行');
-  },
-  
-  // 排序变更事件
-  onSortChanged: (event) => {
-    console.log('排序变更:', event.sortModel);
+  {
+    field: 'stockAlert',
+    formula: 'IF(stock < minStock, "补货", "正常")'  // 条件判断
   }
+];
+```
+
+## 性能优化
+
+1. **智能更新** - 只重新计算受影响的字段
+2. **拓扑排序** - 确保高效的计算顺序
+3. **公式缓存** - 避免重复解析公式
+4. **分批处理** - 处理大型数据集时分批执行计算
+
+## 高级用法
+
+### 自定义函数
+
+可以扩展 FormulaManager 类，添加自定义函数：
+
+```typescript
+class ExtendedFormulaManager extends FormulaManager {
+  constructor(api) {
+    super(api);
+    
+    // 添加自定义函数
+    this.parser.functions.DISCOUNT = (price, rate) => {
+      return price * (1 - rate);
+    };
+  }
+}
+```
+
+### 与外部系统集成
+
+公式系统可以与外部数据源或API集成，实现动态计算：
+
+```typescript
+// 扩展公式管理器，添加外部API集成
+class ApiFormulaManager extends FormulaManager {
+  private cachedExchangeRates: Record<string, number> = {};
+  
+  constructor(api) {
+    super(api);
+    
+    // 添加汇率转换函数
+    this.parser.functions.CONVERT_CURRENCY = async (amount, fromCurrency, toCurrency) => {
+      const rate = await this.getExchangeRate(fromCurrency, toCurrency);
+      return amount * rate;
+    };
+  }
+  
+  private async getExchangeRate(from: string, to: string): Promise<number> {
+    const key = `${from}_${to}`;
+    
+    if (!this.cachedExchangeRates[key]) {
+      // 从外部API获取汇率
+      const response = await fetch(`https://api.example.com/exchange?from=${from}&to=${to}`);
+      const data = await response.json();
+      this.cachedExchangeRates[key] = data.rate;
+    }
+    
+    return this.cachedExchangeRates[key];
+  }
+}
+```
+
+## 调试技巧
+
+### 启用日志
+
+FormulaManager 提供内置的日志功能，帮助调试复杂公式：
+
+```typescript
+// 启用详细日志
+const formulaManager = new FormulaManager(gridApi);
+formulaManager.setDebugMode(true);
+
+// 追踪特定字段的计算
+formulaManager.trackField('total');
+```
+
+### 检查依赖关系
+
+```typescript
+// 打印依赖图
+console.log(formulaManager.getDependencyGraph());
+
+// 检查特定字段的依赖
+console.log(formulaManager.getDependencies('totalWithTax'));
+```
+
+## 常见问题
+
+### 1. 循环依赖
+
+公式系统会自动检测并警告循环依赖，例如：
+- A依赖B，B依赖C，C依赖A
+
+当检测到循环依赖时，系统会尝试打破循环，但可能导致计算结果不准确。
+
+### 2. 大型数据集性能
+
+处理大型数据集时，考虑：
+- 使用更简单的公式
+- 减少不必要的依赖
+- 限制树的深度
+- 分批处理数据
+
+### 3. 公式错误处理
+
+系统会捕获公式执行过程中的错误，如除以零、类型错误等，并返回undefined或默认值。可以通过自定义错误处理来增强这一行为：
+
+```typescript
+formulaManager.setErrorHandler((error, field, node) => {
+  console.error(`Error in ${field} for node ${node.id}:`, error);
+  return 0; // 默认返回值
 });
 ```
 
-## API 参考
+## 贡献与支持
 
-### Grid 选项
-
-| 选项 | 类型 | 描述 |
-|------|------|------|
-| `columns` | `Array<Column>` | 列定义数组 |
-| `rowData` | `Array<any>` | 行数据数组 |
-| `rowHeight` | `number` | 行高（默认：40） |
-| `headerHeight` | `number` | 表头高度（默认：40） |
-| `rowSelection` | `'single'` \| `'multiple'` | 行选择模式 |
-| `enableRowDrag` | `boolean` | 是否启用行拖拽 |
-| `colSpan` | `Function` | 列合并函数 |
-| `rowSpan` | `Function` | 行合并函数 |
-| `rowClass` | `Function` | 行样式函数 |
-
-### 列定义
-
-| 属性 | 类型 | 描述 |
-|------|------|------|
-| `field` | `string` | 数据字段名 |
-| `headerName` | `string` | 列标题 |
-| `width` | `number` | 列宽 |
-| `sortable` | `boolean` | 是否可排序 |
-| `filterable` | `boolean` | 是否可过滤 |
-| `editable` | `boolean` | 是否可编辑 |
-| `frozen` | `boolean` | 是否冻结 |
-| `cellRenderer` | `Object` \| `Function` | 单元格渲染器 |
-| `cellComponent` | `Object` | 单元格组件配置 |
-| `valueFormatter` | `Function` | 值格式化函数 |
-
-### Grid API
-
-| 方法 | 描述 |
-|------|------|
-| `render(container)` | 渲染表格到指定容器 |
-| `setRowData(data)` | 设置行数据 |
-| `getRowNode(id)` | 获取指定ID的行节点 |
-| `selectAll()` | 选择所有行 |
-| `deselectAll()` | 取消选择所有行 |
-| `selectRow(id, clearOthers)` | 选择指定行 |
-| `getSelectedNodes()` | 获取已选择的节点 |
-| `getSelectedRows()` | 获取已选择的行数据 |
-| `setSort(sortModel)` | 设置排序模型 |
-| `setFilter(columnId, filterModel)` | 设置过滤条件 |
-| `refreshView()` | 刷新视图 |
-| `destroy()` | 销毁表格实例 |
-
-## 项目结构
-
-```
-packages/
-├── core/                  # 核心代码
-│   ├── src/               # 源代码
-│   │   ├── grid.ts        # 主类
-│   │   ├── interface.ts   # 接口定义
-│   │   ├── types/         # 类型定义
-│   │   ├── managers/      # 各种管理器
-│   │   │   ├── ComponentManager.ts    # 组件管理器
-│   │   │   ├── EventManager.ts        # 事件管理器
-│   │   │   ├── ScrollSyncManager.ts   # 滚动同步管理器
-│   │   │   └── VirtualDOMManager.ts   # 虚拟DOM管理器
-│   │   ├── renderers/     # 内置渲染器
-│   │   └── style/         # 样式文件
-│   ├── examples/          # 示例代码
-│   └── dist/              # 编译后的代码
-└── docs/                  # 文档
-```
-
-## 浏览器兼容性
-
-- Chrome (最新版)
-- Firefox (最新版)
-- Safari (最新版)
-- Edge (最新版)
-- IE 11 (基本功能支持)
+欢迎提交问题和功能请求到 GitHub Issues 页面，或直接贡献代码改进。
 
 ## 许可证
 

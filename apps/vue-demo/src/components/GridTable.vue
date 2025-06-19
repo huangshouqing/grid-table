@@ -310,6 +310,40 @@ export default {
             formula: 'price * quantity'
           },
           {
+            field: 'tax',
+            headerName: '税',
+            width: 150,
+            sortable: true,
+            editable: true,
+            fillable: true,
+          },
+          {
+            field: 'taxRate',
+            headerName: '税率',
+            width: 150,
+            sortable: true,
+            editable: true,
+            fillable: true,
+          },
+          {
+            field: 'taxAmount',
+            headerName: '税额',
+            width: 150,
+            sortable: true,
+            editable: true,
+            fillable: true,
+            formula: 'tax * taxRate'
+          },
+          {
+            field: 'taxedAmount',
+            headerName: '税后金额',
+            width: 150,
+            sortable: true,
+            editable: true,
+            fillable: true,
+            formula: 'total - taxAmount'
+          },
+          {
             field: 'status',
             headerName: '状态',
             width: 150,
@@ -491,7 +525,6 @@ export default {
             levelFormulas: [
               { level: 0, formula: "SUM(children, 'stock')" },
               { level: 1, formula: "SUM(children, 'stock')" },
-              // { isLeaf: true, formula: "stock" }
             ]
           },
         ],
