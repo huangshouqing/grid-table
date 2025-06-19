@@ -18,12 +18,12 @@
       <h3>普通表格</h3>
       <div ref="gridContainer" id="1"></div>
     </div>
-    
+
     <div class="grid-container-wrapper">
       <h3>树形结构表格</h3>
       <div ref="treeGridContainer" id="2"></div>
     </div>
-    
+
     <div class="formula-wrapper">
       <h3>公式演示</h3>
       <div class="formula-demo">
@@ -49,10 +49,12 @@
         </div>
         <div class="formula-result">
           <div class="formula-expression">
-            <strong>总价计算公式:</strong> 价格 × 数量 = {{ formulaData.price }} × {{ formulaData.quantity }} = {{ formulaData.total }}
+            <strong>总价计算公式:</strong> 价格 × 数量 = {{ formulaData.price }} × {{ formulaData.quantity }} = {{
+              formulaData.total }}
           </div>
           <div class="formula-expression">
-            <strong>最终价格计算公式:</strong> 总价 × 折扣率 = {{ formulaData.total }} × {{ (formulaData.discountRate * 100).toFixed(0) }}% = {{ formulaData.finalPrice }}
+            <strong>最终价格计算公式:</strong> 总价 × 折扣率 = {{ formulaData.total }} × {{ (formulaData.discountRate *
+              100).toFixed(0) }}% = {{ formulaData.finalPrice }}
           </div>
         </div>
       </div>
@@ -82,7 +84,7 @@ export default {
     const gridData = ref([]);
     // 树形表格数据，独立存储
     const treeGridData = ref([]);
-    
+
     // 公式演示数据
     const formulaData = ref({
       price: 100,
@@ -91,7 +93,7 @@ export default {
       total: 1000,
       finalPrice: 900
     });
-    
+
     // 计算公式演示
     const calculateFormula = () => {
       formulaData.value.total = formulaData.value.price * formulaData.value.quantity;
@@ -256,7 +258,7 @@ export default {
       gridData.value = [...data];
       // 保存原始数据以便恢复
       originalData = [...data];
-      
+
       const options = {
         container: gridContainer.value,
         rowData: gridData.value,
@@ -289,7 +291,6 @@ export default {
             sortable: true,
             editable: true,
             fillable: true,
-            valueFormatter: (params) => `¥${params.value}`
           },
           {
             field: 'quantity',
@@ -298,6 +299,15 @@ export default {
             sortable: true,
             editable: true,
             fillable: true
+          },
+          {
+            field: 'total',
+            headerName: '总价',
+            width: 150,
+            sortable: true,
+            editable: true,
+            fillable: true,
+            formula: 'price * quantity'
           },
           {
             field: 'status',
@@ -372,11 +382,11 @@ export default {
           console.log('数据加载完成:', params);
         }
       }
-      
+
       if (gridInstance) {
         gridInstance.destroy();
       }
-      
+
       gridInstance = new Grid(options);
       const componentManager = gridInstance.getComponentManager();
 
@@ -400,7 +410,7 @@ export default {
       componentManager.registerComponent('rating', ratingComponentDefinition);
       componentManager.registerComponent('button-cell', buttonComponentDefinition);
       componentManager.registerComponent('delete-button', deleteButtonComponentDefinition);
-      
+
       gridInstance.render(gridContainer.value);
     }
 
@@ -449,10 +459,10 @@ export default {
           ],
         },
       ];
-      
+
       // 设置树形表格的数据
       treeGridData.value = [...treeData];
-      
+
       const options = {
         container: treeGridContainer.value,
         rowData: treeGridData.value,
@@ -473,7 +483,17 @@ export default {
               return params.value ? `¥${params.value.toLocaleString()}` : "";
             },
           },
-          { field: "stock", headerName: "库存", width: 120, editable: true },
+          {
+            field: "stock",
+            headerName: "库存",
+            width: 120,
+            editable: true,
+            levelFormulas: [
+              { level: 0, formula: "SUM(children, 'stock')" },
+              { level: 1, formula: "SUM(children, 'stock')" },
+              // { isLeaf: true, formula: "stock" }
+            ]
+          },
         ],
         treeData: true,
         rowSelection: "multiple",
@@ -503,11 +523,11 @@ export default {
           console.log('树形表格数据加载完成:', params);
         }
       };
-      
+
       if (treeGridInstance) {
         treeGridInstance.destroy();
       }
-      
+
       treeGridInstance = new Grid(options);
       treeGridInstance.render(treeGridContainer.value);
     }
@@ -639,7 +659,8 @@ export default {
   min-width: 60px;
 }
 
-.formula-item input, .formula-item select {
+.formula-item input,
+.formula-item select {
   width: 100px;
   padding: 6px 10px;
   border: 1px solid #ddd;
