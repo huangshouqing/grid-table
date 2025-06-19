@@ -49,19 +49,26 @@ export class CheckboxCellRenderer implements CellComponent {
         const checked = this.checkbox.checked;
         const api = this.params.api;
         const node = this.params.node;
+        const eventBus = api.getEventBus();
         
+        // 使用事件总线发布选择状态变更事件
         if (checked) {
-            api.selectRow(node.id, false); // 不清除其他选择
+            // 勾选操作 - 发布行选择事件
+            eventBus.publish('gridCellAction', {
+                type: 'checkboxSelect',
+                action: 'select',
+                nodeId: node.id,
+                maintainOtherSelections: true // 保持其他已选行
+            });
         } else {
-            // 取消选择当前行
-            const selectedNodes = api.getSelectedNodes();
-            api.deselectAll();
-            
-            // 重新选择除当前行外的所有已选行
-            selectedNodes.forEach(selectedNode => {
-                if (selectedNode.id !== node.id) {
-                    api.selectRow(selectedNode.id, false);
-                }
+            // 取消勾选操作 - 发布取消选择事件
+            eventBus.publish('gridCellAction', {
+                type: 'checkboxSelect',
+                action: 'deselect',
+                nodeId: node.id,
+                otherSelectedNodeIds: api.getSelectedNodes()
+                    .filter(selectedNode => selectedNode.id !== node.id)
+                    .map(selectedNode => selectedNode.id)
             });
         }
     }
@@ -136,11 +143,19 @@ export class CheckboxHeaderRenderer implements CellComponent {
 
     private onCheckboxChange = (): void => {
         const api = this.params.api;
+        const eventBus = api.getEventBus();
         
+        // 使用事件总线发布全选/取消全选事件
         if (this.checkbox.checked) {
-            api.selectAll();
+            eventBus.publish('gridCellAction', {
+                type: 'headerCheckboxSelect',
+                action: 'selectAll'
+            });
         } else {
-            api.deselectAll();
+            eventBus.publish('gridCellAction', {
+                type: 'headerCheckboxSelect',
+                action: 'deselectAll'
+            });
         }
     }
 } 

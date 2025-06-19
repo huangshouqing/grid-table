@@ -1,5 +1,6 @@
 import { Column, FilterModel, GridApi, GridOptions, SortModel } from "../types";
 import { GridState } from "../interface";
+import { EventBus } from "../eventbus/EventBus";
 
 /**
  * GridFilterSortManager - 负责管理表格的过滤和排序功能
@@ -11,19 +12,22 @@ export class GridFilterSortManager {
   private options: GridOptions;
   private getApi: () => GridApi;
   private refreshView: () => void;
+  private eventBus?: EventBus;
 
   constructor(
     element: HTMLElement,
     state: GridState,
     options: GridOptions,
     getApi: () => GridApi,
-    refreshView: () => void
+    refreshView: () => void,
+    eventBus?: EventBus
   ) {
     this.element = element;
     this.state = state;
     this.options = options;
     this.getApi = getApi;
     this.refreshView = refreshView;
+    this.eventBus = eventBus;
   }
 
   /**
@@ -51,12 +55,23 @@ export class GridFilterSortManager {
         value: filterModel.filter,
         filterModel,
         onFilterChanged: (model) => {
-          if (model.filter) {
-            this.state.filterModel.set(column.field, model);
+          // 通过事件总线发布过滤请求
+          if (this.eventBus) {
+            this.eventBus.publish('gridUIAction', {
+              type: 'filterRequest',
+              colId: column.field,
+              filterModel: model,
+              source: 'customFilterComponent'
+            });
           } else {
-            this.state.filterModel.delete(column.field);
+            // 降级处理：直接应用过滤
+            if (model.filter) {
+              this.state.filterModel.set(column.field, model);
+            } else {
+              this.state.filterModel.delete(column.field);
+            }
+            this.refreshView();
           }
-          this.refreshView();
           menu.remove();
         },
         getUniqueValues: () => {
@@ -150,16 +165,33 @@ export class GridFilterSortManager {
     applyButton.textContent = "确定";
     applyButton.addEventListener("click", () => {
       const value = input.value.trim();
-      if (value) {
-        this.state.filterModel.set(column.field, {
-          type: typeSelect.value as FilterModel["type"],
-          filter: value,
-          filterType: "text",
+      const newFilterModel = value ? {
+        type: typeSelect.value as FilterModel["type"],
+        filter: value,
+        filterType: "text",
+      } : null;
+
+      // 通过事件总线发布过滤请求
+      if (this.eventBus) {
+        this.eventBus.publish('gridUIAction', {
+          type: 'filterRequest',
+          colId: column.field,
+          filterModel: newFilterModel,
+          source: 'defaultFilterMenu'
         });
       } else {
-        this.state.filterModel.delete(column.field);
+        // 降级处理：直接应用过滤
+        if (value) {
+          this.state.filterModel.set(column.field, {
+            type: typeSelect.value as FilterModel["type"],
+            filter: value,
+            filterType: "text",
+          });
+        } else {
+          this.state.filterModel.delete(column.field);
+        }
+        this.refreshView();
       }
-      this.refreshView();
       menu.remove();
     });
 
@@ -167,8 +199,20 @@ export class GridFilterSortManager {
     const clearButton = document.createElement("button");
     clearButton.textContent = "清除";
     clearButton.addEventListener("click", () => {
-      this.state.filterModel.delete(column.field);
-      this.refreshView();
+      // 通过事件总线发布清除过滤请求
+      if (this.eventBus) {
+        this.eventBus.publish('gridUIAction', {
+          type: 'filterRequest',
+          colId: column.field,
+          filterModel: null,
+          source: 'defaultFilterMenu',
+          action: 'clear'
+        });
+      } else {
+        // 降级处理：直接清除过滤
+        this.state.filterModel.delete(column.field);
+        this.refreshView();
+      }
       menu.remove();
     });
 
@@ -193,33 +237,54 @@ export class GridFilterSortManager {
       (s) => s.colId === column.field
     );
 
-    // 更新排序状态
+    // 确定新的排序状态
+    let newSort: string | null = null;
     if (!existingSort) {
-      this.state.sortModel = [{ colId: column.field, sort: "asc" }];
-      headerCell.setAttribute("data-sort", "asc");
+      newSort = "asc";
     } else if (existingSort.sort === "asc") {
-      this.state.sortModel = [{ colId: column.field, sort: "desc" }];
-      headerCell.setAttribute("data-sort", "desc");
+      newSort = "desc";
     } else {
-      this.state.sortModel = [];
-      headerCell.removeAttribute("data-sort");
+      newSort = null;
     }
 
-    // 清除其他列的排序状态
-    const otherHeaders = this.element.querySelectorAll(
-      `.grid-header-cell:not([data-field="${column.field}"])`
-    );
-    otherHeaders.forEach((header) => header.removeAttribute("data-sort"));
-
-    // 触发排序变更事件
-    if (this.options.onSortChanged) {
-      this.options.onSortChanged({
-        sortModel: this.state.sortModel,
-        api: this.getApi(),
+    // 通过事件总线发布排序请求
+    if (this.eventBus) {
+      this.eventBus.publish('gridUIAction', {
+        type: 'sortRequest',
+        colId: column.field,
+        sort: newSort,
+        source: 'columnHeader'
       });
-    }
+    } else {
+      // 降级处理：直接应用排序
+      // 更新排序状态
+      if (newSort === "asc") {
+        this.state.sortModel = [{ colId: column.field, sort: "asc" }];
+        headerCell.setAttribute("data-sort", "asc");
+      } else if (newSort === "desc") {
+        this.state.sortModel = [{ colId: column.field, sort: "desc" }];
+        headerCell.setAttribute("data-sort", "desc");
+      } else {
+        this.state.sortModel = [];
+        headerCell.removeAttribute("data-sort");
+      }
 
-    this.refreshView();
+      // 清除其他列的排序状态
+      const otherHeaders = this.element.querySelectorAll(
+        `.grid-header-cell:not([data-field="${column.field}"])`
+      );
+      otherHeaders.forEach((header) => header.removeAttribute("data-sort"));
+
+      // 触发排序变更事件
+      if (this.options.onSortChanged) {
+        this.options.onSortChanged({
+          sortModel: this.state.sortModel,
+          api: this.getApi(),
+        });
+      }
+
+      this.refreshView();
+    }
   }
 
   /**

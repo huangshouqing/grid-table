@@ -153,6 +153,12 @@ export interface GridApi {
     updateRowData(rowId: string | number, data: any): boolean;
     // 添加刷新特定行的API
     refreshRow(rowIndex: number): void;
+    // 获取事件总线
+    getEventBus(): any;
+    // 获取列定义
+    getColumnDefs(): Column[];
+    // 单元格编辑方法
+    startEditing(cell: HTMLElement, column: Column, row: any, value: any): void;
 }
 
 export interface SortModel {

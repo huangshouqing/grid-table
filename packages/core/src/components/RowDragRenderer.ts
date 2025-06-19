@@ -18,15 +18,37 @@ export class RowDragRenderer implements CellComponent {
         this.dragHandle = document.createElement('div');
         this.dragHandle.className = 'grid-row-drag-handle';
         this.dragHandle.innerHTML = `
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M8 6H10V8H8V6Z" fill="currentColor"/>
-                <path d="M14 6H16V8H14V6Z" fill="currentColor"/>
-                <path d="M8 10H10V12H8V10Z" fill="currentColor"/>
-                <path d="M14 10H16V12H14V10Z" fill="currentColor"/>
-                <path d="M8 14H10V16H8V14Z" fill="currentColor"/>
-                <path d="M14 14H16V16H14V14Z" fill="currentColor"/>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M9 6H11V8H9V6Z" fill="#888888"/>
+                <path d="M13 6H15V8H13V6Z" fill="#888888"/>
+                <path d="M9 11H11V13H9V11Z" fill="#888888"/>
+                <path d="M13 11H15V13H13V11Z" fill="#888888"/>
+                <path d="M9 16H11V18H9V16Z" fill="#888888"/>
+                <path d="M13 16H15V18H13V16Z" fill="#888888"/>
             </svg>
         `;
+        
+        // 添加悬停效果和过渡动画的样式
+        const style = document.createElement('style');
+        style.textContent = `
+            .grid-row-drag-handle {
+                cursor: grab;
+                opacity: 0.6;
+                transition: all 0.2s ease;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                height: 100%;
+            }
+            .grid-row-drag-handle:hover {
+                opacity: 1;
+                transform: scale(1.1);
+            }
+            .grid-row-drag-handle:active {
+                cursor: grabbing;
+            }
+        `;
+        document.head.appendChild(style);
         
         this.element.appendChild(this.dragHandle);
         

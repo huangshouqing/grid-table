@@ -223,7 +223,22 @@ export class GridEventHandlers {
     
     // 如果列是可编辑的，则启动编辑
     if (column.editable) {
-      this.startEditing(cellElement, column, row, value);
+      if (this.eventBus) {
+        // 通过事件总线发布单元格编辑请求事件
+        this.eventBus.publish('gridCellAction', {
+          type: 'cellEditRequest',
+          rowId: row.id,
+          rowIndex: rowIndex,
+          colId: column.field,
+          field: column.field,
+          value: value,
+          cellElement: cellElement,
+          source: 'cellDoubleClick'
+        });
+      } else {
+        // 降级处理：直接调用编辑方法
+        this.startEditing(cellElement, column, row, value);
+      }
     }
 
     // 触发现有的双击事件回调

@@ -27,10 +27,23 @@ export default {
   methods: {
     onDelete() {
       const rowId = this.data.id;
-      // 使用Grid API删除行
-      this.api.removeRow(rowId);
-      // 强制刷新视图，确保所有显示都更新
-      this.api.refreshView();
+      
+      // 获取事件总线
+      const eventBus = this.api.getEventBus();
+      
+      // 发布删除请求事件
+      if (eventBus) {
+        eventBus.publish('gridDataAction', {
+          type: 'rowDeleteRequest',
+          rowId: rowId,
+          data: this.data,
+          source: 'deleteButton'
+        });
+      } else {
+        // 降级处理：如果事件总线不可用，则使用直接API调用
+        this.api.removeRow(rowId);
+        this.api.refreshView();
+      }
     }
   }
 }

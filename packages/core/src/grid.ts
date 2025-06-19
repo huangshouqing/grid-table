@@ -36,6 +36,8 @@ import { GridEventHandlers } from "./managers/GridEventHandlers";
 import { FormulaManager } from "./managers/FormulaManager";
 // 导入事件总线
 import { EventBus } from "./eventbus/EventBus";
+// 导入事件处理器
+import { GridEventBusHandler } from "./managers/GridEventBusHandler";
 // 添加状态管理
 
 export class Grid implements GridApi {
@@ -63,6 +65,8 @@ export class Grid implements GridApi {
   private formulaManager: FormulaManager;
   // 添加事件总线
   private eventBus: EventBus;
+  // 添加事件总线处理器
+  private eventBusHandler: GridEventBusHandler;
 
   private leftPinnedColumns: Column[] = [];
   private centerColumns: Column[] = [];
@@ -151,7 +155,8 @@ export class Grid implements GridApi {
       this.state,
       this.options,
       this.getApi.bind(this),
-      this.refreshView.bind(this)
+      this.refreshView.bind(this),
+      this.eventBus
     );
     
     // 设置数据管理器与过滤排序管理器的关联
@@ -249,17 +254,21 @@ export class Grid implements GridApi {
       () => this.rightPinnedColumns
     );
 
+    // 初始化事件总线处理器
+    this.eventBusHandler = new GridEventBusHandler(this.getApi(), this.eventBus);
+
     // 初始化列数据
     this.separateColumns();
     // 更新公式管理器列定义
     this.formulaManager.setColumnDefs(this.options.columns);
 
+    // 初始化事件监听器
+    this.initializeEventListeners();
+
     // 初始化行节点
     this.dataManager.initRowNodes();
     // 初始化计算
     this.formulaManager.processAllRows();
-    
-    this.initializeEventListeners();
     
     // 初始化拖拽相关功能
     this.dragDropManager.initializeDragAndDropListeners();
@@ -286,6 +295,7 @@ export class Grid implements GridApi {
       this.rowNodes,
       this.getApi.bind(this),
       this.editManager,
+      this.eventBus
     );
 
     this.refreshView();
@@ -296,13 +306,18 @@ export class Grid implements GridApi {
    * 将事件与事件处理器关联
    */
   private initializeEventListeners() {
+    // 基础事件监听
     this.eventManager.on("scroll", this.eventHandlers.handleScroll);
     this.eventManager.on("selectionChange", this.eventHandlers.handleSelectionChange);
     this.eventManager.on("sortChange", this.eventHandlers.handleSortChange);
     this.eventManager.on("filterChange", this.eventHandlers.handleFilterChange);
     this.eventManager.on("editStart", this.eventHandlers.handleEditStart);
     this.eventManager.on("editEnd", this.eventHandlers.handleEditEnd);
+    
+    // 注意：所有与事件总线相关的事件处理都已移至 GridEventBusHandler 类，
+    // 不再需要在此处定义事件监听
   }
+
   /**
    * 将表格渲染到指定容器
    * @param container 要渲染表格的DOM容器
@@ -796,7 +811,7 @@ export class Grid implements GridApi {
       this.state.virtualBodyRowIds.clear();
       this.refreshView();
       
-      // 发布行添加事件
+      // 发布行添加完成事件
       this.eventBus.publish('gridDataChanged', {
         type: 'rowAdded',
         node: newNode,
@@ -815,7 +830,27 @@ export class Grid implements GridApi {
     const nodeToRemove = this.rowNodes.get(id);
     const dataToRemove = nodeToRemove ? {...nodeToRemove.data} : null;
     
+    // 检查是否删除的是选中的行
+    const wasSelected = nodeToRemove ? nodeToRemove.selected : false;
+    
+    // 执行删除
     this.dataManager.removeRow(id);
+    
+    // 如果删除的是选中的行，需要更新选择状态
+    if (wasSelected) {
+      // 重新计算选择状态
+      const selectedNodes = this.getSelectedNodes();
+      const totalRowCount = this.getDisplayedRowCount();
+      
+      // 发布选择变更事件，更新勾选状态
+      this.eventBus.publish('gridSelectionChanged', {
+        type: 'rowDeleted',
+        selectedNodes: selectedNodes,
+        selectedRows: this.getSelectedRows(),
+        totalRows: totalRowCount
+      });
+    }
+    
     this.refreshView();
     
     // 如果找到了被删除的行，发布行删除事件
@@ -946,6 +981,9 @@ export class Grid implements GridApi {
 
     // filterSortManager没有特殊资源需要清理
 
+    // 销毁事件总线处理器
+    this.eventBusHandler.destroy();
+
     if (this.virtualDOM) {
       this.virtualDOM.clear();
     }
@@ -967,6 +1005,26 @@ export class Grid implements GridApi {
    */
   getEventBus(): EventBus {
     return this.eventBus;
+  }
+
+  /**
+   * 获取列定义
+   * @returns 列定义数组
+   */
+  getColumnDefs(): Column[] {
+    return this.options.columns;
+  }
+
+  /**
+   * 启动单元格编辑
+   * @param cell 单元格元素
+   * @param column 列定义
+   * @param row 行数据
+   * @param value 单元格值
+   */
+  startEditing(cell: HTMLElement, column: Column, row: any, value: any): void {
+    // 委托给事件处理器的startEditing方法
+    this.eventHandlers.startEditing(cell, column, row, value);
   }
 
   /**

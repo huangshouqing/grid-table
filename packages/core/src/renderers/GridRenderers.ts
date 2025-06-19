@@ -326,16 +326,16 @@ export class GridRenderers {
           "div",
           "grid-header-drag-icon"
         );
-        this.virtualDOM.updateElement(dragIconId, {
-          content: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M8 6H10V8H8V6Z" fill="currentColor"/>
-                        <path d="M14 6H16V8H14V6Z" fill="currentColor"/>
-                        <path d="M8 10H10V12H8V10Z" fill="currentColor"/>
-                        <path d="M14 10H16V12H14V10Z" fill="currentColor"/>
-                        <path d="M8 14H10V16H8V14Z" fill="currentColor"/>
-                        <path d="M14 14H16V16H14V14Z" fill="currentColor"/>
-                    </svg>`,
-        });
+        // this.virtualDOM.updateElement(dragIconId, {
+        //   content: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        //                 <path d="M8 6H10V8H8V6Z" fill="currentColor"/>
+        //                 <path d="M14 6H16V8H14V6Z" fill="currentColor"/>
+        //                 <path d="M8 10H10V12H8V10Z" fill="currentColor"/>
+        //                 <path d="M14 10H16V12H14V10Z" fill="currentColor"/>
+        //                 <path d="M8 14H10V16H8V14Z" fill="currentColor"/>
+        //                 <path d="M14 14H16V16H14V14Z" fill="currentColor"/>
+        //             </svg>`,
+        // });
 
         const dragContainer = this.virtualDOM.getElement(dragContainerId);
         if (dragContainer) {

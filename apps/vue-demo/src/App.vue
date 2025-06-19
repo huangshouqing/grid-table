@@ -2,8 +2,28 @@
   <div class="app">
     <h1>Grid Table Vue Demo</h1>
     
+    <!-- 导航栏 -->
+    <div class="nav-container">
+      <div class="nav-tabs">
+        <div 
+          class="nav-tab" 
+          :class="{ active: currentTab === 'standard' }" 
+          @click="currentTab = 'standard'"
+        >
+          标准示例
+        </div>
+        <div 
+          class="nav-tab" 
+          :class="{ active: currentTab === 'eventDriven' }" 
+          @click="currentTab = 'eventDriven'"
+        >
+          事件驱动示例
+        </div>
+      </div>
+    </div>
+    
     <!-- 事件通知区域 -->
-    <div v-if="lastEvent" class="event-notification" :class="lastEvent.type">
+    <div v-if="lastEvent && currentTab === 'standard'" class="event-notification" :class="lastEvent.type">
       <div class="notification-header">
         <strong>{{ getEventTitle(lastEvent) }}</strong>
         <button @click="clearNotification" class="close-btn">×</button>
@@ -13,25 +33,34 @@
       </div>
     </div>
     
-    <!-- 表格组件，添加事件监听 -->
+    <!-- 标准示例 -->
     <GridTable 
+      v-if="currentTab === 'standard'"
       @data-changed="handleDataChanged"
       @selection-changed="handleSelectionChanged"
       @grid-ready="handleGridReady"
     />
+    
+    <!-- 事件驱动示例 -->
+    <EventDrivenTableDemo v-if="currentTab === 'eventDriven'" />
   </div>
 </template>
 
 <script>
 import { ref } from 'vue'
 import GridTable from './components/GridTable.vue'
+import EventDrivenTableDemo from './views/EventDrivenTableDemo.vue'
 
 export default {
   name: 'App',
   components: {
-    GridTable
+    GridTable,
+    EventDrivenTableDemo
   },
   setup() {
+    // 当前选中的标签页
+    const currentTab = ref('standard');
+    
     // 跨组件通信示例 - 存储最后一个事件
     const lastEvent = ref(null);
     const gridApi = ref(null);
@@ -141,6 +170,7 @@ export default {
     };
     
     return {
+      currentTab,
       lastEvent,
       gridApi,
       handleDataChanged,
@@ -165,7 +195,39 @@ export default {
 h1 {
   color: #333;
   text-align: center;
-  margin-bottom: 30px;
+  margin-bottom: 20px;
+}
+
+.nav-container {
+  margin-bottom: 20px;
+}
+
+.nav-tabs {
+  display: flex;
+  border-bottom: 1px solid #ddd;
+}
+
+.nav-tab {
+  padding: 10px 20px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  border-bottom: none;
+  margin-right: 5px;
+  border-radius: 4px 4px 0 0;
+  transition: all 0.3s;
+}
+
+.nav-tab:hover {
+  background-color: #f9f9f9;
+}
+
+.nav-tab.active {
+  background-color: #fff;
+  border-color: #ddd;
+  border-bottom-color: white;
+  margin-bottom: -1px;
+  font-weight: bold;
+  color: #1890ff;
 }
 
 .event-notification {

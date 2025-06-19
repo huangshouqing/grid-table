@@ -1,0 +1,35 @@
+graph TD
+    User[用户] -->|交互| VC[视图组件<br/>ButtonCellComponent<br/>CheckboxCellRenderer等]
+    
+    VC -->|发布事件| EB[事件总线<br/>EventBus]
+    
+    EB -->|事件通知| EBH[事件处理器<br/>GridEventBusHandler]
+    EB -->|事件通知| UI[其他UI组件<br/>日志记录/通知等]
+    
+    EBH -->|调用API| GA[Grid API<br/>实际业务逻辑]
+    
+    GA -->|状态变更| DM[数据模型<br/>RowNodes]
+    
+    GA -->|完成操作后| EB2[事件总线]
+    
+    EB2 -->|状态变更事件| VC2[视图组件<br/>UI更新]
+    
+    subgraph 事件类型
+        gda[gridDataAction<br/>数据操作意图]
+        gdc[gridDataChanged<br/>数据已变更]
+        gca[gridCellAction<br/>单元格操作]
+        gsc[gridSelectionChanged<br/>选择状态变更]
+        gua[gridUIAction<br/>界面操作]
+    end
+    
+    classDef componentNode fill:#e1f5fe,stroke:#4fc3f7,stroke-width:2px;
+    classDef eventNode fill:#fff8e1,stroke:#ffca28,stroke-width:2px;
+    classDef apiNode fill:#e8f5e9,stroke:#66bb6a,stroke-width:2px;
+    classDef modelNode fill:#f3e5f5,stroke:#ab47bc,stroke-width:2px;
+    classDef typeNode fill:#ede7f6,stroke:#7e57c2,stroke-width:1px;
+    
+    class VC,VC2,UI componentNode;
+    class EB,EB2 eventNode;
+    class EBH,GA apiNode;
+    class DM modelNode;
+    class gda,gdc,gca,gsc,gua typeNode; 

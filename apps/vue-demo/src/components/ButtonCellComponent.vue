@@ -81,22 +81,41 @@ export default {
             try {
                 const rowId = this.data.id;
                 
-                // 使用Grid API更新数据
-                if (this.api && typeof this.api.updateRowData === 'function') {
-                    // 更新数据
-                    this.api.updateRowData(rowId, updatedData);
-                    
-                    // 刷新本行
-                    if (typeof this.api.refreshRow === 'function' && this.rowIndex >= 0) {
-                        this.api.refreshRow(this.rowIndex);
-                    }
+                // 获取事件总线
+                const eventBus = this.api.getEventBus();
+                
+                if (eventBus) {
+                    // 通过事件总线发布数据更新请求
+                    eventBus.publish('gridDataAction', {
+                        type: 'rowUpdateRequest',
+                        rowId: rowId,
+                        data: updatedData,
+                        oldData: this.data,
+                        rowIndex: this.rowIndex,
+                        source: 'editDialog'
+                    });
                     
                     // 更新本地数据
                     this.rowData = JSON.parse(JSON.stringify(updatedData));
-                    console.log('数据已更新，行已刷新');
                 } else {
-                    console.warn('Grid API不可用或缺少updateRowData方法');
+                    // 降级处理：如果事件总线不可用，则使用直接API调用
+                    if (this.api && typeof this.api.updateRowData === 'function') {
+                        // 更新数据
+                        this.api.updateRowData(rowId, updatedData);
+                        
+                        // 刷新本行
+                        if (typeof this.api.refreshRow === 'function' && this.rowIndex >= 0) {
+                            this.api.refreshRow(this.rowIndex);
+                        }
+                        
+                        // 更新本地数据
+                        this.rowData = JSON.parse(JSON.stringify(updatedData));
+                    } else {
+                        console.warn('Grid API不可用或缺少updateRowData方法');
+                    }
                 }
+                
+                console.log('数据更新请求已发送');
             } catch (error) {
                 console.error('更新数据时出错:', error);
             }

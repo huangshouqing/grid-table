@@ -378,7 +378,9 @@
 /* 编辑中的单元格样式 - 蓝色边框 */
 .grid-cell.editing {
     border: 2px solid var(--primary-color);
+    /* box-shadow: 0 0 0 2px var(--primary-color); */
     z-index: 10;
+    background-color: #fff;
 }
 
 .grid-cell-drag-top { border-top: 2px solid var(--primary-color); }
