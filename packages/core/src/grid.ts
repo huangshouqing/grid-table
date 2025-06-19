@@ -1043,6 +1043,14 @@ export class Grid implements GridApi {
   }
 
   /**
+   * 单元格值变更的公共处理方法
+   * 用于外部访问私有的handleCellValueChange方法
+   */
+  processCellValueChange(node: RowNode, field: string): void {
+    this.handleCellValueChange(node, field);
+  }
+
+  /**
    * 当单元格值改变时的处理程序
    * 由 GridEditManager 调用
    */

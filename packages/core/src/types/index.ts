@@ -159,6 +159,8 @@ export interface GridApi {
     getColumnDefs(): Column[];
     // 单元格编辑方法
     startEditing(cell: HTMLElement, column: Column, row: any, value: any): void;
+    // 新增用于处理单元格值变更的方法
+    processCellValueChange(node: RowNode, field: string): void;
 }
 
 export interface SortModel {

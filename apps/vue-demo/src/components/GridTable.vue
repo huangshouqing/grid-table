@@ -269,13 +269,18 @@ export default {
             width: 50,
             checkboxSelection: true,
             frozen: true,
-            pinned: 'left'
+            pinned: 'left',
+          },
+          {
+            field: '',
+            headerName: 'ID',
+            width: 50,
+            rowDrag: true,
           },
           {
             field: 'id',
             headerName: 'ID',
             width: 50,
-            rowDrag: true
           },
           {
             field: 'name',
@@ -530,7 +535,6 @@ export default {
         ],
         treeData: true,
         rowSelection: "multiple",
-        enableRowDrag: true,
         minHeight: '300px',
         maxHeight: '300px',
         noDataContent: createNoDataContent(),

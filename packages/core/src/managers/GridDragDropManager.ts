@@ -735,10 +735,20 @@ export class GridDragDropManager {
       (node) => node.rowIndex >= minRowIndex && node.rowIndex <= maxRowIndex
     );
 
+    // 直接更新数据，不通过事件总线
+    const api = this.getApi();
+    
     targetNodes.forEach((node) => {
       if (column.editable !== false) {
+        // 保存旧值
+        const oldValue = node.data[column.field];
+        
+        // 直接更新数据
         node.data[column.field] = value;
         this.getApi().refreshCell({ rowNode: node, column });
+
+        // 使用公开的API方法处理值变更
+        api.processCellValueChange(node, column.field);
       }
     });
   }

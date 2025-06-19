@@ -147,14 +147,7 @@
   border-bottom: 1px solid var(--grid-border-color);
 }
 
-/* Clean separation for pinned columns */
-.grid-pinned-left-container, .grid-pinned-right-container {
-    box-shadow: 2px 0 5px -2px rgba(0, 0, 0, 0.1);
-    z-index: 2;
-}
-.grid-pinned-right-container {
-    box-shadow: -2px 0 5px -2px rgba(0, 0, 0, 0.1);
-}
+
 
 /* Let's remove rules that take away borders, as they are the source of the issue.
    The container border will be the definitive edge. The cells should not touch it. */
@@ -481,9 +474,9 @@
   height: 100%;
   position: relative;
 }
-
-.grid-pinned-left-container,
-.grid-pinned-right-container,
+/* Pinned containers */
+.grid-pinned-left,
+.grid-pinned-right,
 .grid-center-container {
     height: 100%;
     display: flex;
@@ -491,16 +484,17 @@
     overflow: hidden;
     flex-shrink: 0;
 }
-
-.grid-pinned-right-container {
-    border-left: 1px solid var(--grid-border-color);
-}
-
 .grid-center-container {
     flex: 1;
     position: relative;
 }
-
+.grid-pinned-left, .grid-pinned-right {
+  box-shadow: 2px 0 5px -2px rgba(0, 0, 0, 0.1);
+  z-index: 2;
+}
+.grid-pinned-right {
+  box-shadow: -2px 0 5px -2px rgba(0, 0, 0, 0.1);
+}
 /* Column Drag & Drop indicators */
 .grid-header-cell.drop-indicator-left::before,
 .grid-header-cell.drop-indicator-right::after {
