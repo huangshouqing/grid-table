@@ -70,9 +70,7 @@ import { vueAdapter, ratingComponentDefinition, buttonComponentDefinition, delet
 
 export default {
   name: 'GridTable',
-  // 定义组件可以向父组件发送的事件
-  emits: ['data-changed', 'selection-changed', 'grid-ready'],
-  setup(props, { emit }) {
+  setup() {
     const gridContainer = ref(null)
     const treeGridContainer = ref(null)
     let gridInstance = null
@@ -123,68 +121,6 @@ export default {
       container.appendChild(text);
 
       return container;
-    };
-
-    // 设置事件总线，提供给外部组件使用
-    const setupEventBusListeners = (gridInstance) => {
-      const eventBus = gridInstance.getEventBus();
-
-      // 监听所有数据变更事件，便于调试和扩展
-      eventBus.subscribe('gridDataChanged', (event) => {
-        // 根据事件类型执行不同操作
-        switch (event.type) {
-          case 'cellValueChanged':
-            // 单元格值变更 - 更新响应式数据
-            const rowIndex = gridData.value.findIndex(row => row.id === event.nodeId);
-            if (rowIndex >= 0) {
-              gridData.value[rowIndex] = { ...gridData.value[rowIndex] };
-            }
-            break;
-          case 'rowAdded':
-            // 行添加 - 这里可以执行特定操作，如显示通知
-            console.log('【事件总线】新行已添加:', event.data);
-            break;
-
-          case 'rowRemoved':
-            // 行删除 - 可以执行清理操作
-            console.log('【事件总线】行已删除:', event.data);
-            break;
-
-          case 'rowMoved':
-            // 行移动 - 可以更新依赖于行顺序的数据
-            console.log('【事件总线】行已移动:', event.fromIndex, '->', event.toIndex);
-            break;
-
-          case 'dataLoaded':
-            // 数据加载 - 可以执行初始化操作
-            console.log('【事件总线】数据已加载:', event.data.length, '行');
-            break;
-        }
-
-        // 通知父组件数据已变更（跨组件通信示例）
-        emitGridEvent('data-changed', event);
-      });
-
-      // 监听选择变更事件
-      eventBus.subscribe('gridSelectionChanged', (event) => {
-        console.log('【事件总线】选择变更:', event);
-
-        // 通知父组件选择已变更（跨组件通信示例）
-        emitGridEvent('selection-changed', {
-          type: event.type,
-          count: event.selectedNodes.length,
-          selectedIds: event.selectedNodes.map(node => node.id)
-        });
-      });
-
-      return eventBus;
-    };
-
-    // 向父组件发送事件（跨组件通信）
-    const emitGridEvent = (eventName, data) => {
-      console.log(`【跨组件通信】发送事件: ${eventName}`, data);
-      // 使用Vue的emit方法向父组件发送事件
-      emit(eventName, data);
     };
 
     // 生成新行数据
@@ -426,12 +362,6 @@ export default {
       gridInstance = new Grid(options);
       const componentManager = gridInstance.getComponentManager();
 
-      const eventBus = setupEventBusListeners(gridInstance);
-      emit('grid-ready', {
-        gridApi: gridInstance,
-        eventBus: eventBus
-      });
-
       vueAdapter.setDefaultPropsHandler((params) => {
         return {
           ...params,
@@ -452,6 +382,7 @@ export default {
 
     const createTreeGrid = () => {
       const treeData = [
+
         {
           id: "1",
           name: "电子产品",
@@ -482,14 +413,31 @@ export default {
         {
           id: "2",
           name: "家用电器",
-          expanded: false,
+          expanded: true,
           children: [
             {
               id: "2-1",
               name: "厨房电器",
+              expanded: true,
               children: [
                 { id: "2-1-1", name: "微波炉", price: 899, stock: 150 },
                 { id: "2-1-2", name: "电饭煲", price: 499, stock: 200 },
+              ],
+            },
+          ],
+        },
+        {
+          id: "3",
+          name: "家具",
+          expanded: false,
+          children: [
+            {
+              id: "3-1",
+              name: "沙发",
+              expanded: true,
+              children: [
+                { id: "3-1-1", name: "布艺沙发", price: 2899, stock: 45 },
+                { id: "3-1-2", name: "真皮沙发", price: 5499, stock: 30 },
               ],
             },
           ],
@@ -503,6 +451,20 @@ export default {
         container: treeGridContainer.value,
         rowData: treeGridData.value,
         columns: [
+          {
+            field: "checkbox",
+            headerName: "",
+            width: 50,
+            checkboxSelection: true,
+            frozen: true,
+            pinned: 'left',
+          },
+          {
+            field: '',
+            headerName: '',
+            width: 50,
+            rowDrag: true,
+          },
           {
             field: "name",
             headerName: "产品分类",
@@ -531,6 +493,7 @@ export default {
           },
         ],
         treeData: true,
+        childrenPath: 'children',  // 明确指定子节点字段名称
         rowSelection: "multiple",
         minHeight: '300px',
         maxHeight: '300px',

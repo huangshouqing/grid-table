@@ -14,6 +14,7 @@ import {
   CheckboxHeaderRenderer,
   RowDragRenderer,
   TreeCellRenderer,
+  TreeCheckboxCellRenderer
 } from "../components";
 import { GridEditManager } from "../managers/GridEditManager";
 
@@ -610,6 +611,7 @@ export class GridRenderers {
     // 关键修复：在重新渲染前，清空容器以移除所有旧的行
     container.innerHTML = "";
 
+    // 获取经过过滤和排序后的数据
     const data = getFilteredAndSortedData();
     const scrollTop = this.state.scrollPosition.top;
     const containerHeight =
@@ -627,28 +629,35 @@ export class GridRenderers {
       ) + 10
     );
 
-    // console.log(`[renderVisibleRows] container: ${containerId}, total rows: ${data.length}, visible range: ${startIndex}-${endIndex}, container height: ${containerHeight}px, total height: ${data.length * rowHeight}px`);
-
+    // 获取当前可见范围的数据行
     const visibleRows = data.slice(startIndex, endIndex);
     this.state.virtualBodyRowIds.clear();
 
+    // 修复：重新计算实际行位置，确保树形结构下的子节点位置正确
     visibleRows.forEach((row, index) => {
       const rowIndex = startIndex + index;
+      // 使用包含父级信息的唯一ID格式，确保树形结构下子节点被正确定位
       const rowId = `${this.instanceId}-row-${row.id}-${containerId}`;
       this.state.virtualBodyRowIds.add(rowId);
 
-      // 确保删除旧的行元素，避免ID冲突
+      // 删除已存在的行元素，避免ID冲突
       const existingRow = this.virtualDOM.getElement(rowId);
       if (existingRow) {
         existingRow.remove();
       }
 
+      // 创建新行元素
       this.virtualDOM.createElement(rowId, "div", "grid-row");
-
+      
+      // 获取行节点，用于访问层级信息
+      const rowNode = this.rowNodes.get(row.id);
+      
       this.virtualDOM.updateElement(rowId, {
         attributes: {
           "data-row-index": rowIndex.toString(),
           "data-row-id": row.id.toString(),
+          // 添加层级属性，可用于调试和样式
+          "data-level": rowNode && rowNode.level !== undefined ? rowNode.level.toString() : "0",
         },
         styles: {
           top: `${rowIndex * rowHeight}px`,
@@ -669,7 +678,7 @@ export class GridRenderers {
       });
 
       columns.forEach((col) => {
-        // 使用全局唯一的ID格式，不再依赖容器ID
+        // 使用全局唯一的ID格式
         const cellId = `${this.instanceId}_cell_${row.id}_${col.field}`;
 
         // 确保删除旧的单元格元素
@@ -924,8 +933,10 @@ export class GridRenderers {
       rowIndex,
       colId: column.field,
       column,
+      colDef: column,
       api: this.getApiCallback(),
       node,
+      eventBus: this.eventBus,
     });
 
     const treeElement = treeRenderer.getGui();
@@ -978,22 +989,49 @@ export class GridRenderers {
       const node = this.rowNodes.get(row.id || rowIndex);
       if (!node) return true;
 
-      const checkboxRenderer = new CheckboxCellRenderer();
-      checkboxRenderer.init({
-        value: node.selected,
-        data: row,
-        rowIndex,
-        colId: column.field,
-        column,
-        api: this.getApiCallback(),
-        node,
-      });
+      // 检查是否是树形表格模式
+      if (this.options.treeData) {
+        // 在树形表格模式下使用TreeCheckboxCellRenderer
+        const treeCheckboxRenderer = new TreeCheckboxCellRenderer();
+        treeCheckboxRenderer.init({
+          value: node.selected,
+          data: row,
+          rowIndex,
+          colId: column.field,
+          column,
+          colDef: column,
+          api: this.getApiCallback(),
+          node,
+          eventBus: this.eventBus
+        });
 
-      const checkboxElement = checkboxRenderer.getGui();
-      const checkboxContainer = this.virtualDOM.getElement(checkboxContainerId);
-      if (checkboxContainer) {
-        checkboxContainer.innerHTML = "";
-        checkboxContainer.appendChild(checkboxElement);
+        const checkboxElement = treeCheckboxRenderer.getGui();
+        const checkboxContainer = this.virtualDOM.getElement(checkboxContainerId);
+        if (checkboxContainer) {
+          checkboxContainer.innerHTML = "";
+          checkboxContainer.appendChild(checkboxElement);
+        }
+      } else {
+        // 在普通表格模式下使用标准CheckboxCellRenderer
+        const checkboxRenderer = new CheckboxCellRenderer();
+        checkboxRenderer.init({
+          value: node.selected,
+          data: row,
+          rowIndex,
+          colId: column.field,
+          column,
+          colDef: column,
+          api: this.getApiCallback(),
+          node,
+          eventBus: this.eventBus
+        });
+
+        const checkboxElement = checkboxRenderer.getGui();
+        const checkboxContainer = this.virtualDOM.getElement(checkboxContainerId);
+        if (checkboxContainer) {
+          checkboxContainer.innerHTML = "";
+          checkboxContainer.appendChild(checkboxElement);
+        }
       }
 
       this.virtualDOM.appendChild(cellId, checkboxContainerId);
@@ -1027,8 +1065,10 @@ export class GridRenderers {
         rowIndex,
         colId: column.field,
         column,
+        colDef: column,
         api: this.getApiCallback(),
         node,
+        eventBus: this.eventBus
       });
 
       const dragElement = dragRenderer.getGui();

@@ -14,6 +14,7 @@ export interface GridState {
     value: any;
   } | null;
   selectedNodes: Set<string | number>;
+  indeterminateNodes: Set<string | number>;
   sortModel: SortModel[];
   filterModel: Map<string, FilterModel>;
   columnState: Map<

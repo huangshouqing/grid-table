@@ -27,8 +27,8 @@ export interface ComponentParams {
     rowIndex: number;
     colId: string;
     column: Column;
-    colDef?: any;      // 添加colDef属性，兼容IComponentParams
-    eventBus?: any;    // 添加eventBus属性，兼容IComponentParams
+    colDef: any;      // 必需属性，与IComponentParams保持一致
+    eventBus: any;    // 必需属性，与IComponentParams保持一致
     api: GridApi;
     node: RowNode;
     // 编辑器特有参数
@@ -130,8 +130,13 @@ export interface GridApi {
     selectAll(): void;
     deselectAll(): void;
     selectRow(id: string | number, clearOthers?: boolean): void;
+    deselectRow(id: string | number, triggerRefresh?: boolean): void;
     getSelectedNodes(): RowNode[];
     getSelectedRows(): any[];
+    toggleNodeSelection(id: string | number): void;
+    isNodeIndeterminate(id: string | number): boolean;
+    getIndeterminateNodes(): (string | number)[];
+    getVisibleNodes(): RowNode[];
     setSort(sortModel: SortModel[]): void;
     setFilter(columnId: string, filterModel: FilterModel): void;
     setColumnDefs(colDefs: Column[]): void;
@@ -144,22 +149,15 @@ export interface GridApi {
     getFilterModel(): { [key: string]: FilterModel };
     setFilterModel(model: { [key: string]: FilterModel }): void;
     clearFilters(): void;
-    // 新增行操作API
     addRow(data: any, position?: 'top' | 'bottom', autoScroll?: boolean): void;
     removeRow(id: string | number): void;
     moveRow(fromIndex: number, toIndex: number): void;
     refreshCell(params: RefreshCellParams): void;
-    // 添加更新行数据的API
     updateRowData(rowId: string | number, data: any): boolean;
-    // 添加刷新特定行的API
     refreshRow(rowIndex: number): void;
-    // 获取事件总线
     getEventBus(): any;
-    // 获取列定义
     getColumnDefs(): Column[];
-    // 单元格编辑方法
     startEditing(cell: HTMLElement, column: Column, row: any, value: any): void;
-    // 新增用于处理单元格值变更的方法
     processCellValueChange(node: RowNode, field: string): void;
 }
 
@@ -355,6 +353,7 @@ export interface SelectionChangedEvent {
     selectedNodes: RowNode[];
     selectedRows: any[];
     api: GridApi;
+    indeterminateNodes?: (string | number)[];  // 半选状态的节点ID列表
 }
 
 // 行合并参数接口

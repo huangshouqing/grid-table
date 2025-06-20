@@ -103,37 +103,63 @@ export class GridDataManager {
   }
 
   /**
+   * 递归地获取所有可见的节点
+   * @param nodes 要开始遍历的节点列表（通常是根节点）
+   * @returns 返回一个包含所有可见节点的扁平化数组
+   */
+  public getVisibleNodes(nodes: RowNode[]): RowNode[] {
+    const visibleNodes: RowNode[] = [];
+    // 深度优先遍历，确保子节点直接跟在父节点后面
+    for (const node of nodes) {
+      visibleNodes.push(node);
+      // 如果节点已展开并且有子节点，则先处理所有子节点
+      if (node.expanded && node.children && node.children.length > 0) {
+        // 递归获取子节点，并直接添加到父节点后面
+        const childNodes = this.getVisibleNodes(node.children);
+        visibleNodes.push(...childNodes);
+      }
+    }
+    return visibleNodes;
+  }
+
+  /**
    * 获取过滤和排序后的数据
    */
   public getFilteredAndSortedData(): any[] {
     let visibleNodes: RowNode[];
 
-    // 如果是树形数据，先获取所有可见的节点
+    // 如果是树形数据，先获取所有可见的节点，保持树形结构
     if (this.options.treeData) {
+      // 获取所有根节点
       const rootNodes = Array.from(this.rowNodes.values()).filter(node => !node.parent);
-      visibleNodes = this.getVisibleNodes(rootNodes);
-    } else {
-      // 普通数据，所有节点都可见
-      visibleNodes = Array.from(this.rowNodes.values());
-    }
-
-    // 更新可见节点的行索引，确保与原始数据顺序一致
-    if (this.options.rowData && Array.isArray(this.options.rowData)) {
-      // 创建ID到索引的映射
-      const idToIndex = new Map();
-      this.options.rowData.forEach((row, index) => {
-        idToIndex.set(row.id, index);
-      });
       
-      // 按照原始数据顺序排序节点
-      visibleNodes.sort((a, b) => {
-        const indexA = idToIndex.get(a.id) ?? 0;
-        const indexB = idToIndex.get(b.id) ?? 0;
-        return indexA - indexB;
-      });
+      // 获取树形结构下所有可见节点（深度优先顺序）
+      visibleNodes = this.getVisibleNodes(rootNodes);
+
+      // 无需按ID排序，因为我们已经确保了树形结构的正确顺序
+      // 节点顺序现在是：父节点->子节点->子节点->...->下一个父节点
+    } else {
+      // 非树形数据，所有节点都可见
+      visibleNodes = Array.from(this.rowNodes.values());
+
+      // 对于普通数据，我们仍然按照原始数据顺序排序
+      if (this.options.rowData && Array.isArray(this.options.rowData)) {
+        // 创建ID到索引的映射
+        const idToIndex = new Map();
+        this.options.rowData.forEach((row, index) => {
+          idToIndex.set(row.id, index);
+        });
+        
+        // 按照原始数据顺序排序节点
+        visibleNodes.sort((a, b) => {
+          const indexA = idToIndex.get(a.id) ?? 0;
+          const indexB = idToIndex.get(b.id) ?? 0;
+          return indexA - indexB;
+        });
+      }
     }
     
-    // 更新行索引
+    // 更新行索引，确保行索引与视图顺序一致
     visibleNodes.forEach((node, index) => {
       node.rowIndex = index;
     });
@@ -141,17 +167,27 @@ export class GridDataManager {
     // 从可见节点中提取数据
     let result = visibleNodes.map(node => node.data);
 
-    // 应用过滤器和排序器
-    if (this.filterSortManager) {
-      result = this.filterSortManager.applyFilters(result);
-      result = this.filterSortManager.applySort(result);
-    } else {
-      // Fallback to old implementation
-      if (this.state.filterModel.size > 0) {
+    // 应用过滤器和排序器，但对于树形数据我们需要谨慎处理
+    if (this.options.treeData) {
+      // 树形数据中，我们可以应用过滤器但要小心排序（可能破坏层级关系）
+      if (this.filterSortManager) {
+        // 只应用过滤，对于树形数据，排序可能会破坏父子关系
+        result = this.filterSortManager.applyFilters(result);
+      } else if (this.state.filterModel.size > 0) {
         result = this.applyFilters(result);
       }
-      if (this.state.sortModel.length > 0) {
-        result = this.applySort(result);
+    } else {
+      // 非树形数据，正常应用过滤和排序
+      if (this.filterSortManager) {
+        result = this.filterSortManager.applyFilters(result);
+        result = this.filterSortManager.applySort(result);
+      } else {
+        if (this.state.filterModel.size > 0) {
+          result = this.applyFilters(result);
+        }
+        if (this.state.sortModel.length > 0) {
+          result = this.applySort(result);
+        }
       }
     }
 
@@ -231,23 +267,6 @@ export class GridDataManager {
         ? strA.localeCompare(strB)
         : strB.localeCompare(strA);
     });
-  }
-
-  /**
-   * 递归地获取所有可见的节点
-   * @param nodes 要开始遍历的节点列表（通常是根节点）
-   * @returns 返回一个包含所有可见节点的扁平化数组
-   */
-  public getVisibleNodes(nodes: RowNode[]): RowNode[] {
-    const visibleNodes: RowNode[] = [];
-    nodes.forEach(node => {
-      visibleNodes.push(node);
-      // 如果节点已展开并且有子节点，则递归地将子节点添加到可见列表中
-      if (node.expanded && node.children && node.children.length > 0) {
-        visibleNodes.push(...this.getVisibleNodes(node.children));
-      }
-    });
-    return visibleNodes;
   }
 
   /**
@@ -342,7 +361,7 @@ export class GridDataManager {
   }
 
   /**
-   * 更新所有行索引，确保与原始数据顺序一致
+   * 更新所有行的索引
    */
   private updateAllRowIndices(): void {
     if (!Array.isArray(this.options.rowData)) return;
@@ -459,4 +478,4 @@ export class GridDataManager {
     const data = this.getFilteredAndSortedData()[index];
     return data ? this.rowNodes.get(data.id) : undefined;
   }
-} 
+}

@@ -105,6 +105,7 @@ export class Grid implements GridApi {
       },
       editingCell: null,
       selectedNodes: new Set(),
+      indeterminateNodes: new Set(),
       sortModel: [],
       filterModel: new Map(),
       columnState: new Map(
@@ -402,6 +403,82 @@ export class Grid implements GridApi {
   }
 
   /**
+   * 选择指定ID的行
+   * @param id 要选择的行ID
+   * @param clearOthers 是否清除其他已选行
+   */
+  selectRow(id: string | number, clearOthers = true): void {
+    if (clearOthers) {
+      this.deselectAll();
+    }
+    
+    const node = this.rowNodes.get(id);
+    if (node) {
+      node.selected = true;
+      this.state.selectedNodes.add(id);
+      
+      // 树形表格模式下，处理父子节点联动
+      if (this.options.treeData === true) {
+        // 选中节点的所有子节点
+        this.selectChildNodes(node);
+        
+        // 更新父节点状态
+        this.updateParentNodeSelection(node);
+      }
+      
+      // 发布选择变更事件
+      this.eventBus.publish('gridSelectionChanged', {
+        type: 'rowSelected',
+        node: node,
+        data: node.data,
+        selectedNodes: this.getSelectedNodes(),
+        selectedRows: this.getSelectedRows(),
+        indeterminateNodes: Array.from(this.state.indeterminateNodes) // 添加半选节点信息
+      });
+      
+      this.refreshView();
+    }
+  }
+
+  /**
+   * 取消选择指定ID的行
+   * @param id 要取消选择的行ID
+   * @param triggerRefresh 是否触发视图刷新
+   */
+  deselectRow(id: string | number, triggerRefresh: boolean = true): void {
+    const node = this.rowNodes.get(id);
+    if (!node) return;
+    
+    // 更新节点状态
+    node.selected = false;
+    this.state.selectedNodes.delete(id);
+    this.state.indeterminateNodes.delete(id);
+    
+    // 树形表格模式下，处理父子节点联动
+    if (this.options.treeData === true) {
+      // 取消选中节点的所有子节点
+      this.deselectChildNodes(node);
+      
+      // 更新父节点状态
+      this.updateParentNodeSelection(node);
+    }
+
+    // 发布选择变更事件
+    this.eventBus.publish('gridSelectionChanged', {
+      type: 'rowDeselected',
+      node: node,
+      data: node.data,
+      selectedNodes: this.getSelectedNodes(),
+      selectedRows: this.getSelectedRows(),
+      indeterminateNodes: Array.from(this.state.indeterminateNodes)
+    });
+    
+    if (triggerRefresh) {
+      this.refreshView();
+    }
+  }
+
+  /**
    * 选择所有行
    */
   selectAll(): void {
@@ -410,11 +487,15 @@ export class Grid implements GridApi {
       this.state.selectedNodes.add(node.id);
     });
     
+    // 清空半选状态
+    this.state.indeterminateNodes.clear();
+    
     // 发布选择变更事件
     this.eventBus.publish('gridSelectionChanged', {
       type: 'selectAll',
       selectedNodes: this.getSelectedNodes(),
-      selectedRows: this.getSelectedRows()
+      selectedRows: this.getSelectedRows(),
+      indeterminateNodes: [] // 全选时没有半选状态
     });
     
     this.refreshView();
@@ -425,42 +506,171 @@ export class Grid implements GridApi {
    */
   deselectAll(): void {
     this.state.selectedNodes.clear();
+    this.state.indeterminateNodes.clear();
     this.rowNodes.forEach((node) => (node.selected = false));
     
     // 发布选择变更事件
     this.eventBus.publish('gridSelectionChanged', {
       type: 'deselectAll',
       selectedNodes: [],
-      selectedRows: []
+      selectedRows: [],
+      indeterminateNodes: []
     });
     
     this.refreshView();
   }
 
   /**
-   * 选择指定ID的行
-   * @param id 要选择的行ID
-   * @param clearOthers 是否清除其他已选行
+   * 选择节点的所有子节点
+   * @param node 父节点
    */
-  selectRow(id: string | number, clearOthers = true): void {
-    if (clearOthers) {
-      this.deselectAll();
+  private selectChildNodes(node: RowNode): void {
+    if (!node.children || node.children.length === 0) return;
+    
+    for (const child of node.children) {
+      child.selected = true;
+      this.state.selectedNodes.add(child.id);
+      // 递归选择子节点的子节点
+      this.selectChildNodes(child);
     }
+  }
+  
+  /**
+   * 取消选择节点的所有子节点
+   * @param node 父节点
+   */
+  private deselectChildNodes(node: RowNode): void {
+    if (!node.children || node.children.length === 0) return;
+    
+    for (const child of node.children) {
+      child.selected = false;
+      this.state.selectedNodes.delete(child.id);
+      this.state.indeterminateNodes.delete(child.id);
+      // 递归取消选择子节点的子节点
+      this.deselectChildNodes(child);
+    }
+  }
+  
+  /**
+   * 更新父节点的选择状态
+   * @param node 当前操作的节点
+   */
+  private updateParentNodeSelection(node: RowNode): void {
+    if (!node.parent) return;
+    
+    const parent = node.parent;
+    const children = parent.children || [];
+    
+    if (children.length === 0) return;
+    
+    const selectedCount = children.filter(child => child.selected).length;
+    const hasIndeterminate = children.some(child => this.state.indeterminateNodes.has(child.id));
+    
+    // 更新父节点状态
+    if (selectedCount === 0 && !hasIndeterminate) {
+      // 所有子节点都未选中，且没有半选状态的子节点
+      parent.selected = false;
+      this.state.selectedNodes.delete(parent.id);
+      this.state.indeterminateNodes.delete(parent.id);
+    } else if (selectedCount === children.length) {
+      // 所有子节点都已选中
+      parent.selected = true;
+      this.state.selectedNodes.add(parent.id);
+      this.state.indeterminateNodes.delete(parent.id);
+    } else {
+      // 部分子节点选中或有半选状态的子节点，设置为半选状态
+      parent.selected = false; // 半选节点的selected属性为false
+      this.state.selectedNodes.delete(parent.id);
+      this.state.indeterminateNodes.add(parent.id);
+    }
+    
+    // 递归更新更高层级的父节点
+    this.updateParentNodeSelection(parent);
+  }
+  
+  /**
+   * 切换节点的选择状态
+   * @param id 节点ID
+   */
+  toggleNodeSelection(id: string | number): void {
     const node = this.rowNodes.get(id);
-    if (node) {
-      node.selected = true;
-      this.state.selectedNodes.add(id);
-      
-      // 发布选择变更事件
-      this.eventBus.publish('gridSelectionChanged', {
-        type: 'rowSelected',
-        node: node,
-        data: node.data,
-        selectedNodes: this.getSelectedNodes(),
-        selectedRows: this.getSelectedRows()
-      });
-      
-      this.refreshView();
+    if (!node) return;
+    
+    if (node.selected || this.state.indeterminateNodes.has(id)) {
+      // 如果节点已选中或处于半选状态，则取消选择
+      this.deselectRow(id, false); // 不立即刷新视图
+    } else {
+      // 如果节点未选中，则选择它
+      // 不清除其他已选行，保持多选状态
+      this.selectRow(id, false); 
+    }
+    
+    // 最后刷新视图，避免多次刷新
+    this.refreshView();
+  }
+  
+  /**
+   * 获取节点的半选状态
+   * @param id 节点ID
+   * @returns 节点是否处于半选状态
+   */
+  isNodeIndeterminate(id: string | number): boolean {
+    return this.state.indeterminateNodes.has(id);
+  }
+  
+  /**
+   * 获取所有半选状态的节点
+   * @returns 半选状态的节点ID数组
+   */
+  getIndeterminateNodes(): (string | number)[] {
+    return Array.from(this.state.indeterminateNodes);
+  }
+  
+  /**
+   * 获取所有可见的节点
+   * @returns 可见节点数组
+   */
+  getVisibleNodes(): RowNode[] {
+    // 如果是树形数据，获取所有可见的节点
+    if (this.options.treeData) {
+      // 获取所有根节点
+      const rootNodes = Array.from(this.rowNodes.values()).filter(node => !node.parent);
+      // 返回所有可见节点
+      return this.dataManager.getVisibleNodes(rootNodes);
+    } else {
+      // 非树形数据，返回所有节点
+      return Array.from(this.rowNodes.values());
+    }
+  }
+  
+  /**
+   * 局部刷新受影响的行，而不是刷新整个表格
+   * @param startNodeId 变更的起始节点ID
+   */
+  private refreshAffectedRows(startNodeId: string | number): void {
+    const node = this.rowNodes.get(startNodeId);
+    if (!node) return;
+    
+    // 刷新当前节点
+    const cellParams = {
+      rowNode: node,
+      column: this.options.columns.find(col => col.checkboxSelection === true) || this.options.columns[0]
+    };
+    
+    if (cellParams.column) {
+      this.refreshCell(cellParams);
+    }
+    
+    // 刷新子节点
+    if (node.children && node.children.length > 0) {
+      for (const child of node.children) {
+        this.refreshAffectedRows(child.id);
+      }
+    }
+    
+    // 刷新父节点链
+    if (node.parent) {
+      this.refreshAffectedRows(node.parent.id);
     }
   }
 

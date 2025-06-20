@@ -102,14 +102,12 @@ export class GridEventBusHandler {
           // 选择单行，保持其他选择状态
           this.api.selectRow(event.nodeId, !event.maintainOtherSelections);
         } else if (event.action === 'deselect') {
-          // 取消选择单行，但保持其他选择
-          this.api.deselectAll();
-          // 重新选择所有其他已选行
-          if (event.otherSelectedNodeIds && event.otherSelectedNodeIds.length > 0) {
-            event.otherSelectedNodeIds.forEach((nodeId: string | number) => {
-              this.api.selectRow(nodeId, false);
-            });
-          }
+          // 使用新的API，直接取消选择单行，无需deselectAll再重选其他行
+          // 这样可以大幅提高性能，特别是在树形表格中
+          this.api.deselectRow(event.nodeId);
+        } else if (event.action === 'toggle') {
+          // 新增切换选择状态的操作
+          this.api.toggleNodeSelection(event.nodeId);
         }
       } else if (event.type === 'headerCheckboxSelect') {
         if (event.action === 'selectAll') {
