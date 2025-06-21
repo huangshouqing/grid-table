@@ -75,7 +75,6 @@ export default {
     const treeGridContainer = ref(null)
     let gridInstance = null
     let treeGridInstance = null
-    let lastId = 17 // 初始数据最后一个ID是17
     const autoScrollToNewRow = ref(true) // 是否自动滚动到新增行
 
     // 使用响应式数据存储表格数据，便于双向同步
@@ -125,10 +124,8 @@ export default {
 
     // 生成新行数据
     const generateNewRowData = () => {
-      lastId++
       return {
-        id: lastId,
-        name: `产品 ${String.fromCharCode(65 + (lastId % 26))}${lastId}`, // 生成类似 A18, B19 的命名
+        name: `产品 ${String.fromCharCode(65+Math.floor(Math.random() * 26))}${Math.floor(Math.random() * 1000)}`, // 生成类似 A18, B19 的命名
         price: Math.floor(Math.random() * 300) + 50, // 50-350之间的随机价格
         status: ['active', 'inactive', 'pending'][Math.floor(Math.random() * 3)], // 随机状态
         quantity: Math.floor(Math.random() * 70) + 5, // 5-75之间的随机数量
@@ -186,6 +183,34 @@ export default {
         { id: 15, name: '产品 O', price: 350, status: 'active', quantity: 15, rating: 5 },
         { id: 16, name: '产品 P', price: 350, status: 'active', quantity: 15, rating: 3 },
         { id: 17, name: '产品 Q', price: 350, status: 'active', quantity: 15, rating: 4 },
+        { id: 18, name: '产品 R', price: 350, status: 'active', quantity: 15, rating: 2 },
+        { id: 19, name: '产品 S', price: 350, status: 'active', quantity: 15, rating: 5 },
+        { id: 20, name: '产品 T', price: 350, status: 'active', quantity: 15, rating: 3 },
+        { id: 21, name: '产品 U', price: 350, status: 'active', quantity: 15, rating: 4 },
+        { id: 22, name: '产品 V', price: 350, status: 'active', quantity: 15, rating: 2 },
+        { id: 23, name: '产品 W', price: 350, status: 'active', quantity: 15, rating: 5 },
+        { id: 24, name: '产品 X', price: 350, status: 'active', quantity: 15, rating: 3 },  
+        { id: 25, name: '产品 Y', price: 350, status: 'active', quantity: 15, rating: 4 },
+        { id: 26, name: '产品 Z', price: 350, status: 'active', quantity: 15, rating: 2 },
+        { id: 27, name: '产品 AA', price: 350, status: 'active', quantity: 15, rating: 5 },
+        { id: 28, name: '产品 BB', price: 350, status: 'active', quantity: 15, rating: 3 },
+        { id: 29, name: '产品 CC', price: 350, status: 'active', quantity: 15, rating: 4 },
+        { id: 30, name: '产品 DD', price: 350, status: 'active', quantity: 15, rating: 2 },
+        { id: 31, name: '产品 EE', price: 350, status: 'active', quantity: 15, rating: 5 },
+        { id: 32, name: '产品 FF', price: 350, status: 'active', quantity: 15, rating: 3 },
+        { id: 33, name: '产品 GG', price: 350, status: 'active', quantity: 15, rating: 4 },
+        { id: 34, name: '产品 HH', price: 350, status: 'active', quantity: 15, rating: 2 },
+        { id: 35, name: '产品 II', price: 350, status: 'active', quantity: 15, rating: 5 },
+        { id: 36, name: '产品 JJ', price: 350, status: 'active', quantity: 15, rating: 3 },
+        { id: 37, name: '产品 KK', price: 350, status: 'active', quantity: 15, rating: 4 },
+        { id: 38, name: '产品 LL', price: 350, status: 'active', quantity: 15, rating: 2 },
+        { id: 39, name: '产品 MM', price: 350, status: 'active', quantity: 15, rating: 5 },
+        { id: 40, name: '产品 NN', price: 350, status: 'active', quantity: 15, rating: 3 },
+        { id: 41, name: '产品 OO', price: 350, status: 'active', quantity: 15, rating: 4 },
+        { id: 42, name: '产品 PP', price: 350, status: 'active', quantity: 15, rating: 2 },
+        { id: 43, name: '产品 QQ', price: 350, status: 'active', quantity: 15, rating: 5 },
+        { id: 44, name: '产品 RR', price: 350, status: 'active', quantity: 15, rating: 3 },
+        { id: 45, name: '产品 SS', price: 350, status: 'active', quantity: 15, rating: 4 },
       ]
       // 设置响应式数据引用
       gridData.value = [...data];

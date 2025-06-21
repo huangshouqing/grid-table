@@ -223,16 +223,61 @@ export class GridEventBusHandler {
       }
       // 处理列宽调整请求
       else if (event.type === 'columnResizeRequest') {
-        const { colId, width } = event;
+        const { colId, width, scrollPosition } = event;
         if (colId && width) {
           console.log(`处理列宽调整请求: 列=${colId}, 宽度=${width}, 来源=${event.source}`);
+          
+          // 使用事件中传递的滚动位置
+          const savedScrollPosition = scrollPosition || { top: 0, left: 0 };
+          
           // 处理列宽调整
           const columnDefs = this.api.getColumnDefs();
           const column = columnDefs.find(col => col.field === colId);
           if (column) {
             column.width = width;
             this.api.setColumnDefs(columnDefs);
-            this.api.refreshView();
+            
+            // 使用setTimeout延迟刷新，确保滚动位置可以在刷新后恢复
+            setTimeout(() => {
+              this.api.refreshView();
+              
+              // 在视图刷新后恢复滚动位置
+              setTimeout(() => {
+                const gridElement = document.querySelector('.grid-container');
+                if (gridElement) {
+                  const allBodies = gridElement.querySelectorAll('.grid-body');
+                  const centerBody = gridElement.querySelector('.grid-center-container .grid-body');
+                  const centerHeader = gridElement.querySelector('.grid-center-container .grid-header');
+                  
+                  // 恢复垂直滚动位置
+                  if (savedScrollPosition.top > 0) {
+                    allBodies.forEach((body) => {
+                      if (body instanceof HTMLElement) {
+                        body.scrollTop = savedScrollPosition.top;
+                      }
+                    });
+                  }
+                  
+                  // 恢复水平滚动位置
+                  if (savedScrollPosition.left > 0) {
+                    if (centerBody instanceof HTMLElement) {
+                      centerBody.scrollLeft = savedScrollPosition.left;
+                    }
+                    if (centerHeader instanceof HTMLElement) {
+                      centerHeader.scrollLeft = savedScrollPosition.left;
+                    }
+                  }
+                }
+                
+                // 发布列宽变更事件
+                this.eventBus.publish('gridUIChanged', {
+                  type: 'columnResized',
+                  colId,
+                  width,
+                  source: event.source
+                });
+              }, 10);
+            }, 0);
           }
         }
       }

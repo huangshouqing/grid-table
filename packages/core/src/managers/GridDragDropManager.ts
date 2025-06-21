@@ -585,6 +585,13 @@ export class GridDragDropManager {
 
       const newWidth = finalX - startX;
 
+      // 保存当前的滚动位置，以便在列宽改变后恢复
+      const centerBody = this.element.querySelector('.grid-center-container .grid-body') as HTMLElement;
+      const scrollPosition = {
+        top: centerBody?.scrollTop || 0,
+        left: centerBody?.scrollLeft || 0
+      };
+
       // 获取事件总线
       const api = this.getApi();
       const eventBus = api.getEventBus();
@@ -595,7 +602,8 @@ export class GridDragDropManager {
           type: 'columnResizeRequest',
           colId: resizeColumn.field,
           width: Math.max(50, newWidth),
-          source: 'columnResizer'
+          source: 'columnResizer',
+          scrollPosition: scrollPosition
         });
       }
     }
