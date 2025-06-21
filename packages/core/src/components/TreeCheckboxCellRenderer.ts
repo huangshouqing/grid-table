@@ -22,10 +22,25 @@ export class TreeCheckboxCellRenderer implements CellComponent {
         this.element.style.justifyContent = 'center';
         this.element.style.height = '100%';
         
+        // 创建复选框容器，用于添加样式
+        const checkboxContainer = document.createElement('div');
+        checkboxContainer.className = 'grid-tree-checkbox-container';
+        checkboxContainer.style.position = 'relative';
+        checkboxContainer.style.display = 'flex';
+        checkboxContainer.style.alignItems = 'center';
+        checkboxContainer.style.justifyContent = 'center';
+        checkboxContainer.style.width = '18px';
+        checkboxContainer.style.height = '18px';
+        checkboxContainer.style.cursor = 'pointer';
+        checkboxContainer.style.transition = 'background-color 0.2s';
+        checkboxContainer.style.borderRadius = '3px';
+        
         // 创建复选框元素
         this.checkbox = document.createElement('input');
         this.checkbox.type = 'checkbox';
         this.checkbox.className = 'grid-tree-checkbox';
+        this.checkbox.style.margin = '0';
+        this.checkbox.style.cursor = 'pointer';
         
         // 设置复选框状态
         this.updateCheckboxState();
@@ -34,7 +49,17 @@ export class TreeCheckboxCellRenderer implements CellComponent {
         this.checkbox.addEventListener('click', this.onCheckboxClick.bind(this));
         this.checkbox.addEventListener('change', this.onCheckboxChange.bind(this));
         
-        this.element.appendChild(this.checkbox);
+        // 添加悬停效果
+        checkboxContainer.addEventListener('mouseover', () => {
+            checkboxContainer.style.backgroundColor = 'rgba(0, 0, 0, 0.05)';
+        });
+        
+        checkboxContainer.addEventListener('mouseout', () => {
+            checkboxContainer.style.backgroundColor = '';
+        });
+        
+        checkboxContainer.appendChild(this.checkbox);
+        this.element.appendChild(checkboxContainer);
     }
 
     getGui(): HTMLElement {
@@ -64,7 +89,17 @@ export class TreeCheckboxCellRenderer implements CellComponent {
         this.checkbox.checked = node.selected;
         
         // 检查半选状态
-        this.checkbox.indeterminate = api.isNodeIndeterminate(node.id);
+        const isIndeterminate = api.isNodeIndeterminate(node.id);
+        this.checkbox.indeterminate = isIndeterminate;
+        
+        // 添加自定义样式，使半选状态更明显
+        if (isIndeterminate) {
+            this.checkbox.style.opacity = '0.8';
+            this.checkbox.style.boxShadow = '0 0 0 1px rgba(24, 144, 255, 0.5)';
+        } else {
+            this.checkbox.style.opacity = '1';
+            this.checkbox.style.boxShadow = 'none';
+        }
     }
 
     private onCheckboxClick(event: Event): void {
@@ -76,14 +111,10 @@ export class TreeCheckboxCellRenderer implements CellComponent {
 
     private onCheckboxChange(event: Event): void {
         const api = this.params.api;
-        if (!api) return;
+        const node = this.params.node;
         
-        // 使用事件总线发布全选/取消全选事件
-        if (this.checkbox.checked) {
-            api.selectAll();
-        } else {
-            api.deselectAll();
-        }
+        // 切换当前节点的选择状态，而不是全选/全不选
+        api.toggleNodeSelection(node.id);
         
         // Grid 类内部已经处理了滚动位置的保存和恢复
         // 不需要额外的滚动位置处理
@@ -115,16 +146,41 @@ export class TreeCheckboxHeaderRenderer implements CellComponent {
         this.element.style.justifyContent = 'center';
         this.element.style.height = '100%';
 
+        // 创建复选框容器，用于添加样式
+        const checkboxContainer = document.createElement('div');
+        checkboxContainer.className = 'grid-tree-checkbox-container';
+        checkboxContainer.style.position = 'relative';
+        checkboxContainer.style.display = 'flex';
+        checkboxContainer.style.alignItems = 'center';
+        checkboxContainer.style.justifyContent = 'center';
+        checkboxContainer.style.width = '18px';
+        checkboxContainer.style.height = '18px';
+        checkboxContainer.style.cursor = 'pointer';
+        checkboxContainer.style.transition = 'background-color 0.2s';
+        checkboxContainer.style.borderRadius = '3px';
+
         this.checkbox = document.createElement('input');
         this.checkbox.type = 'checkbox';
         this.checkbox.className = 'grid-tree-checkbox-header';
+        this.checkbox.style.margin = '0';
+        this.checkbox.style.cursor = 'pointer';
         
         this.updateCheckboxState();
         
         this.checkbox.addEventListener('click', this.onCheckboxClick.bind(this));
         this.checkbox.addEventListener('change', this.onCheckboxChange.bind(this));
         
-        this.element.appendChild(this.checkbox);
+        // 添加悬停效果
+        checkboxContainer.addEventListener('mouseover', () => {
+            checkboxContainer.style.backgroundColor = 'rgba(0, 0, 0, 0.05)';
+        });
+        
+        checkboxContainer.addEventListener('mouseout', () => {
+            checkboxContainer.style.backgroundColor = '';
+        });
+        
+        checkboxContainer.appendChild(this.checkbox);
+        this.element.appendChild(checkboxContainer);
     }
 
     getGui(): HTMLElement {
@@ -165,6 +221,8 @@ export class TreeCheckboxHeaderRenderer implements CellComponent {
         if (totalNodeCount === 0) {
             this.checkbox.checked = false;
             this.checkbox.indeterminate = false;
+            this.checkbox.style.opacity = '1';
+            this.checkbox.style.boxShadow = 'none';
             return;
         }
         
@@ -172,6 +230,8 @@ export class TreeCheckboxHeaderRenderer implements CellComponent {
         if (selectedNodes.length === totalNodeCount) {
             this.checkbox.checked = true;
             this.checkbox.indeterminate = false;
+            this.checkbox.style.opacity = '1';
+            this.checkbox.style.boxShadow = 'none';
             return;
         }
         
@@ -179,12 +239,16 @@ export class TreeCheckboxHeaderRenderer implements CellComponent {
         if (selectedNodes.length > 0 || indeterminateNodes.length > 0) {
             this.checkbox.checked = false;
             this.checkbox.indeterminate = true;
+            this.checkbox.style.opacity = '0.8';
+            this.checkbox.style.boxShadow = '0 0 0 1px rgba(24, 144, 255, 0.5)';
             return;
         }
         
         // 默认情况：没有选中节点，复选框为未选中状态
         this.checkbox.checked = false;
         this.checkbox.indeterminate = false;
+        this.checkbox.style.opacity = '1';
+        this.checkbox.style.boxShadow = 'none';
     }
     
     private onCheckboxClick(event: Event): void {

@@ -33,9 +33,28 @@ export class TreeCellRenderer implements CellComponent {
         if (this.params.node.children && this.params.node.children.length > 0) {
             const expandButton = document.createElement('div');
             expandButton.className = 'grid-tree-expand-button';
+            expandButton.style.cursor = 'pointer';
+            expandButton.style.width = '20px';
+            expandButton.style.height = '20px';
+            expandButton.style.display = 'flex';
+            expandButton.style.alignItems = 'center';
+            expandButton.style.justifyContent = 'center';
+            expandButton.style.borderRadius = '3px';
+            expandButton.style.transition = 'background-color 0.2s';
+            
+            // 现代化的展开/折叠图标
             expandButton.innerHTML = this.params.node.expanded 
-                ? '<svg width="16" height="16" viewBox="0 0 16 16"><path d="M3 8l5 5 5-5z"/></svg>' 
-                : '<svg width="16" height="16" viewBox="0 0 16 16"><path d="M6 3l5 5-5 5z"/></svg>';
+                ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>' 
+                : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"></polyline></svg>';
+            
+            // 添加悬停效果
+            expandButton.addEventListener('mouseover', () => {
+                expandButton.style.backgroundColor = 'rgba(0, 0, 0, 0.05)';
+            });
+            
+            expandButton.addEventListener('mouseout', () => {
+                expandButton.style.backgroundColor = '';
+            });
             
             expandButton.addEventListener('click', (e: Event) => this.onExpandClick(e));
             this.element.appendChild(expandButton);
@@ -46,19 +65,46 @@ export class TreeCellRenderer implements CellComponent {
             this.element.appendChild(placeholder);
         }
         
-        // 添加"新增子阶"按钮
-        const addChildButton = document.createElement('div');
-        addChildButton.className = 'grid-tree-add-child-button';
-        addChildButton.title = '新增子阶';
-        addChildButton.innerHTML = '<svg width="16" height="16" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="2"/></svg>';
-        addChildButton.addEventListener('click', (e: Event) => this.onAddChildClick(e));
-        this.element.appendChild(addChildButton);
-        
         // 显示单元格内容
         const contentSpan = document.createElement('span');
         contentSpan.className = 'grid-tree-content';
+        contentSpan.style.marginLeft = '8px';
         contentSpan.textContent = this.params.value !== undefined ? this.params.value.toString() : '';
         this.element.appendChild(contentSpan);
+        
+        // 只有当单元格有内容时才显示"新增子阶"按钮
+        const cellValue = this.params.value !== undefined ? this.params.value.toString() : '';
+        if (cellValue && cellValue.trim() !== '') {
+            // 添加"新增子阶"按钮，使用更现代的样式
+            const addChildButton = document.createElement('div');
+            addChildButton.className = 'grid-tree-add-child-button';
+            addChildButton.title = '新增子阶';
+            addChildButton.style.cursor = 'pointer';
+            addChildButton.style.width = '20px';
+            addChildButton.style.height = '20px';
+            addChildButton.style.display = 'flex';
+            addChildButton.style.alignItems = 'center';
+            addChildButton.style.justifyContent = 'center';
+            addChildButton.style.marginLeft = '8px';
+            addChildButton.style.borderRadius = '3px';
+            addChildButton.style.transition = 'background-color 0.2s';
+            addChildButton.style.color = '#1890ff'; // 使用蓝色调
+            
+            // 更现代的加号图标
+            addChildButton.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>';
+            
+            // 添加悬停效果
+            addChildButton.addEventListener('mouseover', () => {
+                addChildButton.style.backgroundColor = 'rgba(24, 144, 255, 0.1)';
+            });
+            
+            addChildButton.addEventListener('mouseout', () => {
+                addChildButton.style.backgroundColor = '';
+            });
+            
+            addChildButton.addEventListener('click', (e: Event) => this.onAddChildClick(e));
+            this.element.appendChild(addChildButton);
+        }
     }
 
     getGui(): HTMLElement {

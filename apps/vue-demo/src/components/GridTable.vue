@@ -496,6 +496,7 @@ export default {
             width: 300,
             cellRenderer: "treeCell",
             treeColumn: true,
+            editable: true,
           },
           {
             field: "price",
