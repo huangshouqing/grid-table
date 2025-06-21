@@ -36,20 +36,56 @@ export class GridDataManager {
   }
 
   /**
-   * 初始化行节点
+   * 保存当前所有节点的展开状态
+   * @returns 节点ID到展开状态的映射
    */
-  public initRowNodes(): void {
+  private saveExpandedState(): Map<string | number, boolean> {
+    const expandedState = new Map<string | number, boolean>();
+    
+    this.rowNodes.forEach((node) => {
+      // 只保存有子节点的节点的展开状态
+      if (node.children && node.children.length > 0) {
+        expandedState.set(node.id, !!node.expanded);
+      }
+    });
+    
+    return expandedState;
+  }
+
+  /**
+   * 恢复节点的展开状态
+   * @param expandedState 节点ID到展开状态的映射
+   */
+  private restoreExpandedState(expandedState: Map<string | number, boolean>): void {
+    this.rowNodes.forEach((node) => {
+      if (expandedState.has(node.id)) {
+        node.expanded = expandedState.get(node.id)!;
+      }
+    });
+  }
+
+  /**
+   * 初始化行节点，可选择保留展开状态
+   * @param preserveExpandedState 是否保留节点的展开状态
+   */
+  public initRowNodes(preserveExpandedState: boolean = true): void {
+    // 保存当前的展开状态
+    const expandedState = preserveExpandedState ? this.saveExpandedState() : new Map();
+    
     this.rowNodes.clear();
     if (Array.isArray(this.options.rowData)) {
       // 在处理树形数据之前，先递归地为所有节点设置初始的展开状态
       // 这确保了即使数据中没有明确提供 `expanded` 属性，我们也能正确处理
       const setInitialExpandedState = (nodes: any[], expanded: boolean) => {
         nodes.forEach(node => {
-          if (node.expanded === undefined) {
+          // 如果有保存的状态，优先使用保存的状态
+          if (preserveExpandedState && expandedState.has(node.id)) {
+            node.expanded = expandedState.get(node.id);
+          } else if (node.expanded === undefined) {
             node.expanded = expanded;
           }
           if (node.children) {
-            // 子节点默认折叠
+            // 子节点默认折叠，除非有保存的状态
             setInitialExpandedState(node.children, false);
           }
         });
@@ -61,6 +97,11 @@ export class GridDataManager {
       }
       
       this.processTreeData(this.options.rowData);
+      
+      // 恢复展开状态
+      if (preserveExpandedState) {
+        this.restoreExpandedState(expandedState);
+      }
     }
   }
 

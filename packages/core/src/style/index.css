@@ -470,6 +470,24 @@
 .grid-tree-expand-button:hover {
     background: #f0f0f0;
 }
+.grid-tree-add-child-button {
+    cursor: pointer;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 3px;
+    margin-right: 4px;
+    color: #999;
+    opacity: 0.5;
+    transition: opacity 0.2s, color 0.2s;
+}
+.grid-tree-add-child-button:hover {
+    background: #f0f0f0;
+    color: var(--primary-color, #1890ff);
+    opacity: 1;
+}
 .grid-tree-content {
     flex: 1;
     overflow: hidden;

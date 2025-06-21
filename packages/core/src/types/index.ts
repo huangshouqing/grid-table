@@ -122,14 +122,14 @@ export interface RowNode {
 }
 
 export interface GridApi {
-    setRowData(data: any[]): void;
+    setRowData(data: any[], preserveExpandedState?: boolean): void;
     getRowNode(id: string | number): RowNode | undefined;
     getDisplayedRowAtIndex(index: number): RowNode | undefined;
     getDisplayedRowCount(): number;
     forEachNode(callback: (node: RowNode, index: number) => void): void;
     selectAll(): void;
     deselectAll(): void;
-    selectRow(id: string | number, clearOthers?: boolean): void;
+    selectRow(id: string | number, clearOthers?: boolean, triggerRefresh?: boolean): void;
     deselectRow(id: string | number, triggerRefresh?: boolean): void;
     getSelectedNodes(): RowNode[];
     getSelectedRows(): any[];
@@ -159,6 +159,8 @@ export interface GridApi {
     getColumnDefs(): Column[];
     startEditing(cell: HTMLElement, column: Column, row: any, value: any): void;
     processCellValueChange(node: RowNode, field: string): void;
+    saveScrollPosition(): void;
+    restoreScrollPosition(): void;
 }
 
 export interface SortModel {

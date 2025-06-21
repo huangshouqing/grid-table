@@ -76,6 +76,10 @@ export class Grid implements GridApi {
   private lastScrollLeft: number = 0;
   private readonly instanceId: string;
 
+  // 在类属性部分添加防抖相关属性
+  private refreshViewTimeout: number | null = null;
+  private pendingRefresh: boolean = false;
+
   /**
    * 辅助方法，用于获取GridApi类型的this引用
    * @returns GridApi实例
@@ -391,10 +395,11 @@ export class Grid implements GridApi {
   /**
    * 设置表格行数据
    * @param data 新的行数据数组
+   * @param preserveExpandedState 是否保留节点的展开状态，默认为true
    */
-  setRowData(data: any[]): void {
+  setRowData(data: any[], preserveExpandedState: boolean = true): void {
     this.options.rowData = data;
-    this.dataManager.initRowNodes();
+    this.dataManager.initRowNodes(preserveExpandedState);
     this.formulaManager.processAllRows();
 
     // 发布数据加载事件
@@ -449,7 +454,7 @@ export class Grid implements GridApi {
    * @param id 要选择的行ID
    * @param clearOthers 是否清除其他已选行
    */
-  selectRow(id: string | number, clearOthers = true): void {
+  selectRow(id: string | number, clearOthers = true, triggerRefresh = true): void {
     if (clearOthers) {
       this.deselectAll();
     }
@@ -477,7 +482,8 @@ export class Grid implements GridApi {
         selectedRows: this.getSelectedRows(),
         indeterminateNodes: Array.from(this.state.indeterminateNodes), // 添加半选节点信息
       });
-
+    }
+    if (triggerRefresh) {
       this.refreshView();
     }
   }
@@ -639,18 +645,18 @@ export class Grid implements GridApi {
   toggleNodeSelection(id: string | number): void {
     const node = this.rowNodes.get(id);
     if (!node) return;
+    
+    // 保存滚动位置，确保在操作过程中不丢失
+    this.saveScrollPosition();
 
     if (node.selected || this.state.indeterminateNodes.has(id)) {
       // 如果节点已选中或处于半选状态，则取消选择
-      this.deselectRow(id, false); // 不立即刷新视图
+      this.deselectRow(id, true); // 触发刷新视图
     } else {
       // 如果节点未选中，则选择它
       // 不清除其他已选行，保持多选状态
-      this.selectRow(id, false);
+      this.selectRow(id, false, true); // 触发刷新视图
     }
-
-    // 最后刷新视图，避免多次刷新
-    this.refreshView();
   }
 
   /**
@@ -904,8 +910,33 @@ export class Grid implements GridApi {
   /**
    * 刷新表格视图
    * 重新渲染整个表格，保持滚动位置
+   * 使用防抖机制避免短时间内多次触发
    */
   refreshView(): void {
+    // 如果已经有待处理的刷新，则不再创建新的定时器
+    if (this.pendingRefresh) return;
+    
+    // 标记有待处理的刷新
+    this.pendingRefresh = true;
+    
+    // 清除之前的定时器
+    if (this.refreshViewTimeout !== null) {
+      window.clearTimeout(this.refreshViewTimeout);
+    }
+    
+    // 创建新的定时器，延迟执行实际的刷新操作
+    this.refreshViewTimeout = window.setTimeout(() => {
+      this.executeRefreshView();
+      this.pendingRefresh = false;
+      this.refreshViewTimeout = null;
+    }, 0);
+  }
+
+  /**
+   * 执行实际的视图刷新操作
+   * 由防抖后的 refreshView 调用
+   */
+  private executeRefreshView(): void {
     if (this.element && this.element.parentElement) {
       // 保存当前滚动位置
       this.saveScrollPosition();
@@ -1064,14 +1095,9 @@ export class Grid implements GridApi {
     const newNode = this.dataManager.addRow(data, position);
 
     if (newNode) {
-      // 如果是树形数据且有父节点，可能需要重新计算聚合公式
-      if (newNode.parent) {
-        const updatedNodes = this.formulaManager.processUpdate(
-          newNode.parent,
-          ""
-        );
-        this.refreshAffectedCells(updatedNodes);
-      }
+      // 使用 processAllRows 处理所有行的公式计算
+      // 这比单独处理某个节点更可靠，尤其是对于树形结构
+      this.formulaManager.processAllRows();
 
       // 完全清理虚拟DOM缓存，确保数据变更正确反映
       this.virtualDOM.clear();
@@ -1214,8 +1240,9 @@ export class Grid implements GridApi {
   /**
    * 保存当前滚动位置
    * 在表格刷新前调用
+   * @public 允许外部组件调用
    */
-  private saveScrollPosition() {
+  public saveScrollPosition() {
     // 专门从中间容器获取滚动位置，因为它同时包含水平和垂直滚动
     const centerBody = this.element.querySelector(
       ".grid-center-container .grid-body"
@@ -1229,8 +1256,9 @@ export class Grid implements GridApi {
   /**
    * 恢复之前保存的滚动位置
    * 在表格刷新后调用
+   * @public 允许外部组件调用
    */
-  private restoreScrollPosition() {
+  public restoreScrollPosition() {
     requestAnimationFrame(() => {
       const allBodies = this.element.querySelectorAll(
         ".grid-body"

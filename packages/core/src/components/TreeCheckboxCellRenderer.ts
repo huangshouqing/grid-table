@@ -31,8 +31,8 @@ export class TreeCheckboxCellRenderer implements CellComponent {
         this.updateCheckboxState();
         
         // 添加事件监听
-        this.checkbox.addEventListener('click', (e: Event) => this.onCheckboxClick(e));
-        this.checkbox.addEventListener('change', (e: Event) => this.onCheckboxChange(e));
+        this.checkbox.addEventListener('click', this.onCheckboxClick.bind(this));
+        this.checkbox.addEventListener('change', this.onCheckboxChange.bind(this));
         
         this.element.appendChild(this.checkbox);
     }
@@ -49,8 +49,8 @@ export class TreeCheckboxCellRenderer implements CellComponent {
 
     destroy(): void {
         // 移除所有事件监听器
-        this.checkbox.removeEventListener('click', (e: Event) => this.onCheckboxClick(e));
-        this.checkbox.removeEventListener('change', (e: Event) => this.onCheckboxChange(e));
+        this.checkbox.removeEventListener('click', this.onCheckboxClick.bind(this));
+        this.checkbox.removeEventListener('change', this.onCheckboxChange.bind(this));
     }
 
     /**
@@ -68,16 +68,25 @@ export class TreeCheckboxCellRenderer implements CellComponent {
     }
 
     private onCheckboxClick(event: Event): void {
-        // 阻止事件冒泡，避免触发行选择
+        // 阻止事件冒泡
         event.stopPropagation();
+        
+        // 不需要手动保存滚动位置，Grid 类内部会处理
     }
 
     private onCheckboxChange(event: Event): void {
         const api = this.params.api;
-        const node = this.params.node;
+        if (!api) return;
         
-        // 直接使用API切换节点选择状态
-        api.toggleNodeSelection(node.id);
+        // 使用事件总线发布全选/取消全选事件
+        if (this.checkbox.checked) {
+            api.selectAll();
+        } else {
+            api.deselectAll();
+        }
+        
+        // Grid 类内部已经处理了滚动位置的保存和恢复
+        // 不需要额外的滚动位置处理
     }
 }
 
@@ -112,8 +121,8 @@ export class TreeCheckboxHeaderRenderer implements CellComponent {
         
         this.updateCheckboxState();
         
-        this.checkbox.addEventListener('click', (e: Event) => this.onCheckboxClick(e));
-        this.checkbox.addEventListener('change', (e: Event) => this.onCheckboxChange(e));
+        this.checkbox.addEventListener('click', this.onCheckboxClick.bind(this));
+        this.checkbox.addEventListener('change', this.onCheckboxChange.bind(this));
         
         this.element.appendChild(this.checkbox);
     }
@@ -128,37 +137,39 @@ export class TreeCheckboxHeaderRenderer implements CellComponent {
     }
 
     destroy(): void {
-        this.checkbox.removeEventListener('click', (e: Event) => this.onCheckboxClick(e));
-        this.checkbox.removeEventListener('change', (e: Event) => this.onCheckboxChange(e));
+        this.checkbox.removeEventListener('click', this.onCheckboxClick.bind(this));
+        this.checkbox.removeEventListener('change', this.onCheckboxChange.bind(this));
     }
 
     /**
      * 更新表头复选框状态
-     * 考虑了树形结构的所有可见节点和半选状态
+     * 考虑了树形结构的所有节点和半选状态
      */
     private updateCheckboxState(): void {
         const api = this.params.api;
         if (!api) return;
         
-        // 获取所有可见节点和已选中节点
-        const visibleNodes = api.getVisibleNodes();
-        const selectedNodes = api.getSelectedNodes();
+        // 获取所有节点数量（包括非可见节点）
+        let totalNodeCount = 0;
+        let allNodes: any[] = [];
+        api.forEachNode((node: any) => {
+            totalNodeCount++;
+            allNodes.push(node);
+        });
         
-        // 获取半选状态的节点
+        // 获取已选中节点和半选状态节点
+        const selectedNodes = api.getSelectedNodes();
         const indeterminateNodes = api.getIndeterminateNodes ? api.getIndeterminateNodes() : [];
         
-        // 计算可见节点总数（不包括半选状态的节点）
-        const visibleCount = visibleNodes.length;
-        
-        // 如果没有可见节点，复选框为未选中状态
-        if (visibleCount === 0) {
+        // 如果没有节点，复选框为未选中状态
+        if (totalNodeCount === 0) {
             this.checkbox.checked = false;
             this.checkbox.indeterminate = false;
             return;
         }
         
-        // 如果所有可见节点都被选中且没有半选状态节点，复选框为全选状态
-        if (selectedNodes.length === visibleCount && indeterminateNodes.length === 0) {
+        // 如果所有节点都被选中，复选框为全选状态
+        if (selectedNodes.length === totalNodeCount) {
             this.checkbox.checked = true;
             this.checkbox.indeterminate = false;
             return;
@@ -179,6 +190,8 @@ export class TreeCheckboxHeaderRenderer implements CellComponent {
     private onCheckboxClick(event: Event): void {
         // 阻止事件冒泡
         event.stopPropagation();
+        
+        // 不需要手动保存滚动位置，Grid 类内部会处理
     }
 
     private onCheckboxChange(event: Event): void {
@@ -191,5 +204,8 @@ export class TreeCheckboxHeaderRenderer implements CellComponent {
         } else {
             api.deselectAll();
         }
+        
+        // Grid 类内部已经处理了滚动位置的保存和恢复
+        // 不需要额外的滚动位置处理
     }
 } 

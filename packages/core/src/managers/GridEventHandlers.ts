@@ -136,7 +136,6 @@ export class GridEventHandlers {
     }
 
     this.logEvent("scroll", { scrollLeft, scrollTop });
-
     // 更新滚动位置
     this.state.scrollPosition = {
       ...this.state.scrollPosition,
